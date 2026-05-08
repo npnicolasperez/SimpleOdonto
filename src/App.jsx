@@ -262,9 +262,9 @@ function MainLayout({ token, usuario, onLogout }) {
         {/* main */}
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {vista === 'dashboard'      && <VistaDashboard usuario={usuario} />}
-          {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} />}
+          {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} />}
           {vista === 'analisis'       && <VistaAnalisis apiFetch={apiFetch} />}
-          {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} />}
+          {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} />}
           {vista === 'obras-sociales' && <VistaObrasSociales apiFetch={apiFetch} />}
           {vista === 'consultorios'   && <VistaConsultorios apiFetch={apiFetch} />}
         </main>
@@ -978,7 +978,7 @@ function EmptyOrError({ cargando, error, empty, msg }) {
 const VACÍO_FORM = { apellido: '', nombre: '', dni: '', fechaNac: '', telefono: '', email: '', direccion: '', obraSocial: '', nroAfiliado: '' }
 const COLS_PAC = [{ label: 'Paciente', w: '2fr' }, { label: 'DNI', w: '1fr' }, { label: 'Teléfono', w: '1fr' }, { label: 'Obra social', w: '1.5fr' }, { label: 'Registrado', w: '1fr' }]
 
-function VistaPacientes({ apiFetch }) {
+function VistaPacientes({ apiFetch, onIrAConsultorios }) {
   const [sub,              setSub]              = useState('lista')
   const [pacienteId,       setPacienteId]       = useState(null)
   const [analisisIdAbierto, setAnalisisIdAbierto] = useState(null)
@@ -990,7 +990,7 @@ function VistaPacientes({ apiFetch }) {
   function abrirAnalisisExistente(id){ setAnalisisIdAbierto(id);   setSub('analisis') }
 
   if (sub === 'lista')    return <ListaPacientes apiFetch={apiFetch} onDetalle={abrirDetalle} />
-  if (sub === 'detalle')  return <DetallePaciente apiFetch={apiFetch} id={pacienteId} onVolver={volver} onNuevoAnalisis={abrirNuevoAnalisis} onAbrirAnalisis={abrirAnalisisExistente} />
+  if (sub === 'detalle')  return <DetallePaciente apiFetch={apiFetch} id={pacienteId} onVolver={volver} onNuevoAnalisis={abrirNuevoAnalisis} onAbrirAnalisis={abrirAnalisisExistente} onIrAConsultorios={onIrAConsultorios} />
   if (sub === 'analisis') return <VistaAnalisis apiFetch={apiFetch} pacienteIdInicial={pacienteId} analisisIdInicial={analisisIdAbierto} onVolver={volverADetalle} />
   return null
 }
@@ -1161,7 +1161,7 @@ function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch }) {
 
 const VACÍO_CO_DET = { consultorioId: '', motivoConsulta: '', practicaRealizada: '', monto: '', tipoPago: 'PARTICULAR' }
 
-function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnalisis }) {
+function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnalisis, onIrAConsultorios }) {
   const [paciente,        setPaciente]        = useState(null)
   const [cargando,        setCargando]        = useState(true)
   const [error,           setError]           = useState(null)
@@ -1179,6 +1179,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnali
   const [analisisList,    setAnalisisList]    = useState([])
   const [cargandoAnal,    setCargandoAnal]    = useState(true)
   const [tab,             setTab]             = useState('historia')
+  const [sinConsultorios, setSinConsultorios] = useState(false)
 
   const cargar = useCallback(async () => {
     setCargando(true); setError(null)
@@ -1213,9 +1214,13 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnali
   useEffect(() => { cargarConsultas() }, [cargarConsultas])
   useEffect(() => { cargarAnalisisPaciente() }, [cargarAnalisisPaciente])
 
-  function abrirNuevaCO() {
+  async function abrirNuevaCO() {
+    const res = await apiFetch('/consultorios')
+    if (!res) return
+    const lista = await res.json()
+    if (!lista.length) { setSinConsultorios(true); return }
+    setConsultorios(lista)
     setFormCO(VACÍO_CO_DET); setErrCO(null)
-    apiFetch('/consultorios').then(r => r?.ok && r.json().then(setConsultorios))
     setPanelNuevaCO(true)
   }
 
@@ -1382,6 +1387,19 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnali
         )}
 
       </div>
+
+      {sinConsultorios && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '32px 36px', maxWidth: 400, width: '90%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <span style={{ fontFamily: T.serif, fontSize: 18, color: T.black, letterSpacing: '0.04em' }}>Sin consultorios registrados</span>
+            <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, lineHeight: 1.5 }}>Para registrar una consulta necesitás tener al menos un consultorio. Podés crearlo desde "Mis consultorios".</span>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+              <Btn variant="outline" onClick={() => setSinConsultorios(false)}>Cancelar</Btn>
+              <Btn onClick={() => { setSinConsultorios(false); onIrAConsultorios?.() }}>Ir a Mis consultorios</Btn>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SidePanel open={panelNuevaCO} onClose={() => setPanelNuevaCO(false)} title="Nueva consulta" width={860}
         footer={<>
@@ -1655,7 +1673,7 @@ const COLS_CO = [
   { label: 'Fecha',       w: '1fr' },
 ]
 
-function VistaConsultas({ apiFetch }) {
+function VistaConsultas({ apiFetch, onIrAConsultorios }) {
   const [items,      setItems]      = useState([])
   const [cargando,   setCargando]   = useState(true)
   const [error,      setError]      = useState(null)
@@ -1663,10 +1681,11 @@ function VistaConsultas({ apiFetch }) {
   const [form,       setForm]       = useState(VACÍO_CO)
   const [guardando,  setGuardando]  = useState(false)
   const [formErr,    setFormErr]    = useState(null)
-  const [buscar,     setBuscar]     = useState('')
-  const [vista,      setVista]      = useState(() => localStorage.getItem('consultas-vista') ?? 'list')
-  const [pacientes,  setPacientes]  = useState([])
-  const [consultorios, setConsultorios] = useState([])
+  const [buscar,        setBuscar]        = useState('')
+  const [vista,         setVista]         = useState(() => localStorage.getItem('consultas-vista') ?? 'list')
+  const [pacientes,     setPacientes]     = useState([])
+  const [consultorios,  setConsultorios]  = useState([])
+  const [sinConsultorios, setSinConsultorios] = useState(false)
 
   function toggleVista(v) { setVista(v); localStorage.setItem('consultas-vista', v) }
 
@@ -1727,7 +1746,14 @@ function VistaConsultas({ apiFetch }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageBar>
         <PageTitle>Consultas</PageTitle>
-        <Btn onClick={() => setPanelOpen(true)}>+ Nueva consulta</Btn>
+        <Btn onClick={async () => {
+          const res = await apiFetch('/consultorios')
+          if (!res) return
+          const lista = await res.json()
+          if (!lista.length) { setSinConsultorios(true); return }
+          setConsultorios(lista)
+          setPanelOpen(true)
+        }}>+ Nueva consulta</Btn>
       </PageBar>
 
       <FilterBar>
@@ -1765,6 +1791,19 @@ function VistaConsultas({ apiFetch }) {
           )
         )}
       </div>
+
+      {sinConsultorios && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '32px 36px', maxWidth: 400, width: '90%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <span style={{ fontFamily: T.serif, fontSize: 18, color: T.black, letterSpacing: '0.04em' }}>Sin consultorios registrados</span>
+            <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, lineHeight: 1.5 }}>Para registrar una consulta necesitás tener al menos un consultorio. Podés crearlo desde "Mis consultorios".</span>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+              <Btn variant="outline" onClick={() => setSinConsultorios(false)}>Cancelar</Btn>
+              <Btn onClick={() => { setSinConsultorios(false); onIrAConsultorios?.() }}>Ir a Mis consultorios</Btn>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SidePanel open={panelOpen} onClose={cerrarPanel} title="Nueva consulta" width={860}
         footer={<>
