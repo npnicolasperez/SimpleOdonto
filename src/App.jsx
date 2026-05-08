@@ -66,7 +66,7 @@ const COLOR_PUNTO  = '#ff3333'
 const COLOR_LINEA  = '#2563eb'
 const COLOR_ANGULO = '#ffffff'
 
-const API_URL = 'http://localhost:8080/api'
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api'
 
 /* ─── design tokens (VendeConIA) ─────────────────────────────── */
 const T = {
