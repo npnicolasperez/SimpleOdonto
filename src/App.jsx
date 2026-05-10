@@ -60,11 +60,12 @@ const HERRAMIENTAS_MEDIR = [
   { key: 'calibrar',      label: 'Calibrar',       Ico: IcoCalibracion  },
 ]
 
-const RADIOS_PUNTO = { 1: 2, 2: 4, 3: 7 }
-const GROSOR_LINEA = 2
-const COLOR_PUNTO  = '#ff3333'
-const COLOR_LINEA  = '#2563eb'
-const COLOR_ANGULO = '#ffffff'
+const RADIOS_PUNTO   = { 1: 2, 2: 4, 3: 7 }
+const GROSOR_LINEA   = 2
+const COLOR_PUNTO    = '#ff3333'
+const COLOR_LINEA    = '#2563eb'
+const COLOR_ANGULO   = '#ffffff'
+const COLORES_PRESET = ['#ff3333', '#2563eb', '#22c55e', '#f59e0b', '#ffffff', '#a855f7', '#f97316']
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api'
 
@@ -210,8 +211,9 @@ export default function App() {
 const NAV_ITEMS = [
   { key: 'dashboard',      label: 'Mis finanzas'      },
   { key: 'pacientes',      label: 'Mis pacientes'     },
-  { key: 'analisis',       label: 'Análisis'          },
-  { key: 'consultas',       label: 'Consultas'         },
+  { key: 'turnos',         label: 'Turnos'            },
+  { key: 'estudios',       label: 'Estudios'          },
+  { key: 'consultas',      label: 'Consultas'         },
   { key: 'obras-sociales', label: 'Mis obras sociales'},
   { key: 'consultorios',   label: 'Mis consultorios'  },
 ]
@@ -263,7 +265,8 @@ function MainLayout({ token, usuario, onLogout }) {
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {vista === 'dashboard'      && <VistaDashboard usuario={usuario} />}
           {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} />}
-          {vista === 'analisis'       && <VistaAnalisis apiFetch={apiFetch} />}
+          {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} />}
+          {vista === 'estudios'       && <VistaEstudios apiFetch={apiFetch} />}
           {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} />}
           {vista === 'obras-sociales' && <VistaObrasSociales apiFetch={apiFetch} />}
           {vista === 'consultorios'   && <VistaConsultorios apiFetch={apiFetch} />}
@@ -547,7 +550,7 @@ function TableHead({ cols, extraCol = true }) {
 
 const FEATURES = [
   { icon: Users,         label: 'Pacientes y odontogramas'              },
-  { icon: ScanLine,      label: 'Análisis de imágenes radiográficas'    },
+  { icon: ScanLine,      label: 'Estudios de imágenes radiográficas'    },
   { icon: ClipboardList, label: 'Historia clínica y consultas'          },
   { icon: Building2,     label: 'Obras sociales y consultorios'         },
 ]
@@ -981,17 +984,17 @@ const COLS_PAC = [{ label: 'Paciente', w: '2fr' }, { label: 'DNI', w: '1fr' }, {
 function VistaPacientes({ apiFetch, onIrAConsultorios }) {
   const [sub,              setSub]              = useState('lista')
   const [pacienteId,       setPacienteId]       = useState(null)
-  const [analisisIdAbierto, setAnalisisIdAbierto] = useState(null)
+  const [estudioIdAbierto, setEstudioIdAbierto] = useState(null)
 
   function abrirDetalle(id)          { setPacienteId(id); setSub('detalle') }
   function volver()                  { setSub('lista'); setPacienteId(null) }
   function volverADetalle()          { setSub('detalle') }
-  function abrirNuevoAnalisis()      { setAnalisisIdAbierto(null); setSub('analisis') }
-  function abrirAnalisisExistente(id){ setAnalisisIdAbierto(id);   setSub('analisis') }
+  function abrirNuevoEstudio()      { setEstudioIdAbierto(null); setSub('estudios') }
+  function abrirEstudioExistente(id){ setEstudioIdAbierto(id);   setSub('estudios') }
 
   if (sub === 'lista')    return <ListaPacientes apiFetch={apiFetch} onDetalle={abrirDetalle} />
-  if (sub === 'detalle')  return <DetallePaciente apiFetch={apiFetch} id={pacienteId} onVolver={volver} onNuevoAnalisis={abrirNuevoAnalisis} onAbrirAnalisis={abrirAnalisisExistente} onIrAConsultorios={onIrAConsultorios} />
-  if (sub === 'analisis') return <VistaAnalisis apiFetch={apiFetch} pacienteIdInicial={pacienteId} analisisIdInicial={analisisIdAbierto} onVolver={volverADetalle} />
+  if (sub === 'detalle')  return <DetallePaciente apiFetch={apiFetch} id={pacienteId} onVolver={volver} onNuevoEstudio={abrirNuevoEstudio} onAbrirEstudio={abrirEstudioExistente} onIrAConsultorios={onIrAConsultorios} />
+  if (sub === 'estudios') return <VistaEstudios apiFetch={apiFetch} pacienteIdInicial={pacienteId} estudioIdInicial={estudioIdAbierto} onVolver={volverADetalle} />
   return null
 }
 
@@ -1161,7 +1164,7 @@ function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch }) {
 
 const VACÍO_CO_DET = { consultorioId: '', motivoConsulta: '', practicaRealizada: '', monto: '', tipoPago: 'PARTICULAR' }
 
-function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnalisis, onIrAConsultorios }) {
+function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudio, onIrAConsultorios }) {
   const [paciente,        setPaciente]        = useState(null)
   const [cargando,        setCargando]        = useState(true)
   const [error,           setError]           = useState(null)
@@ -1176,7 +1179,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnali
   const [guardandoCO,     setGuardandoCO]     = useState(false)
   const [errCO,           setErrCO]           = useState(null)
   const [consultorios,    setConsultorios]    = useState([])
-  const [analisisList,    setAnalisisList]    = useState([])
+  const [estudiosList,    setEstudiosList]    = useState([])
   const [cargandoAnal,    setCargandoAnal]    = useState(true)
   const [tab,             setTab]             = useState('historia')
   const [sinConsultorios, setSinConsultorios] = useState(false)
@@ -1197,22 +1200,22 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnali
     setCargandoCO(false)
   }, [apiFetch, id])
 
-  const cargarAnalisisPaciente = useCallback(async () => {
+  const cargarEstudiosPaciente = useCallback(async () => {
     setCargandoAnal(true)
-    const res = await apiFetch(`/analisis/paciente/${id}`)
-    if (res?.ok) setAnalisisList(await res.json())
+    const res = await apiFetch(`/estudios/paciente/${id}`)
+    if (res?.ok) setEstudiosList(await res.json())
     setCargandoAnal(false)
   }, [apiFetch, id])
 
-  async function handleEliminarAnalisis(analisisId) {
-    if (!confirm('¿Eliminar este análisis?')) return
-    await apiFetch(`/analisis/${analisisId}`, { method: 'DELETE' })
-    cargarAnalisisPaciente()
+  async function handleEliminarEstudio(estudioId) {
+    if (!confirm('¿Eliminar este estudio?')) return
+    await apiFetch(`/estudios/${estudioId}`, { method: 'DELETE' })
+    cargarEstudiosPaciente()
   }
 
   useEffect(() => { cargar() }, [cargar])
   useEffect(() => { cargarConsultas() }, [cargarConsultas])
-  useEffect(() => { cargarAnalisisPaciente() }, [cargarAnalisisPaciente])
+  useEffect(() => { cargarEstudiosPaciente() }, [cargarEstudiosPaciente])
 
   async function abrirNuevaCO() {
     const res = await apiFetch('/consultorios')
@@ -1280,7 +1283,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnali
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px' }}>
           <BackBtn onClick={onVolver} />
           <div style={{ display: 'flex', gap: 8 }}>
-            <Btn variant="outline" onClick={onNuevoAnalisis}>+ Nuevo análisis</Btn>
+            <Btn variant="outline" onClick={onNuevoEstudio}>+ Nuevo estudio</Btn>
             <Btn onClick={abrirNuevaCO}>+ Nueva consulta</Btn>
           </div>
         </div>
@@ -1345,7 +1348,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnali
         {[
           { key: 'historia',    label: 'Historia clínica', count: !cargandoCO ? consultas.length : null },
           { key: 'odontograma', label: 'Odontograma',      count: null },
-          { key: 'analisis',    label: 'Análisis',         count: !cargandoAnal ? analisisList.length : null },
+          { key: 'estudios',    label: 'Estudios',         count: !cargandoAnal ? estudiosList.length : null },
         ].map(({ key, label, count }) => (
           <button key={key} onClick={() => setTab(key)} style={{ padding: '12px 0', marginRight: 32, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', border: 'none', borderBottom: tab === key ? `2px solid ${T.black}` : '2px solid transparent', background: 'none', color: tab === key ? T.black : T.gray5, cursor: 'pointer', fontFamily: T.font, fontWeight: tab === key ? 500 : 400, marginBottom: -1, display: 'flex', alignItems: 'center', gap: 6 }}>
             {label}
@@ -1371,16 +1374,16 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoAnalisis, onAbrirAnali
           </div>
         )}
 
-        {/* tab: análisis */}
-        {tab === 'analisis' && (
+        {/* tab: estudios */}
+        {tab === 'estudios' && (
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 32px' }}>
             {cargandoAnal ? (
               <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font }}>Cargando…</span>
-            ) : analisisList.length === 0 ? (
-              <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font, letterSpacing: '0.04em' }}>Sin análisis registrados</span>
+            ) : estudiosList.length === 0 ? (
+              <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font, letterSpacing: '0.04em' }}>Sin estudios registrados</span>
             ) : (
-              analisisList.map(a => (
-                <AnalisisFilaPaciente key={a.id} a={a} onAbrir={() => onAbrirAnalisis(a.id)} onEliminar={() => handleEliminarAnalisis(a.id)} />
+              estudiosList.map(a => (
+                <EstudioFilaPaciente key={a.id} a={a} onAbrir={() => onAbrirEstudio(a.id)} onEliminar={() => handleEliminarEstudio(a.id)} />
               ))
             )}
           </div>
@@ -1931,7 +1934,7 @@ function ConsultaCard({ a, fmtMonto, fmtTipo }) {
   )
 }
 
-/* ─── VistaAnalisis ──────────────────────────────────────────── */
+/* ─── VistaEstudios ──────────────────────────────────────────── */
 
 const COLS_ANALISIS = [
   { label: 'Nombre',   w: '2fr' },
@@ -1973,11 +1976,11 @@ function desnormalizarTrazos(trazos, w, h, escala) {
   })
 }
 
-function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial = null, onVolver = null }) {
-  const [sub,          setSub]          = useState(onVolver ? (analisisIdInicial ? 'cargando' : 'upload') : 'lista')
+function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = null, onVolver = null }) {
+  const [sub,          setSub]          = useState(onVolver ? (estudioIdInicial ? 'cargando' : 'upload') : 'lista')
   const [lista,        setLista]        = useState([])
   const [cargandoLista,setCargandoLista]= useState(true)
-  const [analisisId,   setAnalisisId]   = useState(null)
+  const [estudioId,   setEstudioId]   = useState(null)
   const [imagen,       setImagen]       = useState(null)
   const [nombre,       setNombre]       = useState('')
   const [herramienta,  setHerramienta]  = useState('punto')
@@ -1989,6 +1992,7 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
   const [borrarHover,   setBorrarHover]   = useState(-1)
   const [escala,        setEscala]        = useState(1)
   const [grosor,        setGrosor]        = useState(1)
+  const [color,         setColor]         = useState('#ff3333')
   const [calibrado,     setCalibrado]     = useState(false)
   const [mouse,         setMouse]         = useState(null)
   const [subiendo,      setSubiendo]      = useState(false)
@@ -1999,14 +2003,17 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
   const [estadoGuardado, setEstadoGuardado] = useState(null)
   const [pendingFile,    setPendingFile]    = useState(null)
   const [nombrePendiente,setNombrePendiente]= useState('')
-  const inputRef      = useRef(null), canvasRef = useRef(null), containerRef = useRef(null)
-  const pendingNormRef = useRef(null)
-  const skipSaveRef   = useRef(false)
-  const debounceRef   = useRef(null)
+  const [descripcion,    setDescripcion]    = useState('')
+  const inputRef        = useRef(null), canvasRef = useRef(null), containerRef = useRef(null)
+  const pendingNormRef  = useRef(null)
+  const skipSaveRef     = useRef(false)
+  const debounceRef     = useRef(null)
+  const descDebounceRef = useRef(null)
+  const latestRef       = useRef({})
 
   const cargarLista = useCallback(async () => {
     setCargandoLista(true)
-    const res = await apiFetch('/analisis')
+    const res = await apiFetch('/estudios')
     if (res?.ok) setLista(await res.json())
     setCargandoLista(false)
   }, [apiFetch])
@@ -2019,10 +2026,10 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
 
   async function confirmarAsignacion() {
     if (!pacSelId) return
-    const det = await apiFetch(`/analisis/${asignandoId}`)
+    const det = await apiFetch(`/estudios/${asignandoId}`)
     if (!det?.ok) return
     const data = await det.json()
-    await apiFetch(`/analisis/${asignandoId}`, {
+    await apiFetch(`/estudios/${asignandoId}`, {
       method: 'PUT',
       body: JSON.stringify({ pacienteId: Number(pacSelId), trazos: data.trazos ?? [], escala: data.escala ?? 1 })
     })
@@ -2033,11 +2040,12 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
   useEffect(() => { if (sub === 'lista') cargarLista() }, [sub, cargarLista])
 
   useEffect(() => {
-    if (!analisisIdInicial) return
-    apiFetch(`/analisis/${analisisIdInicial}`).then(async res => {
+    if (!estudioIdInicial) return
+    apiFetch(`/estudios/${estudioIdInicial}`).then(async res => {
       if (!res?.ok) return
       const data = await res.json()
-      setAnalisisId(data.id); setNombre(data.nombre); setEscala(data.escala ?? 1); setCalibrado((data.escala ?? 1) !== 1)
+      setEstudioId(data.id); setNombre(data.nombre); setEscala(data.escala ?? 1); setCalibrado((data.escala ?? 1) !== 1)
+      setDescripcion(data.descripcion ?? '')
       setImagen(`data:${data.imagenTipo};base64,${data.imagenBase64}`)
       pendingNormRef.current = data.trazos ?? []
       setTrazos([]); setSub('editor')
@@ -2060,32 +2068,33 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
     fd.append('escala', '1')
     if (pacienteIdInicial) fd.append('pacienteId', pacienteIdInicial)
     let res
-    try { res = await apiFetch('/analisis', { method: 'POST', body: fd }) }
+    try { res = await apiFetch('/estudios', { method: 'POST', body: fd }) }
     catch (e) { setSubiendo(false); setErrSubida('No se pudo conectar con el servidor'); return }
     if (!res) { setSubiendo(false); setErrSubida('Tu sesión expiró. Iniciá sesión nuevamente.'); return }
     if (!res.ok) { setSubiendo(false); setErrSubida(`Error al subir la imagen (${res.status})`); return }
     const data = await res.json()
-    setAnalisisId(data.id); setNombre(file.name)
+    setEstudioId(data.id); setNombre(file.name)
     setImagen(URL.createObjectURL(file))
     setTrazos([]); resetInProgress(); setEscala(1); setCalibrado(false)
     setSubiendo(false); setSub('editor')
   }
 
-  async function cargarAnalisis(id) {
-    const res = await apiFetch(`/analisis/${id}`)
+  async function cargarEstudio(id) {
+    const res = await apiFetch(`/estudios/${id}`)
     if (!res?.ok) return
     const data = await res.json()
-    setAnalisisId(data.id); setNombre(data.nombre); setEscala(data.escala ?? 1); setCalibrado((data.escala ?? 1) !== 1)
+    setEstudioId(data.id); setNombre(data.nombre); setEscala(data.escala ?? 1); setCalibrado((data.escala ?? 1) !== 1)
+    setDescripcion(data.descripcion ?? '')
     setImagen(`data:${data.imagenTipo};base64,${data.imagenBase64}`)
     pendingNormRef.current = data.trazos ?? []
     setTrazos([]); resetInProgress(); setSub('editor')
   }
 
   async function handleGuardar() {
-    if (!analisisId) return
+    if (!estudioId) return
     const canvas = canvasRef.current; if (!canvas) return
     setGuardando(true)
-    await apiFetch(`/analisis/${analisisId}`, {
+    await apiFetch(`/estudios/${estudioId}`, {
       method: 'PUT',
       body: JSON.stringify({ trazos: normalizarTrazos(trazos, canvas.width, canvas.height), escala, pacienteId: pacienteIdInicial ?? null })
     })
@@ -2093,15 +2102,15 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
   }
 
   async function handleEliminar(id) {
-    if (!confirm('¿Eliminar este análisis?')) return
-    await apiFetch(`/analisis/${id}`, { method: 'DELETE' })
+    if (!confirm('¿Eliminar este estudio?')) return
+    await apiFetch(`/estudios/${id}`, { method: 'DELETE' })
     cargarLista()
   }
 
   async function handleEliminarDesdeEditor() {
-    if (!analisisId) return
-    if (!confirm('¿Eliminar este análisis? Esta acción no se puede deshacer.')) return
-    await apiFetch(`/analisis/${analisisId}`, { method: 'DELETE' })
+    if (!estudioId) return
+    if (!confirm('¿Eliminar este estudio? Esta acción no se puede deshacer.')) return
+    await apiFetch(`/estudios/${estudioId}`, { method: 'DELETE' })
     if (onVolver) { onVolver() } else { setSub('lista'); setImagen(null); setTrazos([]); resetInProgress() }
   }
 
@@ -2124,7 +2133,7 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
     ctx.drawImage(canvas, 0, 0)
     const a = document.createElement('a')
     a.href = temp.toDataURL('image/png')
-    a.download = `${nombre || 'analisis'}.png`
+    a.download = `${nombre || 'estudios'}.png`
     a.click()
   }
 
@@ -2134,12 +2143,13 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
     let nLong = 0
     for (const [i, t] of trazos.entries()) {
       if (t.tipo === 'punto') {
-        ctx.fillStyle = COLOR_PUNTO; ctx.beginPath(); ctx.arc(t.x, t.y, RADIOS_PUNTO[t.grosor ?? 1], 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = t.color ?? COLOR_PUNTO; ctx.beginPath(); ctx.arc(t.x, t.y, RADIOS_PUNTO[t.grosor ?? 1], 0, Math.PI * 2); ctx.fill()
       } else if (t.tipo === 'linea') {
         const mL = herramienta === 'angulo-lineas' || herramienta === 'longitud'
         const eS = herramienta === 'angulo-lineas' && lineasSel.some(s => s.idx === i)
         const eH = mL && lineaHover === i && !eS
-        ctx.strokeStyle = (eS || eH) ? COLOR_ANGULO : COLOR_LINEA; ctx.fillStyle = (eS || eH) ? COLOR_ANGULO : COLOR_LINEA
+        const cL = t.color ?? COLOR_LINEA
+        ctx.strokeStyle = (eS || eH) ? COLOR_ANGULO : cL; ctx.fillStyle = (eS || eH) ? COLOR_ANGULO : cL
         ctx.lineWidth = eS ? 3 : eH ? 2.5 : GROSOR_LINEA; ctx.globalAlpha = eH ? 0.65 : 1
         ctx.beginPath(); ctx.moveTo(t.x1, t.y1); ctx.lineTo(t.x2, t.y2); ctx.stroke()
         ctx.beginPath(); ctx.arc(t.x1, t.y1, 3, 0, Math.PI * 2); ctx.fill()
@@ -2173,16 +2183,16 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
         const mx = (t.x1 + t.x2) / 2 + nx * 22, my = (t.y1 + t.y2) / 2 + ny * 22
         dibujarEtiqueta(ctx, label, mx - label.length * 4, my + 5)
       } else if (t.tipo === 'circulo') {
-        ctx.strokeStyle = COLOR_LINEA; ctx.fillStyle = COLOR_LINEA; ctx.lineWidth = GROSOR_LINEA; ctx.globalAlpha = 1
+        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.fillStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = GROSOR_LINEA; ctx.globalAlpha = 1
         ctx.beginPath(); ctx.arc(t.cx, t.cy, t.r, 0, Math.PI * 2); ctx.stroke()
         ctx.beginPath(); ctx.arc(t.cx, t.cy, 3, 0, Math.PI * 2); ctx.fill()
       } else if (t.tipo === 'cuadrado') {
-        ctx.strokeStyle = COLOR_LINEA; ctx.lineWidth = GROSOR_LINEA; ctx.globalAlpha = 1
+        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = GROSOR_LINEA; ctx.globalAlpha = 1
         ctx.strokeRect(t.x1, t.y1, t.x2 - t.x1, t.y2 - t.y1)
       }
     }
     if (herramienta === 'linea' && primerPunto) {
-      ctx.strokeStyle = COLOR_LINEA; ctx.fillStyle = COLOR_LINEA; ctx.lineWidth = GROSOR_LINEA
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = GROSOR_LINEA
       ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, RADIOS_PUNTO[1], 0, Math.PI * 2); ctx.fill()
       if (mouse) { ctx.beginPath(); ctx.moveTo(primerPunto.x, primerPunto.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, Math.PI * 2); ctx.fill() }
     }
@@ -2196,12 +2206,12 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
     }
     if (herramienta === 'circulo' && primerPunto && mouse) {
       const r = Math.hypot(mouse.x - primerPunto.x, mouse.y - primerPunto.y)
-      ctx.strokeStyle = COLOR_LINEA; ctx.fillStyle = COLOR_LINEA; ctx.lineWidth = GROSOR_LINEA
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = GROSOR_LINEA
       ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, r, 0, Math.PI * 2); ctx.stroke()
       ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, 3, 0, Math.PI * 2); ctx.fill()
     }
     if (herramienta === 'cuadrado' && primerPunto && mouse) {
-      ctx.strokeStyle = COLOR_LINEA; ctx.lineWidth = GROSOR_LINEA
+      ctx.strokeStyle = color; ctx.lineWidth = GROSOR_LINEA
       ctx.strokeRect(primerPunto.x, primerPunto.y, mouse.x - primerPunto.x, mouse.y - primerPunto.y)
     }
     if (herramienta === 'borrar' && borrarHover !== -1 && trazos[borrarHover]) {
@@ -2215,7 +2225,7 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
       else if (t.tipo === 'cuadrado') { ctx.lineWidth = 6; ctx.strokeRect(Math.min(t.x1, t.x2), Math.min(t.y1, t.y2), Math.abs(t.x2 - t.x1), Math.abs(t.y2 - t.y1)) }
       ctx.restore()
     }
-  }, [trazos, primerPunto, mouse, herramienta, lineasSel, lineaHover, borrarHover])
+  }, [trazos, primerPunto, mouse, herramienta, lineasSel, lineaHover, borrarHover, color])
 
   useEffect(() => { redibujar() }, [redibujar])
   useEffect(() => {
@@ -2235,19 +2245,38 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
   }, [imagen, redibujar, escala])
 
   useEffect(() => {
-    if (!analisisId || !canvasRef.current) return
+    if (!estudioId || !canvasRef.current) return
     if (skipSaveRef.current) { skipSaveRef.current = false; return }
     if (debounceRef.current) clearTimeout(debounceRef.current)
     setEstadoGuardado('guardando')
     const canvas = canvasRef.current
     debounceRef.current = setTimeout(async () => {
-      await apiFetch(`/analisis/${analisisId}`, {
+      await apiFetch(`/estudios/${estudioId}`, {
         method: 'PUT',
-        body: JSON.stringify({ trazos: normalizarTrazos(trazos, canvas.width, canvas.height), escala, pacienteId: pacienteIdInicial ?? null })
+        body: JSON.stringify({ trazos: normalizarTrazos(trazos, canvas.width, canvas.height), escala, pacienteId: pacienteIdInicial ?? null, descripcion: latestRef.current.descripcion ?? '' })
       })
       setEstadoGuardado('guardado')
     }, 600)
   }, [trazos]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    latestRef.current = { trazos, escala, descripcion, estudioId }
+  })
+
+  useEffect(() => {
+    if (!estudioId || !canvasRef.current) return
+    if (descDebounceRef.current) clearTimeout(descDebounceRef.current)
+    setEstadoGuardado('guardando')
+    const canvas = canvasRef.current
+    descDebounceRef.current = setTimeout(async () => {
+      const { trazos: t, escala: esc } = latestRef.current
+      await apiFetch(`/estudios/${estudioId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ trazos: normalizarTrazos(t, canvas.width, canvas.height), escala: esc, pacienteId: pacienteIdInicial ?? null, descripcion })
+      })
+      setEstadoGuardado('guardado')
+    }, 800)
+  }, [descripcion]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function getCoordsFromEvent(e) { const r = canvasRef.current.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top } }
   function lineaCercana(x, y, excluir = []) {
@@ -2257,10 +2286,10 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
   }
   function handleCanvasClick(e) {
     const { x, y } = getCoordsFromEvent(e)
-    if (herramienta === 'punto') { setTrazos(prev => [...prev, { tipo: 'punto', x, y, grosor }]) }
+    if (herramienta === 'punto') { setTrazos(prev => [...prev, { tipo: 'punto', x, y, grosor, color }]) }
     else if (herramienta === 'linea') {
       if (!primerPunto) setPrimerPunto({ x, y })
-      else { setTrazos(prev => [...prev, { tipo: 'linea', x1: primerPunto.x, y1: primerPunto.y, x2: x, y2: y }]); setPrimerPunto(null) }
+      else { setTrazos(prev => [...prev, { tipo: 'linea', x1: primerPunto.x, y1: primerPunto.y, x2: x, y2: y, color }]); setPrimerPunto(null) }
     } else if (herramienta === 'longitud') {
       const idx = lineaCercana(x, y); if (idx === -1) return
       const t = trazos[idx]; const px = Math.hypot(t.x2 - t.x1, t.y2 - t.y1)
@@ -2283,10 +2312,10 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
       } else setLineasSel(nuevasSel)
     } else if (herramienta === 'circulo') {
       if (!primerPunto) setPrimerPunto({ x, y })
-      else { const r = Math.hypot(x-primerPunto.x, y-primerPunto.y); setTrazos(prev => [...prev, { tipo: 'circulo', cx: primerPunto.x, cy: primerPunto.y, rx: x, ry: y, r }]); setPrimerPunto(null) }
+      else { const r = Math.hypot(x-primerPunto.x, y-primerPunto.y); setTrazos(prev => [...prev, { tipo: 'circulo', cx: primerPunto.x, cy: primerPunto.y, rx: x, ry: y, r, color }]); setPrimerPunto(null) }
     } else if (herramienta === 'cuadrado') {
       if (!primerPunto) setPrimerPunto({ x, y })
-      else { setTrazos(prev => [...prev, { tipo: 'cuadrado', x1: primerPunto.x, y1: primerPunto.y, x2: x, y2: y }]); setPrimerPunto(null) }
+      else { setTrazos(prev => [...prev, { tipo: 'cuadrado', x1: primerPunto.x, y1: primerPunto.y, x2: x, y2: y, color }]); setPrimerPunto(null) }
     } else if (herramienta === 'borrar') {
       const idx = trazoCercanoParaBorrar(x, y, trazos); if (idx === -1) return
       setTrazos(prev => prev.filter((_, i) => i !== idx)); setBorrarHover(-1)
@@ -2321,12 +2350,12 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
   const ERASER_CURSOR = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 22 22"><path d="M3 19 L8 19 L19 8 L14 3 L3 14 Z" fill="white" stroke="#444" stroke-width="1.5" stroke-linejoin="round"/><path d="M3 14 L8 9 L13 14 L8 19 L3 19 Z" fill="#fca5a5" stroke="#444" stroke-width="1.5" stroke-linejoin="round"/></svg>')}") 3 19, crosshair`
   const canvasCursor = herramienta === 'borrar' ? ERASER_CURSOR : (herramienta === 'angulo-lineas' || herramienta === 'longitud') ? (lineaHover !== -1 ? 'pointer' : 'default') : 'crosshair'
 
-  // ── CARGANDO análisis existente ──
+  // ── CARGANDO estudio existente ──
   if (sub === 'cargando') return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageBar>
         <BackBtn onClick={onVolver} />
-        <PageTitle>Cargando análisis…</PageTitle>
+        <PageTitle>Cargando estudio…</PageTitle>
       </PageBar>
       <Cargando />
     </div>
@@ -2337,7 +2366,7 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageBar>
         <BackBtn onClick={onVolver} />
-        <PageTitle>Nuevo análisis</PageTitle>
+        <PageTitle>Nuevo estudio</PageTitle>
       </PageBar>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <Upload size={40} strokeWidth={1} color={T.gray5} />
@@ -2359,28 +2388,28 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
   if (sub === 'lista') return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageBar>
-        <PageTitle>Análisis</PageTitle>
+        <PageTitle>Estudios</PageTitle>
         <div>
           <Btn onClick={() => inputRef.current?.click()} disabled={subiendo}>
-            {subiendo ? 'Subiendo…' : '+ Nuevo análisis'}
+            {subiendo ? 'Subiendo…' : '+ Nuevo estudio'}
           </Btn>
           <input ref={inputRef} type="file" accept="image/*" onChange={e => seleccionarArchivo(e.target.files[0])} style={{ display: 'none' }} />
         </div>
       </PageBar>
       <div style={{ flex: 1, overflowY: 'auto' }}>
         <TableHead cols={COLS_ANALISIS} />
-        <EmptyOrError cargando={cargandoLista} error={null} empty={lista.length === 0} msg="No hay análisis guardados" />
+        <EmptyOrError cargando={cargandoLista} error={null} empty={lista.length === 0} msg="No hay estudios guardados" />
         {lista.map(a => (
-          <AnalisisFila key={a.id} a={a} onClick={() => cargarAnalisis(a.id)} onEliminar={() => handleEliminar(a.id)} onAsignar={!a.pacienteApellido ? () => abrirAsignacion(a.id) : null} />
+          <EstudioFila key={a.id} a={a} onClick={() => cargarEstudio(a.id)} onEliminar={() => handleEliminar(a.id)} onAsignar={!a.pacienteApellido ? () => abrirAsignacion(a.id) : null} />
         ))}
       </div>
 
-      {/* Modal nombre análisis */}
+      {/* Modal nombre estudio */}
       {pendingFile && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={e => { if (e.target === e.currentTarget) setPendingFile(null) }}>
           <div style={{ background: T.white, padding: 28, width: 380, display: 'flex', flexDirection: 'column', gap: 20 }}>
-            <span style={{ fontSize: 13, fontFamily: T.font, fontWeight: 500, letterSpacing: '0.06em', color: T.black }}>Nombre del análisis</span>
+            <span style={{ fontSize: 13, fontFamily: T.font, fontWeight: 500, letterSpacing: '0.06em', color: T.black }}>Nombre del estudio</span>
             <div>
               <FieldLabel>Nombre *</FieldLabel>
               <Input
@@ -2465,6 +2494,22 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
             </SideToolGroup>
           ))}
 
+          {/* Color picker — herramientas de dibujo */}
+          {['punto', 'linea', 'circulo', 'cuadrado'].includes(herramienta) && (
+            <div style={{ padding: '4px 14px 10px 14px' }}>
+              <span style={{ fontSize: 8, fontFamily: T.font, color: T.gray4, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Color</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {COLORES_PRESET.map(c => (
+                  <button key={c} onClick={() => setColor(c)}
+                    style={{ width: 22, height: 22, background: c, border: color === c ? `2px solid ${T.black}` : `1px solid ${T.gray2}`, borderRadius: 3, cursor: 'pointer', outline: color === c ? '1px solid #888' : 'none', outlineOffset: 1 }} />
+                ))}
+                <label style={{ width: 22, height: 22, cursor: 'pointer', position: 'relative', border: `1px solid ${T.gray2}`, borderRadius: 3, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'conic-gradient(red,yellow,lime,aqua,blue,magenta,red)', title: 'Color personalizado' }}>
+                  <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* ── Grupo Medir ── */}
           <SideSection label="Medir" top />
           {HERRAMIENTAS_MEDIR.map(({ key, label, Ico }) => {
@@ -2512,6 +2557,24 @@ function VistaAnalisis({ apiFetch, pacienteIdInicial = null, analisisIdInicial =
           <RatioPanel trazos={trazos} />
           <span style={{ position: 'absolute', bottom: 12, right: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: T.font, pointerEvents: 'none' }}>{nombre}</span>
         </div>
+
+        {/* Panel descripción */}
+        <div style={{ width: 260, borderLeft: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', flexShrink: 0, background: T.white }}>
+          <div style={{ padding: '12px 14px 8px', fontSize: 9, fontFamily: T.font, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray5, fontWeight: 600, borderBottom: `1px solid ${T.gray1}` }}>
+            Descripción / Análisis
+          </div>
+          <textarea
+            value={descripcion}
+            onChange={e => setDescripcion(e.target.value)}
+            placeholder="Escribí tus notas, hallazgos o diagnóstico sobre este estudio…"
+            style={{
+              flex: 1, resize: 'none', border: 'none', outline: 'none',
+              padding: '12px 14px', fontFamily: T.font, fontSize: 12,
+              color: T.black, lineHeight: 1.6, letterSpacing: '0.02em',
+              background: T.white,
+            }}
+          />
+        </div>
       </div>
     </div>
   )
@@ -2540,7 +2603,7 @@ function SideToolBtn({ active, onClick, title, disabled, children }) {
   )
 }
 
-function AnalisisFila({ a, onClick, onEliminar, onAsignar }) {
+function EstudioFila({ a, onClick, onEliminar, onAsignar }) {
   const [hov, setHov] = useState(false)
   const [hovT, setHovT] = useState(false)
   return (
@@ -2569,7 +2632,7 @@ function AnalisisFila({ a, onClick, onEliminar, onAsignar }) {
   )
 }
 
-function AnalisisFilaPaciente({ a, onAbrir, onEliminar }) {
+function EstudioFilaPaciente({ a, onAbrir, onEliminar }) {
   const [hov, setHov] = useState(false)
   const [hovX, setHovX] = useState(false)
   return (
@@ -2739,6 +2802,415 @@ function RatioPanel({ trazos }) {
         <span style={{ fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray3 }}>L1 / L2</span>
         <span style={{ fontSize: 20, fontWeight: 700, color: '#16a34a', letterSpacing: '-0.02em' }}>{ratio.toFixed(3)}</span>
       </div>
+    </div>
+  )
+}
+
+/* ─── VistaTurnos ────────────────────────────────────────────── */
+
+const ESTADO_TURNO_COLORS = {
+  PENDIENTE:  { bg: '#fef9c3', border: '#ca8a04', text: '#713f12' },
+  CONFIRMADO: { bg: '#dcfce7', border: '#16a34a', text: '#14532d' },
+  CANCELADO:  { bg: '#fee2e2', border: '#dc2626', text: '#7f1d1d' },
+  REALIZADO:  { bg: '#f0f0f0', border: '#999',    text: '#555'    },
+}
+
+const VACÍO_TURNO = {
+  pacienteId: '',
+  nombrePacienteLibre: '',
+  consultorioId: '',
+  fechaHora: '',
+  duracionMinutos: 30,
+  motivo: '',
+  estado: 'PENDIENTE',
+}
+
+function startOfWeek(date) {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function addDays(date, n) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + n)
+  return d
+}
+
+function toLocalISOString(date) {
+  const pad = n => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`
+}
+
+function formatFechaHoraInput(fechaHora) {
+  if (!fechaHora) return ''
+  const d = new Date(fechaHora)
+  if (isNaN(d)) return ''
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function VistaTurnos({ apiFetch }) {
+  const hoy = new Date()
+  hoy.setHours(0, 0, 0, 0)
+
+  const [semanaInicio,    setSemanaInicio]    = useState(() => startOfWeek(new Date()))
+  const [turnos,          setTurnos]          = useState([])
+  const [cargando,        setCargando]        = useState(true)
+  const [calConectado,    setCalConectado]    = useState(null)
+  const [modalOpen,       setModalOpen]       = useState(false)
+  const [form,            setForm]            = useState(VACÍO_TURNO)
+  const [editId,          setEditId]          = useState(null)
+  const [guardando,       setGuardando]       = useState(false)
+  const [formErr,         setFormErr]         = useState(null)
+  const [pacientes,       setPacientes]       = useState([])
+  const [consultorios,    setConsultorios]    = useState([])
+  const [usarPacienteLib, setUsarPacienteLib] = useState(false)
+
+  const semanaFin = addDays(semanaInicio, 6)
+
+  const cargarTurnos = useCallback(async () => {
+    setCargando(true)
+    const desde = toLocalISOString(semanaInicio)
+    const hasta = toLocalISOString(addDays(semanaFin, 1))
+    const res = await apiFetch(`/turnos?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`)
+    if (res?.ok) setTurnos(await res.json())
+    setCargando(false)
+  }, [apiFetch, semanaInicio])
+
+  const cargarEstadoCal = useCallback(async () => {
+    const res = await apiFetch('/calendar/status')
+    if (res?.ok) {
+      const data = await res.json()
+      setCalConectado(data.conectado)
+    }
+  }, [apiFetch])
+
+  useEffect(() => { cargarTurnos() }, [cargarTurnos])
+  useEffect(() => { cargarEstadoCal() }, [cargarEstadoCal])
+
+  async function cargarFormDeps() {
+    apiFetch('/pacientes?size=200').then(r => r?.ok && r.json().then(d => setPacientes(Array.isArray(d) ? d : (d.content ?? []))))
+    apiFetch('/consultorios').then(r => r?.ok && r.json().then(d => setConsultorios(d)))
+  }
+
+  function abrirNuevo(diaDate) {
+    const d = new Date(diaDate)
+    d.setHours(9, 0, 0, 0)
+    const pad = n => String(n).padStart(2, '0')
+    const fh = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T09:00`
+    setForm({ ...VACÍO_TURNO, fechaHora: fh })
+    setEditId(null)
+    setUsarPacienteLib(false)
+    setFormErr(null)
+    setModalOpen(true)
+    cargarFormDeps()
+  }
+
+  function abrirEditar(turno) {
+    setForm({
+      pacienteId:          turno.pacienteId ?? '',
+      nombrePacienteLibre: turno.nombrePacienteLibre ?? '',
+      consultorioId:       turno.consultorioId ?? '',
+      fechaHora:           formatFechaHoraInput(turno.fechaHora),
+      duracionMinutos:     turno.duracionMinutos ?? 30,
+      motivo:              turno.motivo ?? '',
+      estado:              turno.estado ?? 'PENDIENTE',
+    })
+    setUsarPacienteLib(!turno.pacienteId && !!turno.nombrePacienteLibre)
+    setEditId(turno.id)
+    setFormErr(null)
+    setModalOpen(true)
+    cargarFormDeps()
+  }
+
+  function cerrarModal() { setModalOpen(false); setForm(VACÍO_TURNO); setEditId(null); setFormErr(null) }
+
+  function handleChange(e) {
+    const { name, value } = e.target
+    setForm(f => ({ ...f, [name]: name === 'duracionMinutos' ? Number(value) : value }))
+  }
+
+  async function handleGuardar(e) {
+    e.preventDefault()
+    if (!usarPacienteLib && !form.pacienteId && !form.nombrePacienteLibre.trim()) {
+      setFormErr('Ingresá un paciente o un nombre libre'); return
+    }
+    if (!form.fechaHora) { setFormErr('Ingresá fecha y hora'); return }
+    setFormErr(null); setGuardando(true)
+
+    const body = {
+      pacienteId:          usarPacienteLib ? null : (form.pacienteId ? Number(form.pacienteId) : null),
+      nombrePacienteLibre: usarPacienteLib ? (form.nombrePacienteLibre || null) : null,
+      consultorioId:       form.consultorioId ? Number(form.consultorioId) : null,
+      fechaHora:           form.fechaHora + ':00',
+      duracionMinutos:     Number(form.duracionMinutos),
+      motivo:              form.motivo || null,
+      estado:              form.estado,
+    }
+
+    const res = editId
+      ? await apiFetch(`/turnos/${editId}`, { method: 'PUT',  body: JSON.stringify(body) })
+      : await apiFetch('/turnos',            { method: 'POST', body: JSON.stringify(body) })
+
+    if (!res) { setGuardando(false); return }
+    if (res.ok) { cerrarModal(); cargarTurnos() }
+    else { const err = await res.json().catch(() => null); setFormErr(err?.error || 'Error al guardar') }
+    setGuardando(false)
+  }
+
+  async function handleEliminar() {
+    if (!editId) return
+    setGuardando(true)
+    const res = await apiFetch(`/turnos/${editId}`, { method: 'DELETE' })
+    if (res?.ok || res?.status === 204) { cerrarModal(); cargarTurnos() }
+    else setFormErr('Error al eliminar')
+    setGuardando(false)
+  }
+
+  async function conectarCalendar() {
+    const res = await apiFetch('/calendar/auth-url')
+    if (!res?.ok) return
+    const { url } = await res.json()
+    window.open(url, '_blank')
+  }
+
+  const diasSemana = Array.from({ length: 7 }, (_, i) => addDays(semanaInicio, i))
+  const DIAS_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+  const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+  function turnosDelDia(dia) {
+    return turnos.filter(t => {
+      const td = new Date(t.fechaHora)
+      return td.getFullYear() === dia.getFullYear() &&
+             td.getMonth()    === dia.getMonth()    &&
+             td.getDate()     === dia.getDate()
+    }).sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora))
+  }
+
+  function nombrePaciente(t) {
+    if (t.pacienteNombre) return `${t.pacienteApellido ?? ''} ${t.pacienteNombre}`.trim()
+    return t.nombrePacienteLibre || 'Sin nombre'
+  }
+
+  function formatHora(fechaHora) {
+    const d = new Date(fechaHora)
+    if (isNaN(d)) return ''
+    return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  const fmtRangoSemana = () => {
+    const d1 = diasSemana[0], d7 = diasSemana[6]
+    if (d1.getMonth() === d7.getMonth())
+      return `${d1.getDate()} – ${d7.getDate()} ${MESES[d1.getMonth()]} ${d1.getFullYear()}`
+    return `${d1.getDate()} ${MESES[d1.getMonth()]} – ${d7.getDate()} ${MESES[d7.getMonth()]} ${d7.getFullYear()}`
+  }
+
+  const selectStyle = {
+    height: 36, width: '100%', padding: '0 10px',
+    border: `1px solid ${T.gray1}`, borderRadius: 0,
+    fontFamily: T.font, fontSize: 13, color: T.black,
+    background: T.white, outline: 'none', appearance: 'none',
+  }
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+      {/* top bar */}
+      <PageBar>
+        <PageTitle>Turnos</PageTitle>
+        <Btn onClick={() => abrirNuevo(new Date())}>+ Nuevo turno</Btn>
+      </PageBar>
+
+      {/* calendar connect banner */}
+      {calConectado === false && (
+        <div style={{ background: '#fef9c3', borderBottom: `1px solid #ca8a04`, padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <span style={{ fontSize: 12, fontFamily: T.font, color: '#713f12', flex: 1 }}>
+            Conectá tu Google Calendar para sincronizar turnos automáticamente.
+          </span>
+          <Btn size="sm" onClick={conectarCalendar}>Conectar Google Calendar</Btn>
+        </div>
+      )}
+
+      {/* week navigation */}
+      <div style={{ padding: '10px 24px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <button onClick={() => setSemanaInicio(s => addDays(s, -7))}
+          style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: T.gray4 }}>
+          ‹
+        </button>
+        <button onClick={() => setSemanaInicio(startOfWeek(new Date()))}
+          style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', height: 30, padding: '0 12px', fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray4 }}>
+          Hoy
+        </button>
+        <button onClick={() => setSemanaInicio(s => addDays(s, 7))}
+          style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: T.gray4 }}>
+          ›
+        </button>
+        <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, letterSpacing: '0.04em' }}>{fmtRangoSemana()}</span>
+      </div>
+
+      {/* calendar grid */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}>
+        {cargando ? (
+          <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, background: T.gray1, border: `1px solid ${T.gray1}`, marginTop: 16 }}>
+            {/* day headers */}
+            {diasSemana.map((dia, i) => {
+              const esHoy = dia.getFullYear() === hoy.getFullYear() && dia.getMonth() === hoy.getMonth() && dia.getDate() === hoy.getDate()
+              return (
+                <div key={i} style={{ background: esHoy ? T.black : T.white, padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 10, fontFamily: T.font, letterSpacing: '0.1em', textTransform: 'uppercase', color: esHoy ? T.white : T.gray3 }}>
+                    {DIAS_LABELS[i]}
+                  </span>
+                  <span style={{ fontSize: 13, fontFamily: T.font, fontWeight: 500, color: esHoy ? T.white : T.black }}>
+                    {dia.getDate()}
+                  </span>
+                </div>
+              )
+            })}
+            {/* day cells */}
+            {diasSemana.map((dia, i) => {
+              const dTurnos = turnosDelDia(dia)
+              return (
+                <div
+                  key={`cell-${i}`}
+                  onClick={() => abrirNuevo(dia)}
+                  style={{
+                    background: T.white, minHeight: 120, padding: 6,
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = T.gray2}
+                  onMouseLeave={e => e.currentTarget.style.background = T.white}
+                >
+                  {dTurnos.map(t => {
+                    const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
+                    return (
+                      <div
+                        key={t.id}
+                        onClick={e => { e.stopPropagation(); abrirEditar(t) }}
+                        style={{
+                          background: col.bg, border: `1px solid ${col.border}`,
+                          padding: '3px 6px', cursor: 'pointer',
+                          display: 'flex', flexDirection: 'column', gap: 1,
+                        }}
+                      >
+                        <span style={{ fontSize: 10, fontFamily: T.font, fontWeight: 600, color: col.text }}>
+                          {formatHora(t.fechaHora)}
+                        </span>
+                        <span style={{ fontSize: 11, fontFamily: T.font, color: col.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {nombrePaciente(t)}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* create / edit modal */}
+      {modalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={cerrarModal}>
+          <div style={{ background: T.white, border: `1px solid ${T.gray1}`, width: 520, maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* modal header */}
+            <div style={{ padding: '18px 24px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 500, color: T.black }}>{editId ? 'Editar turno' : 'Nuevo turno'}</span>
+              <button onClick={cerrarModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: T.gray3, lineHeight: 1, padding: 4 }}>×</button>
+            </div>
+
+            {/* modal body */}
+            <form onSubmit={handleGuardar} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+              {/* paciente toggle */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 2 }}>
+                <button type="button" onClick={() => setUsarPacienteLib(false)}
+                  style={{ flex: 1, height: 32, border: `1px solid ${!usarPacienteLib ? T.black : T.gray1}`, background: !usarPacienteLib ? T.black : T.white, color: !usarPacienteLib ? T.white : T.gray4, fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  Paciente registrado
+                </button>
+                <button type="button" onClick={() => setUsarPacienteLib(true)}
+                  style={{ flex: 1, height: 32, border: `1px solid ${usarPacienteLib ? T.black : T.gray1}`, background: usarPacienteLib ? T.black : T.white, color: usarPacienteLib ? T.white : T.gray4, fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  Nombre libre
+                </button>
+              </div>
+
+              {usarPacienteLib ? (
+                <div>
+                  <FieldLabel>Nombre del paciente</FieldLabel>
+                  <Input name="nombrePacienteLibre" value={form.nombrePacienteLibre} onChange={handleChange} placeholder="Nombre y apellido…" />
+                </div>
+              ) : (
+                <div>
+                  <FieldLabel>Paciente</FieldLabel>
+                  <select name="pacienteId" value={form.pacienteId} onChange={handleChange} style={selectStyle}>
+                    <option value="">Seleccionar paciente…</option>
+                    {pacientes.map(p => <option key={p.id} value={p.id}>{p.apellido}, {p.nombre}</option>)}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <FieldLabel>Fecha y hora *</FieldLabel>
+                  <Input type="datetime-local" name="fechaHora" value={form.fechaHora} onChange={handleChange} />
+                </div>
+                <div>
+                  <FieldLabel>Duración (minutos)</FieldLabel>
+                  <select name="duracionMinutos" value={form.duracionMinutos} onChange={handleChange} style={selectStyle}>
+                    {[15, 20, 30, 45, 60, 90, 120].map(m => <option key={m} value={m}>{m} min</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <FieldLabel>Consultorio</FieldLabel>
+                  <select name="consultorioId" value={form.consultorioId} onChange={handleChange} style={selectStyle}>
+                    <option value="">Sin consultorio</option>
+                    {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <FieldLabel>Estado</FieldLabel>
+                  <select name="estado" value={form.estado} onChange={handleChange} style={selectStyle}>
+                    <option value="PENDIENTE">Pendiente</option>
+                    <option value="CONFIRMADO">Confirmado</option>
+                    <option value="CANCELADO">Cancelado</option>
+                    <option value="REALIZADO">Realizado</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <FieldLabel>Motivo</FieldLabel>
+                <Textarea name="motivo" value={form.motivo} onChange={handleChange} rows={3} placeholder="Descripción del turno…" />
+              </div>
+
+              {formErr && <ErrorMsg>{formErr}</ErrorMsg>}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 4 }}>
+                <div>
+                  {editId && (
+                    <Btn variant="destructive" type="button" onClick={handleEliminar} disabled={guardando}>Eliminar</Btn>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <Btn variant="outline" type="button" onClick={cerrarModal} disabled={guardando}>Cancelar</Btn>
+                  <Btn type="submit" disabled={guardando}>{guardando ? 'Guardando…' : editId ? 'Guardar cambios' : 'Crear turno'}</Btn>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
