@@ -236,7 +236,7 @@ function MainLayout({ token, usuario, onLogout }) {
       {/* ── global header ── */}
       <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: `1px solid ${T.black}`, flexShrink: 0, background: T.white, zIndex: 10 }}>
         <span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 400, letterSpacing: '0.15em', color: T.black, textTransform: 'uppercase' }}>
-          SimpleOdonto
+          HelloDoc
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {usuario?.foto && <img src={usuario.foto} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />}
@@ -574,7 +574,7 @@ function VistaLogin({ onLogin }) {
   return (
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: T.white }}>
       <span style={{ fontFamily: T.serif, fontSize: 28, fontWeight: 400, letterSpacing: '0.18em', color: T.black, textTransform: 'uppercase', marginBottom: 8 }}>
-        SimpleOdonto
+        HelloDoc
       </span>
       <span style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5, marginBottom: 52 }}>
         Gestión odontológica profesional
@@ -637,7 +637,7 @@ function VistaCompletarPerfil({ token, onLogin, onLogout }) {
   return (
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
       <span style={{ fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 400, letterSpacing: '0.18em', color: '#111', textTransform: 'uppercase', marginBottom: 8 }}>
-        SimpleOdonto
+        HelloDoc
       </span>
       <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 48 }}>
         Completar perfil profesional
