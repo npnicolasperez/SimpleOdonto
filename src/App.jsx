@@ -239,7 +239,7 @@ function MainLayout({ token, usuario, onLogout }) {
           HelloDoc
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {usuario?.foto && <img src={usuario.foto} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />}
+          {usuario?.foto && <img src={usuario.foto} alt="" referrerPolicy="no-referrer" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />}
           <span style={{ fontFamily: T.font, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4 }}>
             {usuario?.nombre} {usuario?.apellido}
           </span>
@@ -533,6 +533,45 @@ function SidePanel({ open, onClose, title, width = 520, footer, children }) {
   )
 }
 
+/* ─── ConfirmDialog + useConfirm ─────────────────────────────── */
+
+function ConfirmDialog({ message, onConfirm, onCancel, confirmLabel = 'Eliminar' }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onCancel}>
+      <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '28px 32px', maxWidth: 380, width: '90%', display: 'flex', flexDirection: 'column', gap: 20 }}
+        onClick={e => e.stopPropagation()}>
+        <span style={{ fontFamily: T.font, fontSize: 14, color: T.black, lineHeight: 1.5 }}>{message}</span>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <Btn variant="outline" onClick={onCancel}>Cancelar</Btn>
+          <Btn variant="destructive" onClick={onConfirm}>{confirmLabel}</Btn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function useConfirm() {
+  const [cfg, setCfg] = useState(null)
+  const resolveRef = useRef(null)
+
+  function openConfirm(message) {
+    return new Promise(resolve => {
+      resolveRef.current = resolve
+      setCfg({ message })
+    })
+  }
+
+  function handleConfirm() { resolveRef.current?.(true);  setCfg(null) }
+  function handleCancel()  { resolveRef.current?.(false); setCfg(null) }
+
+  const dialog = cfg
+    ? <ConfirmDialog message={cfg.message} onConfirm={handleConfirm} onCancel={handleCancel} />
+    : null
+
+  return { openConfirm, dialog }
+}
+
 /* ─── table components ───────────────────────────────────────── */
 
 function TableHead({ cols, extraCol = true }) {
@@ -708,6 +747,7 @@ function VistaConsultorios({ apiFetch }) {
   const [form,      setForm]      = useState({ nombre: '', direccion: '' })
   const [guardando, setGuardando] = useState(false)
   const [formErr,   setFormErr]   = useState(null)
+  const { openConfirm, dialog }   = useConfirm()
   const [vista,     setVista]     = useState(() => localStorage.getItem('consultorios-vista') ?? 'list')
 
   function toggleVista(v) { setVista(v); localStorage.setItem('consultorios-vista', v) }
@@ -735,7 +775,7 @@ function VistaConsultorios({ apiFetch }) {
   }
 
   async function handleEliminar(id) {
-    if (!confirm('¿Eliminar este consultorio?')) return
+    if (!await openConfirm('¿Eliminar este consultorio?')) return
     const res = await apiFetch(`/consultorios/${id}`, { method: 'DELETE' })
     if (res && res.ok) cargar()
   }
@@ -787,6 +827,7 @@ function VistaConsultorios({ apiFetch }) {
           <ErrorMsg>{formErr}</ErrorMsg>
         </form>
       </SidePanel>
+      {dialog}
     </div>
   )
 }
@@ -828,6 +869,7 @@ function VistaObrasSociales({ apiFetch }) {
   const [guardando, setGuardando] = useState(false)
   const [formErr,   setFormErr]   = useState(null)
   const [buscar,    setBuscar]    = useState('')
+  const { openConfirm, dialog }   = useConfirm()
   const [vista,     setVista]     = useState(() => localStorage.getItem('obras-sociales-vista') ?? 'list')
 
   function toggleVista(v) { setVista(v); localStorage.setItem('obras-sociales-vista', v) }
@@ -857,7 +899,7 @@ function VistaObrasSociales({ apiFetch }) {
   }
 
   async function handleEliminar(id) {
-    if (!confirm('¿Eliminar esta obra social?')) return
+    if (!await openConfirm('¿Eliminar esta obra social?')) return
     const res = await apiFetch(`/obras-sociales/${id}`, { method: 'DELETE' })
     if (res && res.ok) cargar()
   }
@@ -923,6 +965,7 @@ function VistaObrasSociales({ apiFetch }) {
           <ErrorMsg>{formErr}</ErrorMsg>
         </form>
       </SidePanel>
+      {dialog}
     </div>
   )
 }
@@ -1100,15 +1143,17 @@ function ListaPacientes({ apiFetch, onDetalle }) {
 
 function PacienteCard({ paciente: p, onClick, onEliminar, apiFetch }) {
   const [hov, setHov] = useState(false)
+  const { openConfirm, dialog } = useConfirm()
 
   async function handleEliminar(e) {
     e.stopPropagation()
-    if (!confirm(`¿Eliminar a ${p.apellido}, ${p.nombre}?`)) return
+    if (!await openConfirm(`¿Eliminar a ${p.apellido}, ${p.nombre}?`)) return
     const res = await apiFetch(`/pacientes/${p.id}`, { method: 'DELETE' })
     if (res && res.ok) onEliminar()
   }
 
   return (
+    <>
     <div
       onClick={onClick}
       onMouseEnter={() => setHov(true)}
@@ -1128,21 +1173,25 @@ function PacienteCard({ paciente: p, onClick, onEliminar, apiFetch }) {
       {p.telefono && <div style={{ fontSize: 11, color: T.gray4, fontFamily: T.font }}>{p.telefono}</div>}
       {p.obraSocial && <div style={{ fontSize: 10, color: T.gray3, fontFamily: T.font, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{p.obraSocial}</div>}
     </div>
+    {dialog}
+    </>
   )
 }
 
 function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch }) {
   const [hov,  setHov]  = useState(false)
   const [hovT, setHovT] = useState(false)
+  const { openConfirm, dialog } = useConfirm()
 
   async function handleEliminar(e) {
     e.stopPropagation()
-    if (!confirm(`¿Eliminar a ${p.apellido}, ${p.nombre}?`)) return
+    if (!await openConfirm(`¿Eliminar a ${p.apellido}, ${p.nombre}?`)) return
     const res = await apiFetch(`/pacientes/${p.id}`, { method: 'DELETE' })
     if (res && res.ok) onEliminar()
   }
 
   return (
+    <>
     <div
       onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1.5fr 1fr 40px', padding: '0 24px', minHeight: 50, alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: hov ? T.gray2 : T.white, cursor: 'pointer', transition: 'background 0.1s' }}
@@ -1157,6 +1206,8 @@ function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch }) {
         ✕
       </button>
     </div>
+    {dialog}
+    </>
   )
 }
 
@@ -1174,6 +1225,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
   const [editErr,         setEditErr]         = useState(null)
   const [consultas,       setConsultas]       = useState([])
   const [cargandoCO,      setCargandoCO]      = useState(true)
+  const { openConfirm, dialog }               = useConfirm()
   const [panelNuevaCO,    setPanelNuevaCO]    = useState(false)
   const [formCO,          setFormCO]          = useState(VACÍO_CO_DET)
   const [guardandoCO,     setGuardandoCO]     = useState(false)
@@ -1208,7 +1260,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
   }, [apiFetch, id])
 
   async function handleEliminarEstudio(estudioId) {
-    if (!confirm('¿Eliminar este estudio?')) return
+    if (!await openConfirm('¿Eliminar este estudio?')) return
     await apiFetch(`/estudios/${estudioId}`, { method: 'DELETE' })
     cargarEstudiosPaciente()
   }
@@ -1471,6 +1523,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
           <ErrorMsg>{editErr}</ErrorMsg>
         </form>
       </SidePanel>
+      {dialog}
     </div>
   )
 }
@@ -2010,6 +2063,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   const debounceRef     = useRef(null)
   const descDebounceRef = useRef(null)
   const latestRef       = useRef({})
+  const { openConfirm, dialog: confirmDialog } = useConfirm()
 
   const cargarLista = useCallback(async () => {
     setCargandoLista(true)
@@ -2102,14 +2156,14 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   }
 
   async function handleEliminar(id) {
-    if (!confirm('¿Eliminar este estudio?')) return
+    if (!await openConfirm('¿Eliminar este estudio?')) return
     await apiFetch(`/estudios/${id}`, { method: 'DELETE' })
     cargarLista()
   }
 
   async function handleEliminarDesdeEditor() {
     if (!estudioId) return
-    if (!confirm('¿Eliminar este estudio? Esta acción no se puede deshacer.')) return
+    if (!await openConfirm('¿Eliminar este estudio? Esta acción no se puede deshacer.')) return
     await apiFetch(`/estudios/${estudioId}`, { method: 'DELETE' })
     if (onVolver) { onVolver() } else { setSub('lista'); setImagen(null); setTrazos([]); resetInProgress() }
   }
@@ -2381,6 +2435,30 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         </Btn>
         <input ref={inputRef} type="file" accept="image/*" onChange={e => seleccionarArchivo(e.target.files[0])} style={{ display: 'none' }} />
       </div>
+
+      {pendingFile && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={e => { if (e.target === e.currentTarget) setPendingFile(null) }}>
+          <div style={{ background: T.white, padding: 28, width: 380, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <span style={{ fontSize: 13, fontFamily: T.font, fontWeight: 500, letterSpacing: '0.06em', color: T.black }}>Nombre del estudio</span>
+            <div>
+              <FieldLabel>Nombre *</FieldLabel>
+              <Input
+                autoFocus
+                value={nombrePendiente}
+                onChange={e => setNombrePendiente(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && nombrePendiente.trim()) procesarArchivo(pendingFile, nombrePendiente.trim()) }}
+              />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Btn variant="outline" onClick={() => { setPendingFile(null); if (inputRef.current) inputRef.current.value = '' }}>Cancelar</Btn>
+              <Btn disabled={!nombrePendiente.trim() || subiendo} onClick={() => procesarArchivo(pendingFile, nombrePendiente.trim())}>
+                {subiendo ? 'Subiendo…' : 'Continuar'}
+              </Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 
@@ -2449,6 +2527,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
           </div>
         </div>
       )}
+      {confirmDialog}
     </div>
   )
 
@@ -2557,6 +2636,8 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
           <RatioPanel trazos={trazos} />
           <span style={{ position: 'absolute', bottom: 12, right: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: T.font, pointerEvents: 'none' }}>{nombre}</span>
         </div>
+
+        {confirmDialog}
 
         {/* Panel descripción */}
         <div style={{ width: 260, borderLeft: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', flexShrink: 0, background: T.white }}>
