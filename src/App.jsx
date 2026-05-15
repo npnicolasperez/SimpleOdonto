@@ -69,20 +69,21 @@ const COLORES_PRESET = ['#ff3333', '#2563eb', '#22c55e', '#f59e0b', '#ffffff', '
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api'
 
-/* ─── design tokens (VendeConIA) ─────────────────────────────── */
+/* ─── design tokens ──────────────────────────────────────────── */
 const T = {
-  font:    'Inter, sans-serif',
+  font:    "'DM Sans', sans-serif",
+  mono:    "'DM Mono', monospace",
   serif:   "'Playfair Display', serif",
-  black:   '#000',
-  white:   '#fff',
-  gray1:   '#e8e8e8',   // borders, inputs
-  gray2:   '#f5f5f5',   // hover rows, secondary bg
-  gray3:   '#999',      // muted text, inactive nav
-  gray4:   '#555',      // secondary text
-  gray5:   '#bbb',      // placeholder, very muted
-  gray6:   '#ccc',      // disabled
-  gray7:   '#f0f0f0',   // lightest dividers
-  red:     '#cc0000',   // destructive
+  black:   '#111111',
+  white:   '#ffffff',
+  gray1:   '#e0e0dc',   // --border
+  gray2:   '#f6f6f4',   // --surface
+  gray3:   '#888888',   // --muted
+  gray4:   '#555555',
+  gray5:   '#aaaaaa',
+  gray6:   '#cccccc',
+  gray7:   '#eeeeec',   // --surface-2
+  red:     '#cc0000',
 }
 
 /* ─── math helpers ───────────────────────────────────────────── */
@@ -234,8 +235,8 @@ function MainLayout({ token, usuario, onLogout }) {
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', background: T.white, overflow: 'hidden' }}>
 
       {/* ── global header ── */}
-      <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: `1px solid ${T.black}`, flexShrink: 0, background: T.white, zIndex: 10 }}>
-        <span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 400, letterSpacing: '0.15em', color: T.black, textTransform: 'uppercase' }}>
+      <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0, background: T.white, zIndex: 10 }}>
+        <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>
           HelloDoc
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -284,16 +285,17 @@ function NavItem({ label, active, onClick }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        display: 'block', width: '100%', textAlign: 'left',
-        padding: '10px 20px',
-        fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase',
-        fontFamily: T.font, fontWeight: active ? 500 : 400,
+        display: 'block', width: 'calc(100% - 12px)', textAlign: 'left',
+        marginLeft: 6, marginRight: 6, marginBottom: 2,
+        padding: '8px 14px',
+        fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase',
+        fontFamily: T.font, fontWeight: active ? 600 : 400,
         border: 'none',
-        borderLeft: active ? `1px solid ${T.black}` : '1px solid transparent',
-        background: 'none',
-        color: active ? T.black : hov ? T.black : T.gray3,
+        borderRadius: 6,
+        background: active ? T.black : hov ? T.gray7 : 'none',
+        color: active ? T.white : hov ? T.black : T.gray3,
         cursor: 'pointer',
-        transition: 'color 0.15s, border-color 0.15s',
+        transition: 'all 0.15s',
       }}
     >
       {label}
@@ -326,11 +328,12 @@ function Btn({ variant = 'default', size = 'default', fullWidth = false, disable
       onMouseLeave={() => setHov(false)}
       style={{
         height: h, padding: `0 ${px}px`,
-        fontSize: fs, fontFamily: T.font, fontWeight: 500,
-        letterSpacing: '0.15em', textTransform: 'uppercase',
-        background: disabled ? T.gray2 : s.bg,
+        fontSize: fs, fontFamily: T.font, fontWeight: 600,
+        letterSpacing: '0.06em', textTransform: 'uppercase',
+        background: disabled ? T.gray7 : s.bg,
         color: disabled ? T.gray3 : s.color,
         border: `1px solid ${disabled ? T.gray1 : s.border}`,
+        borderRadius: 6,
         cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'all 0.15s',
         width: fullWidth ? '100%' : undefined,
@@ -354,7 +357,7 @@ function Badge({ variant = 'default', children }) {
   }
   const s = styles[variant] || styles.default
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 10px', fontSize: 10, fontFamily: T.font, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 10px', fontSize: 10, fontFamily: T.mono, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', background: s.bg, color: s.color, border: `1px solid ${s.border}`, borderRadius: 100 }}>
       {children}
     </span>
   )
@@ -374,6 +377,7 @@ function Input({ style: extraStyle, ...props }) {
         border: `1px solid ${foc ? T.black : T.gray1}`,
         outline: 'none', background: T.white,
         fontSize: 13, fontFamily: T.font, color: T.black,
+        borderRadius: 6,
         boxSizing: 'border-box',
         transition: 'border-color 0.15s',
         ...extraStyle,
@@ -394,6 +398,7 @@ function Textarea({ style: extraStyle, ...props }) {
         border: `1px solid ${foc ? T.black : T.gray1}`,
         outline: 'none', background: T.white,
         fontSize: 13, fontFamily: T.font, color: T.black,
+        borderRadius: 6,
         boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5,
         transition: 'border-color 0.15s',
         ...extraStyle,
@@ -404,7 +409,7 @@ function Textarea({ style: extraStyle, ...props }) {
 
 function FieldLabel({ children }) {
   return (
-    <label style={{ fontSize: 10, fontFamily: T.font, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray4, display: 'block', marginBottom: 6 }}>
+    <label style={{ fontSize: 10, fontFamily: T.mono, fontWeight: 400, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, display: 'block', marginBottom: 6 }}>
       {children}
     </label>
   )
@@ -412,7 +417,7 @@ function FieldLabel({ children }) {
 
 function SectionTitle({ children }) {
   return (
-    <p style={{ margin: '0 0 16px', fontSize: 10, fontFamily: T.font, fontWeight: 500, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray3, borderBottom: `1px solid ${T.gray1}`, paddingBottom: 8 }}>
+    <p style={{ margin: '0 0 16px', fontSize: 10, fontFamily: T.mono, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray3, borderBottom: `1px solid ${T.gray1}`, paddingBottom: 8 }}>
       {children}
     </p>
   )
@@ -431,7 +436,7 @@ function ErrorMsg({ children }) {
 
 function PageBar({ children }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', padding: '0 24px', height: 52, borderBottom: `1px solid ${T.black}`, flexShrink: 0, gap: 12 }}>
+    <div style={{ display: 'flex', alignItems: 'center', padding: '0 24px', height: 52, borderBottom: `1px solid ${T.gray1}`, flexShrink: 0, gap: 12 }}>
       {children}
     </div>
   )
@@ -439,7 +444,7 @@ function PageBar({ children }) {
 
 function PageTitle({ children }) {
   return (
-    <span style={{ fontFamily: T.serif, fontSize: 18, fontWeight: 400, letterSpacing: '0.05em', color: T.black, flex: 1, textTransform: 'uppercase' }}>
+    <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', color: T.black, flex: 1 }}>
       {children}
     </span>
   )
@@ -459,7 +464,7 @@ function FilterBar({ children }) {
 
 function ViewToggle({ vista, onToggle }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, flexShrink: 0, borderRadius: 6, overflow: 'hidden' }}>
       {[
         { key: 'list', Icon: LayoutList, title: 'Vista lista' },
         { key: 'grid', Icon: LayoutGrid, title: 'Vista tarjetas' },
@@ -509,10 +514,11 @@ function SidePanel({ open, onClose, title, width = 520, footer, children }) {
         display: 'flex', flexDirection: 'column',
         transform: open ? 'translateX(0)' : `translateX(${width}px)`,
         transition: 'transform 0.3s ease',
-        boxShadow: '-4px 0 24px rgba(0,0,0,0.08)',
+        boxShadow: '-8px 0 32px rgba(0,0,0,0.08)',
+        borderRadius: '12px 0 0 12px',
       }}>
         <div style={{ padding: '20px 24px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 500, color: T.black }}>{title}</span>
+          <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 600, color: T.black }}>{title}</span>
           <button
             onClick={onClose}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.gray3, display: 'flex', alignItems: 'center', padding: 4, fontSize: 22, lineHeight: 1 }}
@@ -539,7 +545,7 @@ function ConfirmDialog({ message, onConfirm, onCancel, confirmLabel = 'Eliminar'
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={onCancel}>
-      <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '28px 32px', maxWidth: 380, width: '90%', display: 'flex', flexDirection: 'column', gap: 20 }}
+      <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '28px 32px', maxWidth: 380, width: '90%', display: 'flex', flexDirection: 'column', gap: 20, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}
         onClick={e => e.stopPropagation()}>
         <span style={{ fontFamily: T.font, fontSize: 14, color: T.black, lineHeight: 1.5 }}>{message}</span>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -578,7 +584,7 @@ function TableHead({ cols, extraCol = true }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: `${cols.map(c => c.w || '1fr').join(' ')}${extraCol ? ' 40px' : ''}`, padding: '0 24px', height: 40, alignItems: 'center', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
       {cols.map(c => (
-        <span key={c.label} style={{ fontSize: 10, fontFamily: T.font, fontWeight: 500, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3 }}>{c.label}</span>
+        <span key={c.label} style={{ fontSize: 10, fontFamily: T.mono, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray3 }}>{c.label}</span>
       ))}
       {extraCol && <span />}
     </div>
@@ -612,10 +618,10 @@ function VistaLogin({ onLogin }) {
 
   return (
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: T.white }}>
-      <span style={{ fontFamily: T.serif, fontSize: 28, fontWeight: 400, letterSpacing: '0.18em', color: T.black, textTransform: 'uppercase', marginBottom: 8 }}>
+      <span style={{ fontFamily: T.font, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: T.black, marginBottom: 8 }}>
         HelloDoc
       </span>
-      <span style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5, marginBottom: 52 }}>
+      <span style={{ fontSize: 11, fontFamily: T.mono, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, marginBottom: 52 }}>
         Gestión odontológica profesional
       </span>
 
@@ -671,14 +677,14 @@ function VistaCompletarPerfil({ token, onLogin, onLogout }) {
     finally { setCargando(false) }
   }
 
-  const selectStyle = { height: 36, width: '100%', padding: '0 12px', border: '1px solid #e5e5e5', outline: 'none', background: '#fff', fontSize: 13, fontFamily: 'Inter, sans-serif', color: '#111', boxSizing: 'border-box', cursor: 'pointer', appearance: 'none' }
+  const selectStyle = { height: 36, width: '100%', padding: '0 12px', border: `1px solid ${T.gray1}`, borderRadius: 6, outline: 'none', background: T.white, fontSize: 13, fontFamily: T.font, color: T.black, boxSizing: 'border-box', cursor: 'pointer', appearance: 'none' }
 
   return (
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
-      <span style={{ fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 400, letterSpacing: '0.18em', color: '#111', textTransform: 'uppercase', marginBottom: 8 }}>
+      <span style={{ fontFamily: T.font, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em', color: T.black, marginBottom: 8 }}>
         HelloDoc
       </span>
-      <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 48 }}>
+      <span style={{ fontSize: 11, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, marginBottom: 48, fontFamily: T.mono }}>
         Completar perfil profesional
       </span>
       <div style={{ width: 400 }}>
@@ -838,7 +844,7 @@ function ConsultorioCard({ item, onEliminar }) {
     <div
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      style={{ width: 200, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 12, display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', transition: 'border-color 0.15s', minHeight: 80 }}
+      style={{ width: 200, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 12, display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', transition: 'border-color 0.15s, box-shadow 0.15s', minHeight: 80, borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
     >
       <button
         onClick={onEliminar}
@@ -916,7 +922,7 @@ function VistaObrasSociales({ apiFetch }) {
       </PageBar>
 
       <FilterBar>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 320 }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 320, borderRadius: 6 }}>
           <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
           <input
             value={buscar} onChange={e => setBuscar(e.target.value)}
@@ -976,7 +982,7 @@ function ObraSocialCard({ item, onEliminar }) {
     <div
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      style={{ width: 160, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, position: 'relative', transition: 'border-color 0.15s', minHeight: 80 }}
+      style={{ width: 160, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, position: 'relative', transition: 'border-color 0.15s, box-shadow 0.15s', minHeight: 80, borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
     >
       <button
         onClick={onEliminar}
@@ -1093,7 +1099,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
       </PageBar>
 
       <FilterBar>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 320 }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 320, borderRadius: 6 }}>
           <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
           <input
             value={buscar} onChange={e => setBuscar(e.target.value)}
@@ -1158,7 +1164,7 @@ function PacienteCard({ paciente: p, onClick, onEliminar, apiFetch }) {
       onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      style={{ width: 200, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 12, display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', transition: 'border-color 0.15s', cursor: 'pointer', minHeight: 100 }}
+      style={{ width: 200, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 12, display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', transition: 'border-color 0.15s, box-shadow 0.15s', cursor: 'pointer', minHeight: 100, borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
     >
       <button
         onClick={handleEliminar}
@@ -1341,7 +1347,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
         </div>
 
         {/* card pane */}
-        <div style={{ margin: '0 24px 20px', background: T.white, border: `1px solid ${T.gray1}`, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ margin: '0 24px 20px', background: T.white, border: `1px solid ${T.gray1}`, display: 'flex', overflow: 'hidden', borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
 
           {/* avatar */}
           <div style={{ width: 88, flexShrink: 0, background: T.black, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1445,7 +1451,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
 
       {sinConsultorios && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '32px 36px', maxWidth: 400, width: '90%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '32px 36px', maxWidth: 400, width: '90%', display: 'flex', flexDirection: 'column', gap: 16, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
             <span style={{ fontFamily: T.serif, fontSize: 18, color: T.black, letterSpacing: '0.04em' }}>Sin consultorios registrados</span>
             <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, lineHeight: 1.5 }}>Para registrar una consulta necesitás tener al menos un consultorio. Podés crearlo desde "Mis consultorios".</span>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
@@ -1475,14 +1481,14 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
               <div>
                 <FieldLabel>Consultorio</FieldLabel>
                 <select name="consultorioId" value={formCO.consultorioId} onChange={e => setFormCO(f => ({ ...f, consultorioId: e.target.value }))}
-                  style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 0, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
+                  style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
                   <option value="">Sin consultorio</option>
                   {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>
               <div>
                 <FieldLabel>Tipo de pago *</FieldLabel>
-                <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}` }}>
+                <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden' }}>
                   {['PARTICULAR', 'OBRA_SOCIAL'].map(op => (
                     <button key={op} type="button"
                       onClick={() => setFormCO(f => ({ ...f, tipoPago: op }))}
@@ -1496,12 +1502,12 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
             <div>
               <FieldLabel>Motivo de consulta</FieldLabel>
               <textarea value={formCO.motivoConsulta} onChange={e => setFormCO(f => ({ ...f, motivoConsulta: e.target.value }))} rows={2}
-                style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 0, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
             </div>
             <div>
               <FieldLabel>Práctica realizada</FieldLabel>
               <textarea value={formCO.practicaRealizada} onChange={e => setFormCO(f => ({ ...f, practicaRealizada: e.target.value }))} rows={3}
-                style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 0, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
             </div>
             <div style={{ maxWidth: 200 }}>
               <FieldLabel>Monto *</FieldLabel>
@@ -1635,7 +1641,7 @@ function ObraSocialSelector({ apiFetch, value, onChange }) {
     flex: 1, height: 36, padding: '0 10px',
     border: `1px solid ${T.gray1}`, outline: 'none',
     background: T.white, fontSize: 13, fontFamily: T.font, color: value ? T.black : T.gray5,
-    boxSizing: 'border-box', appearance: 'none', cursor: 'pointer',
+    borderRadius: 6, boxSizing: 'border-box', appearance: 'none', cursor: 'pointer',
   }
 
   return (
@@ -1661,7 +1667,7 @@ function ObraSocialSelector({ apiFetch, value, onChange }) {
         >+</button>
       </div>
       {showNew && (
-        <div style={{ border: `1px solid ${T.gray1}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: T.gray2 }}>
+        <div style={{ border: `1px solid ${T.gray1}`, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: T.gray2, borderRadius: 8 }}>
           <FieldLabel>Nueva obra social</FieldLabel>
           <div style={{ display: 'flex', gap: 6 }}>
             <Input
@@ -1813,7 +1819,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios }) {
       </PageBar>
 
       <FilterBar>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360 }}>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360, borderRadius: 6 }}>
           <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
           <input
             value={buscar} onChange={e => setBuscar(e.target.value)}
@@ -1850,7 +1856,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios }) {
 
       {sinConsultorios && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '32px 36px', maxWidth: 400, width: '90%', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '32px 36px', maxWidth: 400, width: '90%', display: 'flex', flexDirection: 'column', gap: 16, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
             <span style={{ fontFamily: T.serif, fontSize: 18, color: T.black, letterSpacing: '0.04em' }}>Sin consultorios registrados</span>
             <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, lineHeight: 1.5 }}>Para registrar una consulta necesitás tener al menos un consultorio. Podés crearlo desde "Mis consultorios".</span>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
@@ -1875,7 +1881,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios }) {
               <div>
                 <FieldLabel>Paciente *</FieldLabel>
                 <select name="pacienteId" value={form.pacienteId} onChange={handleChange}
-                  style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 0, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
+                  style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
                   <option value="">Seleccionar paciente…</option>
                   {pacientes.map(p => (
                     <option key={p.id} value={p.id}>{p.apellido}, {p.nombre}</option>
@@ -1885,14 +1891,14 @@ function VistaConsultas({ apiFetch, onIrAConsultorios }) {
               <div>
                 <FieldLabel>Consultorio</FieldLabel>
                 <select name="consultorioId" value={form.consultorioId} onChange={handleChange}
-                  style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 0, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
+                  style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
                   <option value="">Sin consultorio</option>
                   {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>
               <div>
                 <FieldLabel>Tipo de pago *</FieldLabel>
-                <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}` }}>
+                <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden' }}>
                   {['PARTICULAR', 'OBRA_SOCIAL'].map(op => (
                     <button key={op} type="button"
                       onClick={() => setForm(f => ({ ...f, tipoPago: op }))}
@@ -1923,12 +1929,12 @@ function VistaConsultas({ apiFetch, onIrAConsultorios }) {
               <div>
                 <FieldLabel>Motivo de consulta</FieldLabel>
                 <textarea name="motivoConsulta" value={form.motivoConsulta} onChange={handleChange} rows={2}
-                  style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 0, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
               </div>
               <div>
                 <FieldLabel>Práctica realizada</FieldLabel>
                 <textarea name="practicaRealizada" value={form.practicaRealizada} onChange={handleChange} rows={2}
-                  style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 0, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                  style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
               </div>
             </div>
             <div style={{ maxWidth: 180 }}>
@@ -1965,7 +1971,7 @@ function ConsultaCard({ a, fmtMonto, fmtTipo }) {
   return (
     <div
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ width: 240, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s' }}
+      style={{ width: 240, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', color: T.black, fontFamily: T.font, lineHeight: 1.3 }}>
         {a.pacienteApellido}, {a.pacienteNombre}
