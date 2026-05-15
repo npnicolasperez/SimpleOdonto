@@ -1047,6 +1047,31 @@ function VistaPacientes({ apiFetch, onIrAConsultorios }) {
   return null
 }
 
+function StatCard({ label, value, sub, inverted = false }) {
+  return (
+    <div style={{
+      background: inverted ? T.black : T.white,
+      border: `1px solid ${inverted ? T.black : T.gray1}`,
+      borderRadius: 12,
+      padding: '20px 24px',
+      display: 'flex', flexDirection: 'column', gap: 4,
+      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    }}>
+      <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: inverted ? 'rgba(255,255,255,0.45)' : T.gray3 }}>
+        {label}
+      </span>
+      <span style={{ fontFamily: T.font, fontSize: 38, fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.03em', color: inverted ? T.white : T.black }}>
+        {value ?? '—'}
+      </span>
+      {sub && (
+        <span style={{ fontFamily: T.mono, fontSize: 9, color: inverted ? 'rgba(255,255,255,0.35)' : T.gray3, letterSpacing: '0.08em' }}>
+          {sub}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function ListaPacientes({ apiFetch, onDetalle }) {
   const [buscar,    setBuscar]    = useState('')
   const [pagina,    setPagina]    = useState(null)
@@ -1057,6 +1082,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
   const [guardando, setGuardando] = useState(false)
   const [formErr,   setFormErr]   = useState(null)
   const [vista,     setVista]     = useState(() => localStorage.getItem('pacientes-vista') ?? 'list')
+  const [stats,     setStats]     = useState({ total: null, nuevos: null, conTurno: null })
 
   function toggleVista(v) { setVista(v); localStorage.setItem('pacientes-vista', v) }
 
@@ -1076,6 +1102,35 @@ function ListaPacientes({ apiFetch, onDetalle }) {
     return () => clearTimeout(t)
   }, [buscar, cargar])
 
+  // Compute total + nuevos este mes from paginated data
+  useEffect(() => {
+    if (!pagina) return
+    const hoy = new Date()
+    const nuevos = (pagina.content ?? []).filter(p => {
+      if (!p.dateCreated) return false
+      const d = new Date(p.dateCreated)
+      return d.getMonth() === hoy.getMonth() && d.getFullYear() === hoy.getFullYear()
+    }).length
+    setStats(prev => ({ ...prev, total: pagina.totalElements ?? 0, nuevos }))
+  }, [pagina])
+
+  // Fetch con turno count from upcoming appointments
+  useEffect(() => {
+    apiFetch('/turnos').then(async res => {
+      if (!res?.ok) return
+      const data = await res.json()
+      const lista = Array.isArray(data) ? data : (data.content ?? [])
+      const ahora = new Date()
+      const ids = new Set(
+        lista
+          .filter(t => t.fechaHora && new Date(t.fechaHora) >= ahora && t.estado !== 'CANCELADO')
+          .map(t => t.paciente?.id ?? t.pacienteId)
+          .filter(Boolean)
+      )
+      setStats(prev => ({ ...prev, conTurno: ids.size }))
+    })
+  }, [apiFetch])
+
   function cerrarPanel() { setPanelOpen(false); setForm(VACÍO_FORM); setFormErr(null) }
 
   async function handleCrear(e) {
@@ -1089,47 +1144,79 @@ function ListaPacientes({ apiFetch, onDetalle }) {
     else { const err = await res.json().catch(() => null); setFormErr(err?.error || 'Error al registrar'); setGuardando(false) }
   }
 
-  const pacientes = pagina?.content ?? []
+  const pacientes  = pagina?.content ?? []
+  const sinTurno   = stats.total != null && stats.conTurno != null ? Math.max(0, stats.total - stats.conTurno) : null
+  const hoy        = new Date()
+  const fechaLabel = hoy.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'long' })
+  const horaLabel  = hoy.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <PageBar>
-        <PageTitle>Mis pacientes</PageTitle>
-        <Btn onClick={() => setPanelOpen(true)}>+ Nuevo paciente</Btn>
-      </PageBar>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
 
-      <FilterBar>
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 320, borderRadius: 6 }}>
-          <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
-          <input
-            value={buscar} onChange={e => setBuscar(e.target.value)}
-            placeholder="Buscar por nombre o DNI…"
-            style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }}
-          />
+      {/* ── header ── */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', flexShrink: 0 }}>
+        <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>
+          Mis Pacientes
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray3, letterSpacing: '0.04em' }}>
+            {fechaLabel} · {horaLabel}
+          </span>
+          <Btn onClick={() => setPanelOpen(true)}>+ Nuevo paciente</Btn>
         </div>
-        <ViewToggle vista={vista} onToggle={toggleVista} />
-      </FilterBar>
+      </div>
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        {vista === 'list' ? (
-          <>
-            <TableHead cols={COLS_PAC} />
-            <EmptyOrError cargando={cargando && !pagina} error={error} empty={!cargando && !error && pacientes.length === 0} msg={buscar ? 'Sin resultados' : 'No hay pacientes registrados'} />
-            {pacientes.map(p => <FilaPaciente key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar)} apiFetch={apiFetch} />)}
-          </>
-        ) : (
-          cargando && !pagina ? (
-            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
-          ) : !cargando && pacientes.length === 0 ? (
-            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{buscar ? 'Sin resultados' : 'No hay pacientes registrados'}</div>
-          ) : (
-            <div style={{ padding: '20px 24px', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start' }}>
-              {pacientes.map(p => (
-                <PacienteCard key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar)} apiFetch={apiFetch} />
-              ))}
+      {/* ── stat cards ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 12, padding: '0 24px 20px', flexShrink: 0 }}>
+        <StatCard inverted label="Total" value={stats.total} />
+        <StatCard label="Nuevos" value={stats.nuevos} sub="este mes" />
+        <StatCard label="Con turno" value={stats.conTurno} />
+        <StatCard label="Sin turno" value={sinTurno} />
+      </div>
+
+      {/* ── white list card ── */}
+      <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+
+          {/* card header */}
+          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            <span style={{ fontFamily: T.font, fontSize: 14, fontWeight: 600, color: T.black, flex: 1, letterSpacing: '-0.01em' }}>
+              Lista de pacientes
+            </span>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, width: 260, borderRadius: 6, background: T.gray2 }}>
+              <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
+              <input
+                value={buscar} onChange={e => setBuscar(e.target.value)}
+                placeholder="Buscar por nombre o DNI…"
+                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.02em', width: '100%' }}
+              />
             </div>
-          )
-        )}
+            <ViewToggle vista={vista} onToggle={toggleVista} />
+          </div>
+
+          {/* list / grid */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {vista === 'list' ? (
+              <>
+                <TableHead cols={COLS_PAC} />
+                <EmptyOrError cargando={cargando && !pagina} error={error} empty={!cargando && !error && pacientes.length === 0} msg={buscar ? 'Sin resultados' : 'No hay pacientes registrados'} />
+                {pacientes.map(p => <FilaPaciente key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar)} apiFetch={apiFetch} />)}
+              </>
+            ) : (
+              cargando && !pagina ? (
+                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+              ) : !cargando && pacientes.length === 0 ? (
+                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{buscar ? 'Sin resultados' : 'No hay pacientes registrados'}</div>
+              ) : (
+                <div style={{ padding: '20px', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start' }}>
+                  {pacientes.map(p => (
+                    <PacienteCard key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar)} apiFetch={apiFetch} />
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+        </div>
       </div>
 
       <SidePanel open={panelOpen} onClose={cerrarPanel} title="Nuevo paciente" width={560}
