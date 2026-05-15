@@ -1082,7 +1082,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
   const [guardando, setGuardando] = useState(false)
   const [formErr,   setFormErr]   = useState(null)
   const [vista,     setVista]     = useState(() => localStorage.getItem('pacientes-vista') ?? 'list')
-  const [stats,     setStats]     = useState({ total: null, nuevos: null, conTurno: null })
+  const [stats,     setStats]     = useState({ total: null, nuevos: null, conTurno: null, sinTurno: null })
 
   function toggleVista(v) { setVista(v); localStorage.setItem('pacientes-vista', v) }
 
@@ -1102,32 +1102,12 @@ function ListaPacientes({ apiFetch, onDetalle }) {
     return () => clearTimeout(t)
   }, [buscar, cargar])
 
-  // Compute total + nuevos este mes from paginated data
+  // Fetch stats from dedicated backend endpoint (3 queries en paralelo server-side)
   useEffect(() => {
-    if (!pagina) return
-    const hoy = new Date()
-    const nuevos = (pagina.content ?? []).filter(p => {
-      if (!p.dateCreated) return false
-      const d = new Date(p.dateCreated)
-      return d.getMonth() === hoy.getMonth() && d.getFullYear() === hoy.getFullYear()
-    }).length
-    setStats(prev => ({ ...prev, total: pagina.totalElements ?? 0, nuevos }))
-  }, [pagina])
-
-  // Fetch con turno count from upcoming appointments
-  useEffect(() => {
-    apiFetch('/turnos').then(async res => {
+    apiFetch('/pacientes/stats').then(async res => {
       if (!res?.ok) return
-      const data = await res.json()
-      const lista = Array.isArray(data) ? data : (data.content ?? [])
-      const ahora = new Date()
-      const ids = new Set(
-        lista
-          .filter(t => t.fechaHora && new Date(t.fechaHora) >= ahora && t.estado !== 'CANCELADO')
-          .map(t => t.paciente?.id ?? t.pacienteId)
-          .filter(Boolean)
-      )
-      setStats(prev => ({ ...prev, conTurno: ids.size }))
+      const s = await res.json()
+      setStats({ total: s.total, nuevos: s.nuevosEsteMes, conTurno: s.conTurnoProximo, sinTurno: s.sinTurno })
     })
   }, [apiFetch])
 
@@ -1145,7 +1125,6 @@ function ListaPacientes({ apiFetch, onDetalle }) {
   }
 
   const pacientes  = pagina?.content ?? []
-  const sinTurno   = stats.total != null && stats.conTurno != null ? Math.max(0, stats.total - stats.conTurno) : null
   const hoy        = new Date()
   const fechaLabel = hoy.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'long' })
   const horaLabel  = hoy.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
@@ -1171,7 +1150,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
         <StatCard inverted label="Total" value={stats.total} />
         <StatCard label="Nuevos" value={stats.nuevos} sub="este mes" />
         <StatCard label="Con turno" value={stats.conTurno} />
-        <StatCard label="Sin turno" value={sinTurno} />
+        <StatCard label="Sin turno" value={stats.sinTurno} />
       </div>
 
       {/* ── white list card ── */}
