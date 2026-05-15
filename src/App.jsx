@@ -1082,7 +1082,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
   const [guardando, setGuardando] = useState(false)
   const [formErr,   setFormErr]   = useState(null)
   const [vista,     setVista]     = useState(() => localStorage.getItem('pacientes-vista') ?? 'list')
-  const [stats,     setStats]     = useState({ total: null, nuevos: null, conTurno: null, sinTurno: null })
+  const [stats,     setStats]     = useState({ total: null, nuevos: null, conTurno: null })
 
   function toggleVista(v) { setVista(v); localStorage.setItem('pacientes-vista', v) }
 
@@ -1107,7 +1107,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
     apiFetch('/pacientes/stats').then(async res => {
       if (!res?.ok) return
       const s = await res.json()
-      setStats({ total: s.total, nuevos: s.nuevosEsteMes, conTurno: s.conTurnoProximo, sinTurno: s.sinTurno })
+      setStats({ total: s.total, nuevos: s.nuevosEsteMes, conTurno: s.conTurnoProximo })
     })
   }, [apiFetch])
 
@@ -1146,11 +1146,10 @@ function ListaPacientes({ apiFetch, onDetalle }) {
       </div>
 
       {/* ── stat cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr 1fr', gap: 12, padding: '0 24px 20px', flexShrink: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 12, padding: '0 24px 20px', flexShrink: 0 }}>
         <StatCard inverted label="Total" value={stats.total} />
         <StatCard label="Nuevos" value={stats.nuevos} sub="este mes" />
         <StatCard label="Con turno" value={stats.conTurno} />
-        <StatCard label="Sin turno" value={stats.sinTurno} />
       </div>
 
       {/* ── white list card ── */}
