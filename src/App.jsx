@@ -1124,10 +1124,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
     else { const err = await res.json().catch(() => null); setFormErr(err?.error || 'Error al registrar'); setGuardando(false) }
   }
 
-  const pacientes  = pagina?.content ?? []
-  const hoy        = new Date()
-  const fechaLabel = hoy.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'long' })
-  const horaLabel  = hoy.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  const pacientes = pagina?.content ?? []
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
@@ -1137,12 +1134,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
         <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>
           Mis Pacientes
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray3, letterSpacing: '0.04em' }}>
-            {fechaLabel} · {horaLabel}
-          </span>
-          <Btn onClick={() => setPanelOpen(true)}>+ Nuevo paciente</Btn>
-        </div>
+        <Btn onClick={() => setPanelOpen(true)}>+ Nuevo paciente</Btn>
       </div>
 
       {/* ── stat cards ── */}
