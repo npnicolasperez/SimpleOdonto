@@ -60,8 +60,8 @@ const HERRAMIENTAS_MEDIR = [
   { key: 'calibrar',      label: 'Calibrar',       Ico: IcoCalibracion  },
 ]
 
-const RADIOS_PUNTO   = { 1: 2, 2: 4, 3: 7 }
-const GROSOR_LINEA   = 2
+const RADIOS_PUNTO    = { 1: 2, 2: 4, 3: 7 }
+const GROSORES_LINEA  = { 1: 1.5, 2: 3, 3: 5 }
 const COLOR_PUNTO    = '#ff3333'
 const COLOR_LINEA    = '#2563eb'
 const COLOR_ANGULO   = '#ffffff'
@@ -191,7 +191,7 @@ export default function App() {
   })
 
   function handleLogin(data) {
-    const u = { nombre: data.nombre, apellido: data.apellido, email: data.email, perfilCompleto: data.perfilCompleto !== false, foto: data.foto || null }
+    const u = { nombre: data.nombre, apellido: data.apellido, email: data.email, perfilCompleto: data.perfilCompleto !== false, foto: data.foto || null, especialidadNombre: data.especialidadNombre || null }
     localStorage.setItem('so_token', data.token)
     localStorage.setItem('so_usuario', JSON.stringify(u))
     setToken(data.token); setUsuario(u)
@@ -265,10 +265,10 @@ function MainLayout({ token, usuario, onLogout }) {
         {/* main */}
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {vista === 'dashboard'      && <VistaDashboard usuario={usuario} />}
-          {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} />}
+          {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
           {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} />}
           {vista === 'estudios'       && <VistaEstudios apiFetch={apiFetch} />}
-          {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} />}
+          {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
           {vista === 'obras-sociales' && <VistaObrasSociales apiFetch={apiFetch} />}
           {vista === 'consultorios'   && <VistaConsultorios apiFetch={apiFetch} />}
         </main>
@@ -1027,10 +1027,10 @@ function EmptyOrError({ cargando, error, empty, msg }) {
 
 /* ─── VistaPacientes ─────────────────────────────────────────── */
 
-const VACÍO_FORM = { apellido: '', nombre: '', dni: '', fechaNac: '', telefono: '', email: '', direccion: '', obraSocial: '', nroAfiliado: '' }
+const VACÍO_FORM = { apellido: '', nombre: '', dni: '', fechaNac: '', telefono: '', email: '', direccion: '', obraSocial: '', nroAfiliado: '', ocupacion: '', grupoSanguineo: '', alergias: '', medicaciones: '', antecedentes: '', antecedentesFamiliares: '', peso: '', altura: '' }
 const COLS_PAC = [{ label: 'Paciente', w: '2fr' }, { label: 'DNI', w: '1fr' }, { label: 'Teléfono', w: '1fr' }, { label: 'Obra social', w: '1.5fr' }, { label: 'Registrado', w: '1fr' }]
 
-function VistaPacientes({ apiFetch, onIrAConsultorios }) {
+function VistaPacientes({ apiFetch, onIrAConsultorios, usuario }) {
   const [sub,              setSub]              = useState('lista')
   const [pacienteId,       setPacienteId]       = useState(null)
   const [estudioIdAbierto, setEstudioIdAbierto] = useState(null)
@@ -1042,7 +1042,7 @@ function VistaPacientes({ apiFetch, onIrAConsultorios }) {
   function abrirEstudioExistente(id){ setEstudioIdAbierto(id);   setSub('estudios') }
 
   if (sub === 'lista')    return <ListaPacientes apiFetch={apiFetch} onDetalle={abrirDetalle} />
-  if (sub === 'detalle')  return <DetallePaciente apiFetch={apiFetch} id={pacienteId} onVolver={volver} onNuevoEstudio={abrirNuevoEstudio} onAbrirEstudio={abrirEstudioExistente} onIrAConsultorios={onIrAConsultorios} />
+  if (sub === 'detalle')  return <DetallePaciente apiFetch={apiFetch} id={pacienteId} onVolver={volver} onNuevoEstudio={abrirNuevoEstudio} onAbrirEstudio={abrirEstudioExistente} onIrAConsultorios={onIrAConsultorios} usuario={usuario} />
   if (sub === 'estudios') return <VistaEstudios apiFetch={apiFetch} pacienteIdInicial={pacienteId} estudioIdInicial={estudioIdAbierto} onVolver={volverADetalle} />
   return null
 }
@@ -1117,7 +1117,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
     e.preventDefault()
     if (!form.apellido.trim() || !form.nombre.trim()) { setFormErr('Apellido y nombre son requeridos'); return }
     setFormErr(null); setGuardando(true)
-    const body = { nombre: form.nombre, apellido: form.apellido, dni: form.dni || null, fechaNac: form.fechaNac || null, telefono: form.telefono || null, email: form.email || null, direccion: form.direccion || null, obraSocial: form.obraSocial || null, nroAfiliado: form.nroAfiliado || null }
+    const body = { nombre: form.nombre, apellido: form.apellido, dni: form.dni || null, fechaNac: form.fechaNac || null, telefono: form.telefono || null, email: form.email || null, direccion: form.direccion || null, obraSocial: form.obraSocial || null, nroAfiliado: form.nroAfiliado || null, ocupacion: form.ocupacion || null, grupoSanguineo: form.grupoSanguineo || null, alergias: form.alergias || null, medicaciones: form.medicaciones || null, antecedentes: form.antecedentes || null, antecedentesFamiliares: form.antecedentesFamiliares || null, peso: form.peso ? Number(form.peso) : null, altura: form.altura ? Number(form.altura) : null }
     const res = await apiFetch('/pacientes', { method: 'POST', body: JSON.stringify(body) })
     if (!res) return
     if (res.ok) { const d = await res.json(); cerrarPanel(); onDetalle(d.id) }
@@ -1276,9 +1276,9 @@ function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch }) {
 
 /* ─── DetallePaciente ────────────────────────────────────────── */
 
-const VACÍO_CO_DET = { consultorioId: '', motivoConsulta: '', practicaRealizada: '', monto: '', tipoPago: 'PARTICULAR' }
+const VACÍO_CO_DET = { consultorioId: '', motivoConsulta: '', diagnostico: '', practicaRealizada: '', monto: '', tipoPago: 'PARTICULAR' }
 
-function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudio, onIrAConsultorios }) {
+function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudio, onIrAConsultorios, usuario }) {
   const [paciente,        setPaciente]        = useState(null)
   const [cargando,        setCargando]        = useState(true)
   const [error,           setError]           = useState(null)
@@ -1349,7 +1349,8 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
     const body = {
       pacienteId:        Number(id),
       consultorioId:     formCO.consultorioId ? Number(formCO.consultorioId) : null,
-      motivoConsulta:    formCO.motivoConsulta   || null,
+      motivoConsulta:    formCO.motivoConsulta    || null,
+      diagnostico:       formCO.diagnostico       || null,
       practicaRealizada: formCO.practicaRealizada || null,
       monto:             Number(formCO.monto),
       tipoPago:          formCO.tipoPago,
@@ -1367,7 +1368,11 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
       apellido: paciente.apellido ?? '', nombre: paciente.nombre ?? '', dni: paciente.dni ?? '',
       fechaNac: paciente.fechaNac ?? '', telefono: paciente.telefono ?? '', email: paciente.email ?? '',
       direccion: paciente.direccion ?? '', obraSocial: paciente.obraSocial ?? '',
-      nroAfiliado: paciente.nroAfiliado ?? '',
+      nroAfiliado: paciente.nroAfiliado ?? '', ocupacion: paciente.ocupacion ?? '',
+      grupoSanguineo: paciente.grupoSanguineo ?? '', alergias: paciente.alergias ?? '',
+      medicaciones: paciente.medicaciones ?? '', antecedentes: paciente.antecedentes ?? '',
+      antecedentesFamiliares: paciente.antecedentesFamiliares ?? '',
+      peso: paciente.peso ?? '', altura: paciente.altura ?? '',
     })
     setEditErr(null)
     setPanelEdit(true)
@@ -1375,7 +1380,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
 
   async function handleGuardarEdit(e) {
     e.preventDefault(); setEditErr(null); setGuardando(true)
-    const body = { nombre: formEdit.nombre, apellido: formEdit.apellido, dni: formEdit.dni || null, fechaNac: formEdit.fechaNac || null, telefono: formEdit.telefono || null, email: formEdit.email || null, direccion: formEdit.direccion || null, obraSocial: formEdit.obraSocial || null, nroAfiliado: formEdit.nroAfiliado || null }
+    const body = { nombre: formEdit.nombre, apellido: formEdit.apellido, dni: formEdit.dni || null, fechaNac: formEdit.fechaNac || null, telefono: formEdit.telefono || null, email: formEdit.email || null, direccion: formEdit.direccion || null, obraSocial: formEdit.obraSocial || null, nroAfiliado: formEdit.nroAfiliado || null, ocupacion: formEdit.ocupacion || null, grupoSanguineo: formEdit.grupoSanguineo || null, alergias: formEdit.alergias || null, medicaciones: formEdit.medicaciones || null, antecedentes: formEdit.antecedentes || null, antecedentesFamiliares: formEdit.antecedentesFamiliares || null, peso: formEdit.peso ? Number(formEdit.peso) : null, altura: formEdit.altura ? Number(formEdit.altura) : null }
     const res = await apiFetch(`/pacientes/${id}`, { method: 'PUT', body: JSON.stringify(body) })
     if (!res) return
     if (res.ok) { setPanelEdit(false); cargar() }
@@ -1388,121 +1393,139 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
 
   const p = paciente
 
+  const edad = p.fechaNac ? (() => {
+    const today = new Date(), nac = new Date(p.fechaNac)
+    let e = today.getFullYear() - nac.getFullYear()
+    if (today.getMonth() < nac.getMonth() || (today.getMonth() === nac.getMonth() && today.getDate() < nac.getDate())) e--
+    return e
+  })() : null
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-      {/* ── header: nav + card pane ── */}
-      <div style={{ flexShrink: 0, background: T.gray2, borderBottom: `1px solid ${T.gray1}` }}>
-
-        {/* barra nav */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px' }}>
-          <BackBtn onClick={onVolver} />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Btn variant="outline" onClick={onNuevoEstudio}>+ Nuevo estudio</Btn>
-            <Btn onClick={abrirNuevaCO}>+ Nueva consulta</Btn>
-          </div>
+      {/* ── top bar ── */}
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px', borderBottom: `1px solid ${T.gray1}`, background: T.white }}>
+        <BackBtn onClick={onVolver} />
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Btn variant="outline" onClick={onNuevoEstudio}>+ Nuevo estudio</Btn>
+          <Btn onClick={abrirNuevaCO}>Iniciar consulta</Btn>
         </div>
+      </div>
 
-        {/* card pane */}
-        <div style={{ margin: '0 24px 20px', background: T.white, border: `1px solid ${T.gray1}`, display: 'flex', overflow: 'hidden', borderRadius: 10, boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+      {/* ── two-column body ── */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-          {/* avatar */}
-          <div style={{ width: 88, flexShrink: 0, background: T.black, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontFamily: T.serif, fontSize: 22, color: T.white, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              {p.nombre?.[0]}{p.apellido?.[0]}
-            </span>
-          </div>
+        {/* ── left: patient sidebar ── */}
+        <div style={{ width: 420, flexShrink: 0, overflow: 'hidden', background: T.gray2, padding: '20px 16px 20px 20px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', height: '100%' }}>
 
-          {/* datos */}
-          <div style={{ flex: 1, padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-            {/* nombre + badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontFamily: T.serif, fontSize: 20, fontWeight: 400, color: T.black, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1 }}>
-                {p.apellido}, {p.nombre}
+          {/* avatar + nombre (horizontal) */}
+          <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: T.black, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontFamily: T.font, fontSize: 17, fontWeight: 700, color: T.white, textTransform: 'uppercase' }}>
+                {p.nombre?.[0]}{p.apellido?.[0]}
               </span>
-              <Badge variant="outline">Activo</Badge>
             </div>
-
-            <div style={{ height: 1, background: T.gray1 }} />
-
-            {/* campos */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 36px' }}>
-              {[
-                { label: 'DNI',          value: p.dni },
-                { label: 'Nacimiento',   value: p.fechaNac ? fmtFecha(p.fechaNac) : null },
-                { label: 'Teléfono',     value: p.telefono },
-                { label: 'Email',        value: p.email },
-                { label: 'Dirección',    value: p.direccion },
-                { label: 'Obra social',  value: p.obraSocial },
-                { label: 'Nro afiliado', value: p.nroAfiliado },
-              ].map(({ label, value }) => value ? (
-                <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  <span style={{ fontSize: 9, fontFamily: T.font, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.gray5 }}>{label}</span>
-                  <span style={{ fontSize: 12, fontFamily: T.font, color: T.black }}>{value}</span>
-                </div>
-              ) : null)}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, color: T.black, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.apellido}, {p.nombre}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                {edad != null && <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray5 }}>{edad} años</span>}
+                {edad != null && p.ocupacion && <span style={{ color: T.gray3, fontSize: 10 }}>·</span>}
+                {p.ocupacion && <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray5, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.ocupacion}</span>}
+              </div>
             </div>
-
           </div>
 
-          {/* fecha de registro + editar */}
-          <div style={{ width: 120, flexShrink: 0, borderLeft: `1px solid ${T.gray1}`, background: T.gray2, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '16px 0' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-              <span style={{ fontSize: 9, fontFamily: T.font, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.gray5 }}>Registrado</span>
-              <span style={{ fontSize: 11, fontFamily: T.font, color: T.black, textAlign: 'center', letterSpacing: '0.04em' }}>{fmtFecha(p.dateCreated)}</span>
+          {/* datos personales — 2 columnas */}
+          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
+            <span style={{ fontSize: 9, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.gray5, display: 'block', marginBottom: 10 }}>Datos personales</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 20px' }}>
+              <DatoClinico label="DNI"          value={p.dni} />
+              <DatoClinico label="Nacimiento"   value={p.fechaNac ? fmtFecha(p.fechaNac) : null} />
+              <DatoClinico label="Teléfono"     value={p.telefono} />
+              <DatoClinico label="Email"        value={p.email} truncate />
+              <div style={{ gridColumn: '1 / -1' }}><DatoClinico label="Dirección" value={p.direccion} truncate /></div>
+              <DatoClinico label="Obra social"  value={p.obraSocial} truncate />
+              <DatoClinico label="Nro afiliado" value={p.nroAfiliado} />
             </div>
-            <Btn variant="outline" size="sm" onClick={abrirEdit}>Editar</Btn>
+          </div>
+
+          {/* datos clínicos — 2 columnas */}
+          <div style={{ padding: '14px 20px', flex: 1, overflow: 'hidden' }}>
+            <span style={{ fontSize: 9, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.gray5, display: 'block', marginBottom: 10 }}>Datos clínicos</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 20px' }}>
+              <DatoClinico label="Grupo sanguíneo" value={p.grupoSanguineo} />
+              <div style={{ display: 'flex', gap: 20 }}>
+                <DatoClinico label="Peso"   value={p.peso   != null ? `${p.peso} kg`   : null} />
+                <DatoClinico label="Altura" value={p.altura != null ? `${p.altura} cm` : null} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}><DatoClinico label="Alergias"               value={p.alergias}               truncate warning /></div>
+              <div style={{ gridColumn: '1 / -1' }}><DatoClinico label="Medicaciones"            value={p.medicaciones}            truncate /></div>
+              <div style={{ gridColumn: '1 / -1' }}><DatoClinico label="Antecedentes personales" value={p.antecedentes}            truncate /></div>
+              <div style={{ gridColumn: '1 / -1' }}><DatoClinico label="Antecedentes familiares" value={p.antecedentesFamiliares}  truncate /></div>
+            </div>
+          </div>
+
+          {/* footer */}
+          <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <span style={{ fontSize: 10, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.gray5 }}>
+              Reg. {fmtFecha(p.dateCreated)}
+            </span>
+            <Btn variant="outline" size="sm" onClick={abrirEdit}>Editar paciente</Btn>
           </div>
 
         </div>
-      </div>
+        </div>
 
-      {/* ── tabs ── */}
-      <div style={{ display: 'flex', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0, padding: '0 32px' }}>
-        {[
-          { key: 'historia',    label: 'Historia clínica', count: !cargandoCO ? consultas.length : null },
-          { key: 'odontograma', label: 'Odontograma',      count: null },
-          { key: 'estudios',    label: 'Estudios',         count: !cargandoAnal ? estudiosList.length : null },
-        ].map(({ key, label, count }) => (
-          <button key={key} onClick={() => setTab(key)} style={{ padding: '12px 0', marginRight: 32, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', border: 'none', borderBottom: tab === key ? `2px solid ${T.black}` : '2px solid transparent', background: 'none', color: tab === key ? T.black : T.gray5, cursor: 'pointer', fontFamily: T.font, fontWeight: tab === key ? 500 : 400, marginBottom: -1, display: 'flex', alignItems: 'center', gap: 6 }}>
-            {label}
-            {count != null && <span style={{ fontSize: 10, color: tab === key ? T.gray4 : T.gray5 }}>({count})</span>}
-          </button>
-        ))}
-      </div>
+        {/* ── right: tabs + content (card) ── */}
+        <div style={{ flex: 1, overflow: 'hidden', background: T.gray2, padding: '20px 20px 20px 16px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
 
-      {/* ── contenido del tab ── */}
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {/* tabs */}
+            <div style={{ display: 'flex', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0, padding: '0 24px' }}>
+              {[
+                { key: 'historia',    label: 'Historia clínica', count: !cargandoCO ? consultas.length : null },
+                usuario?.especialidadNombre?.toLowerCase().includes('odontolog') && { key: 'odontograma', label: 'Odontograma', count: null },
+                { key: 'estudios',    label: 'Estudios',         count: !cargandoAnal ? estudiosList.length : null },
+              ].filter(Boolean).map(({ key, label, count }) => (
+                <button key={key} onClick={() => setTab(key)} style={{ padding: '12px 0', marginRight: 28, fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', border: 'none', borderBottom: tab === key ? `2px solid ${T.black}` : '2px solid transparent', background: 'none', color: tab === key ? T.black : T.gray5, cursor: 'pointer', fontFamily: T.font, fontWeight: tab === key ? 500 : 400, marginBottom: -1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {label}
+                  {count != null && <span style={{ fontSize: 10, color: tab === key ? T.gray4 : T.gray5 }}>({count})</span>}
+                </button>
+              ))}
+            </div>
 
-        {/* tab: historia clínica */}
-        {tab === 'historia' && (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px 32px' }}>
-            <HistoriaClinica consultas={consultas} cargando={cargandoCO} />
+            {/* tab content */}
+            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+              {tab === 'historia' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 32px' }}>
+                  <HistoriaClinica consultas={consultas} cargando={cargandoCO} />
+                </div>
+              )}
+              {tab === 'odontograma' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+                  <Odontograma apiFetch={apiFetch} pacienteId={id} />
+                </div>
+              )}
+              {tab === 'estudios' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
+                  {cargandoAnal ? (
+                    <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font }}>Cargando…</span>
+                  ) : estudiosList.length === 0 ? (
+                    <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font, letterSpacing: '0.04em' }}>Sin estudios registrados</span>
+                  ) : (
+                    estudiosList.map(a => (
+                      <EstudioFilaPaciente key={a.id} a={a} onAbrir={() => onAbrirEstudio(a.id)} onEliminar={() => handleEliminarEstudio(a.id)} />
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
           </div>
-        )}
-
-        {/* tab: odontograma */}
-        {tab === 'odontograma' && (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
-            <Odontograma apiFetch={apiFetch} pacienteId={id} />
-          </div>
-        )}
-
-        {/* tab: estudios */}
-        {tab === 'estudios' && (
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 32px' }}>
-            {cargandoAnal ? (
-              <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font }}>Cargando…</span>
-            ) : estudiosList.length === 0 ? (
-              <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font, letterSpacing: '0.04em' }}>Sin estudios registrados</span>
-            ) : (
-              estudiosList.map(a => (
-                <EstudioFilaPaciente key={a.id} a={a} onAbrir={() => onAbrirEstudio(a.id)} onEliminar={() => handleEliminarEstudio(a.id)} />
-              ))
-            )}
-          </div>
-        )}
+        </div>
 
       </div>
 
@@ -1526,13 +1549,15 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
         </>}
       >
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          {/* odontograma — parte superior */}
-          <div style={{ padding: '20px 24px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
-            <div style={{ fontSize: 10, fontFamily: T.font, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4, marginBottom: 14 }}>Odontograma</div>
-            {panelNuevaCO && <Odontograma apiFetch={apiFetch} pacienteId={id} />}
-          </div>
+          {/* odontograma — solo para odontólogos */}
+          {usuario?.especialidadNombre?.toLowerCase().includes('odontolog') && (
+            <div style={{ padding: '20px 24px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
+              <div style={{ fontSize: 10, fontFamily: T.font, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4, marginBottom: 14 }}>Odontograma</div>
+              {panelNuevaCO && <Odontograma apiFetch={apiFetch} pacienteId={id} />}
+            </div>
+          )}
 
-          {/* formulario — parte inferior, scrollable */}
+          {/* formulario — scrollable */}
           <form onSubmit={handleGuardarCO} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
@@ -1558,13 +1583,15 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
             </div>
             <div>
               <FieldLabel>Motivo de consulta</FieldLabel>
-              <textarea value={formCO.motivoConsulta} onChange={e => setFormCO(f => ({ ...f, motivoConsulta: e.target.value }))} rows={2}
-                style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+              <Textarea value={formCO.motivoConsulta} onChange={e => setFormCO(f => ({ ...f, motivoConsulta: e.target.value }))} rows={2} />
+            </div>
+            <div>
+              <FieldLabel>Diagnóstico</FieldLabel>
+              <Textarea value={formCO.diagnostico} onChange={e => setFormCO(f => ({ ...f, diagnostico: e.target.value }))} rows={2} />
             </div>
             <div>
               <FieldLabel>Práctica realizada</FieldLabel>
-              <textarea value={formCO.practicaRealizada} onChange={e => setFormCO(f => ({ ...f, practicaRealizada: e.target.value }))} rows={3}
-                style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+              <Textarea value={formCO.practicaRealizada} onChange={e => setFormCO(f => ({ ...f, practicaRealizada: e.target.value }))} rows={3} />
             </div>
             <div style={{ maxWidth: 200 }}>
               <FieldLabel>Monto *</FieldLabel>
@@ -1645,6 +1672,11 @@ function ConsultaHCItem({ a, last }) {
         {a.motivoConsulta && (
           <div style={{ fontSize: 11, fontFamily: T.font, color: T.gray4, letterSpacing: '0.02em' }}>
             <span style={{ fontWeight: 500, color: T.gray3, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>Motivo · </span>{a.motivoConsulta}
+          </div>
+        )}
+        {a.diagnostico && (
+          <div style={{ fontSize: 11, fontFamily: T.font, color: T.gray4, letterSpacing: '0.02em' }}>
+            <span style={{ fontWeight: 500, color: T.gray3, textTransform: 'uppercase', fontSize: 10, letterSpacing: '0.08em' }}>Diagnóstico · </span>{a.diagnostico}
           </div>
         )}
         {a.practicaRealizada && (
@@ -1744,6 +1776,25 @@ function ObraSocialSelector({ apiFetch, value, onChange }) {
   )
 }
 
+/* ─── DatoClinico (read-only field for clinical tab) ─────────── */
+
+function DatoClinico({ label, value, truncate, warning }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ fontSize: 9, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.gray5 }}>{label}</span>
+        {warning && value && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, borderRadius: '50%', background: '#d92d20', color: '#fff', fontSize: 9, fontWeight: 700, fontFamily: T.font, lineHeight: 1, flexShrink: 0 }}>!</span>
+        )}
+      </div>
+      {value
+        ? <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, lineHeight: 1.4, ...(truncate ? { overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' } : {}) }}>{value}</span>
+        : <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray3, fontStyle: 'italic' }}>—</span>
+      }
+    </div>
+  )
+}
+
 /* ─── PacienteFormFields (shared form sections) ──────────────── */
 
 function PacienteFormFields({ form, handleChange, setField, apiFetch }) {
@@ -1776,13 +1827,38 @@ function PacienteFormFields({ form, handleChange, setField, apiFetch }) {
           <div style={{ gridColumn: '1 / -1' }}><FieldLabel>Nro. de afiliado</FieldLabel><Input name="nroAfiliado" value={form.nroAfiliado} onChange={handleChange} /></div>
         </div>
       </div>
+      <div>
+        <SectionTitle>Datos clínicos</SectionTitle>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div><FieldLabel>Ocupación</FieldLabel><Input name="ocupacion" value={form.ocupacion} onChange={handleChange} /></div>
+          <div><FieldLabel>Grupo sanguíneo</FieldLabel><Input name="grupoSanguineo" value={form.grupoSanguineo} onChange={handleChange} placeholder="Ej: A+" /></div>
+          <div><FieldLabel>Peso (kg)</FieldLabel><Input type="number" step="0.1" min="0" name="peso" value={form.peso} onChange={handleChange} /></div>
+          <div><FieldLabel>Altura (cm)</FieldLabel><Input type="number" min="0" name="altura" value={form.altura} onChange={handleChange} /></div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FieldLabel>Alergias</FieldLabel>
+            <Textarea name="alergias" rows={2} value={form.alergias} onChange={handleChange} placeholder="Medicamentos, alimentos u otras alergias conocidas…" />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FieldLabel>Medicaciones</FieldLabel>
+            <Textarea name="medicaciones" rows={2} value={form.medicaciones} onChange={handleChange} placeholder="Medicamentos actuales y dosis…" />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FieldLabel>Antecedentes personales</FieldLabel>
+            <Textarea name="antecedentes" rows={3} value={form.antecedentes} onChange={handleChange} placeholder="Enfermedades, cirugías, tratamientos previos…" />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <FieldLabel>Antecedentes familiares</FieldLabel>
+            <Textarea name="antecedentesFamiliares" rows={2} value={form.antecedentesFamiliares} onChange={handleChange} placeholder="Enfermedades hereditarias relevantes…" />
+          </div>
+        </div>
+      </div>
     </>
   )
 }
 
 /* ─── VistaConsultas ─────────────────────────────────────────── */
 
-const VACÍO_CO = { pacienteId: '', consultorioId: '', motivoConsulta: '', practicaRealizada: '', monto: '', tipoPago: 'PARTICULAR' }
+const VACÍO_CO = { pacienteId: '', consultorioId: '', motivoConsulta: '', diagnostico: '', practicaRealizada: '', monto: '', tipoPago: 'PARTICULAR' }
 const COLS_CO = [
   { label: 'Paciente',    w: '2fr' },
   { label: 'Práctica',    w: '2fr' },
@@ -1792,7 +1868,7 @@ const COLS_CO = [
   { label: 'Fecha',       w: '1fr' },
 ]
 
-function VistaConsultas({ apiFetch, onIrAConsultorios }) {
+function VistaConsultas({ apiFetch, onIrAConsultorios, usuario }) {
   const [items,      setItems]      = useState([])
   const [cargando,   setCargando]   = useState(true)
   const [error,      setError]      = useState(null)
@@ -1838,12 +1914,13 @@ function VistaConsultas({ apiFetch, onIrAConsultorios }) {
     if (!form.monto || isNaN(Number(form.monto))) { setFormErr('Ingresá un monto válido'); return }
     setFormErr(null); setGuardando(true)
     const body = {
-      pacienteId:       Number(form.pacienteId),
-      consultorioId:    form.consultorioId ? Number(form.consultorioId) : null,
-      motivoConsulta:   form.motivoConsulta   || null,
+      pacienteId:        Number(form.pacienteId),
+      consultorioId:     form.consultorioId ? Number(form.consultorioId) : null,
+      motivoConsulta:    form.motivoConsulta    || null,
+      diagnostico:       form.diagnostico       || null,
       practicaRealizada: form.practicaRealizada || null,
-      monto:            Number(form.monto),
-      tipoPago:         form.tipoPago,
+      monto:             Number(form.monto),
+      tipoPago:          form.tipoPago,
     }
     const res = await apiFetch('/consultas', { method: 'POST', body: JSON.stringify(body) })
     if (!res) return
@@ -1872,7 +1949,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios }) {
           if (!lista.length) { setSinConsultorios(true); return }
           setConsultorios(lista)
           setPanelOpen(true)
-        }}>+ Nueva consulta</Btn>
+        }}>Iniciar consulta</Btn>
       </PageBar>
 
       <FilterBar>
@@ -1968,31 +2045,35 @@ function VistaConsultas({ apiFetch, onIrAConsultorios }) {
             </div>
           </div>
 
-          {/* odontograma */}
-          <div style={{ borderTop: `1px solid ${T.gray1}`, borderBottom: `1px solid ${T.gray1}`, padding: '16px 24px', flexShrink: 0 }}>
-            <div style={{ fontSize: 10, fontFamily: T.font, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4, marginBottom: 14 }}>Odontograma</div>
-            {form.pacienteId ? (
-              <Odontograma key={form.pacienteId} apiFetch={apiFetch} pacienteId={Number(form.pacienteId)} />
-            ) : (
-              <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 11, fontFamily: T.font, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5 }}>
-                Seleccioná un paciente para ver el odontograma
-              </div>
-            )}
-          </div>
+          {/* odontograma — solo para odontólogos */}
+          {usuario?.especialidadNombre?.toLowerCase().includes('odontolog') && (
+            <div style={{ borderTop: `1px solid ${T.gray1}`, borderBottom: `1px solid ${T.gray1}`, padding: '16px 24px', flexShrink: 0 }}>
+              <div style={{ fontSize: 10, fontFamily: T.font, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4, marginBottom: 14 }}>Odontograma</div>
+              {form.pacienteId ? (
+                <Odontograma key={form.pacienteId} apiFetch={apiFetch} pacienteId={Number(form.pacienteId)} />
+              ) : (
+                <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 11, fontFamily: T.font, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5 }}>
+                  Seleccioná un paciente para ver el odontograma
+                </div>
+              )}
+            </div>
+          )}
 
           {/* campos inferiores — scrollable */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <div>
                 <FieldLabel>Motivo de consulta</FieldLabel>
-                <textarea name="motivoConsulta" value={form.motivoConsulta} onChange={handleChange} rows={2}
-                  style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                <Textarea name="motivoConsulta" value={form.motivoConsulta} onChange={handleChange} rows={2} />
               </div>
               <div>
                 <FieldLabel>Práctica realizada</FieldLabel>
-                <textarea name="practicaRealizada" value={form.practicaRealizada} onChange={handleChange} rows={2}
-                  style={{ width: '100%', border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
+                <Textarea name="practicaRealizada" value={form.practicaRealizada} onChange={handleChange} rows={2} />
               </div>
+            </div>
+            <div>
+              <FieldLabel>Diagnóstico</FieldLabel>
+              <Textarea name="diagnostico" value={form.diagnostico} onChange={handleChange} rows={2} />
             </div>
             <div style={{ maxWidth: 180 }}>
               <FieldLabel>Monto *</FieldLabel>
@@ -2120,7 +2201,10 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   const [pendingFile,    setPendingFile]    = useState(null)
   const [nombrePendiente,setNombrePendiente]= useState('')
   const [descripcion,    setDescripcion]    = useState('')
+  const [zoom,           setZoom]           = useState(1)
+  const [pan,            setPan]            = useState({ x: 0, y: 0 })
   const inputRef        = useRef(null), canvasRef = useRef(null), containerRef = useRef(null)
+  const panningRef      = useRef(null)
   const pendingNormRef  = useRef(null)
   const skipSaveRef     = useRef(false)
   const debounceRef     = useRef(null)
@@ -2193,6 +2277,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     setEstudioId(data.id); setNombre(file.name)
     setImagen(URL.createObjectURL(file))
     setTrazos([]); resetInProgress(); setEscala(1); setCalibrado(false)
+    setZoom(1); setPan({ x: 0, y: 0 })
     setSubiendo(false); setSub('editor')
   }
 
@@ -2205,6 +2290,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     setImagen(`data:${data.imagenTipo};base64,${data.imagenBase64}`)
     pendingNormRef.current = data.trazos ?? []
     setTrazos([]); resetInProgress(); setSub('editor')
+    setZoom(1); setPan({ x: 0, y: 0 })
   }
 
   async function handleGuardar() {
@@ -2267,20 +2353,21 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         const eH = mL && lineaHover === i && !eS
         const cL = t.color ?? COLOR_LINEA
         ctx.strokeStyle = (eS || eH) ? COLOR_ANGULO : cL; ctx.fillStyle = (eS || eH) ? COLOR_ANGULO : cL
-        ctx.lineWidth = eS ? 3 : eH ? 2.5 : GROSOR_LINEA; ctx.globalAlpha = eH ? 0.65 : 1
+        const gL = GROSORES_LINEA[t.grosor ?? 1]
+        ctx.lineWidth = eS ? gL * 1.8 : eH ? gL * 1.4 : gL; ctx.globalAlpha = eH ? 0.65 : 1
         ctx.beginPath(); ctx.moveTo(t.x1, t.y1); ctx.lineTo(t.x2, t.y2); ctx.stroke()
         ctx.beginPath(); ctx.arc(t.x1, t.y1, 3, 0, Math.PI * 2); ctx.fill()
         ctx.beginPath(); ctx.arc(t.x2, t.y2, 3, 0, Math.PI * 2); ctx.fill()
-        ctx.globalAlpha = 1; ctx.lineWidth = GROSOR_LINEA
+        ctx.globalAlpha = 1; ctx.lineWidth = gL
       } else if (t.tipo === 'angulo') {
-        ctx.strokeStyle = COLOR_ANGULO; ctx.fillStyle = COLOR_ANGULO; ctx.lineWidth = GROSOR_LINEA
+        ctx.strokeStyle = COLOR_ANGULO; ctx.fillStyle = COLOR_ANGULO; ctx.lineWidth = 2
         ctx.beginPath(); ctx.moveTo(t.vx, t.vy); ctx.lineTo(t.ax1, t.ay1); ctx.stroke()
         ctx.beginPath(); ctx.moveTo(t.vx, t.vy); ctx.lineTo(t.ax2, t.ay2); ctx.stroke()
         ctx.beginPath(); ctx.arc(t.vx, t.vy, 4, 0, Math.PI * 2); ctx.fill()
         const { midA, r } = dibujarArco(ctx, t.vx, t.vy, t.ax1, t.ay1, t.ax2, t.ay2)
         dibujarEtiqueta(ctx, `${t.grados.toFixed(1)}°`, t.vx + (r + 20) * Math.cos(midA) - 14, t.vy + (r + 20) * Math.sin(midA) + 5)
       } else if (t.tipo === 'angulo-lineas') {
-        ctx.strokeStyle = COLOR_ANGULO; ctx.fillStyle = COLOR_ANGULO; ctx.lineWidth = GROSOR_LINEA
+        ctx.strokeStyle = COLOR_ANGULO; ctx.fillStyle = COLOR_ANGULO; ctx.lineWidth = 2
         const fa1 = anguloHaciaLinea(t.ix, t.iy, t.a1, t.mid1x, t.mid1y)
         const fa2 = anguloHaciaLinea(t.ix, t.iy, t.a2, t.mid2x, t.mid2y)
         const arm1x = t.ix + 50 * Math.cos(fa1), arm1y = t.iy + 50 * Math.sin(fa1)
@@ -2295,21 +2382,21 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         const nx = -dy / len, ny = dx / len
         ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2
         const drawTick = (x, y) => { ctx.beginPath(); ctx.moveTo(x + nx * 7, y + ny * 7); ctx.lineTo(x - nx * 7, y - ny * 7); ctx.stroke() }
-        drawTick(t.x1, t.y1); drawTick(t.x2, t.y2); ctx.lineWidth = GROSOR_LINEA
+        drawTick(t.x1, t.y1); drawTick(t.x2, t.y2); ctx.lineWidth = 2
         const label = `L${nLong}: ${t.mm.toFixed(1)} mm`
         const mx = (t.x1 + t.x2) / 2 + nx * 22, my = (t.y1 + t.y2) / 2 + ny * 22
         dibujarEtiqueta(ctx, label, mx - label.length * 4, my + 5)
       } else if (t.tipo === 'circulo') {
-        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.fillStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = GROSOR_LINEA; ctx.globalAlpha = 1
+        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.fillStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = GROSORES_LINEA[t.grosor ?? 1]; ctx.globalAlpha = 1
         ctx.beginPath(); ctx.arc(t.cx, t.cy, t.r, 0, Math.PI * 2); ctx.stroke()
         ctx.beginPath(); ctx.arc(t.cx, t.cy, 3, 0, Math.PI * 2); ctx.fill()
       } else if (t.tipo === 'cuadrado') {
-        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = GROSOR_LINEA; ctx.globalAlpha = 1
+        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = GROSORES_LINEA[t.grosor ?? 1]; ctx.globalAlpha = 1
         ctx.strokeRect(t.x1, t.y1, t.x2 - t.x1, t.y2 - t.y1)
       }
     }
     if (herramienta === 'linea' && primerPunto) {
-      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = GROSOR_LINEA
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = GROSORES_LINEA[grosor]
       ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, RADIOS_PUNTO[1], 0, Math.PI * 2); ctx.fill()
       if (mouse) { ctx.beginPath(); ctx.moveTo(primerPunto.x, primerPunto.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, Math.PI * 2); ctx.fill() }
     }
@@ -2323,12 +2410,12 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     }
     if (herramienta === 'circulo' && primerPunto && mouse) {
       const r = Math.hypot(mouse.x - primerPunto.x, mouse.y - primerPunto.y)
-      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = GROSOR_LINEA
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = GROSORES_LINEA[grosor]
       ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, r, 0, Math.PI * 2); ctx.stroke()
       ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, 3, 0, Math.PI * 2); ctx.fill()
     }
     if (herramienta === 'cuadrado' && primerPunto && mouse) {
-      ctx.strokeStyle = color; ctx.lineWidth = GROSOR_LINEA
+      ctx.strokeStyle = color; ctx.lineWidth = GROSORES_LINEA[grosor]
       ctx.strokeRect(primerPunto.x, primerPunto.y, mouse.x - primerPunto.x, mouse.y - primerPunto.y)
     }
     if (herramienta === 'borrar' && borrarHover !== -1 && trazos[borrarHover]) {
@@ -2360,6 +2447,25 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     })
     observer.observe(container); return () => observer.disconnect()
   }, [imagen, redibujar, escala])
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || !imagen) return
+    function onWheel(e) {
+      e.preventDefault()
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
+      const rect = el.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
+      setZoom(z => {
+        const nz = Math.max(0.25, Math.min(12, z * factor))
+        setPan(p => ({ x: mx - (mx - p.x) * (nz / z), y: my - (my - p.y) * (nz / z) }))
+        return nz
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [imagen])
 
   useEffect(() => {
     if (!estudioId || !canvasRef.current) return
@@ -2395,7 +2501,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     }, 800)
   }, [descripcion]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function getCoordsFromEvent(e) { const r = canvasRef.current.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top } }
+  function getCoordsFromEvent(e) { const r = canvasRef.current.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom } }
   function lineaCercana(x, y, excluir = []) {
     let best = -1, bestDist = 10
     trazos.forEach((t, i) => { if (t.tipo !== 'linea' || excluir.some(s => (typeof s === 'object' ? s.idx : s) === i)) return; const d = distPuntoSegmento(x, y, t.x1, t.y1, t.x2, t.y2); if (d < bestDist) { bestDist = d; best = i } })
@@ -2406,7 +2512,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     if (herramienta === 'punto') { setTrazos(prev => [...prev, { tipo: 'punto', x, y, grosor, color }]) }
     else if (herramienta === 'linea') {
       if (!primerPunto) setPrimerPunto({ x, y })
-      else { setTrazos(prev => [...prev, { tipo: 'linea', x1: primerPunto.x, y1: primerPunto.y, x2: x, y2: y, color }]); setPrimerPunto(null) }
+      else { setTrazos(prev => [...prev, { tipo: 'linea', x1: primerPunto.x, y1: primerPunto.y, x2: x, y2: y, color, grosor }]); setPrimerPunto(null) }
     } else if (herramienta === 'longitud') {
       const idx = lineaCercana(x, y); if (idx === -1) return
       const t = trazos[idx]; const px = Math.hypot(t.x2 - t.x1, t.y2 - t.y1)
@@ -2429,10 +2535,10 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
       } else setLineasSel(nuevasSel)
     } else if (herramienta === 'circulo') {
       if (!primerPunto) setPrimerPunto({ x, y })
-      else { const r = Math.hypot(x-primerPunto.x, y-primerPunto.y); setTrazos(prev => [...prev, { tipo: 'circulo', cx: primerPunto.x, cy: primerPunto.y, rx: x, ry: y, r, color }]); setPrimerPunto(null) }
+      else { const r = Math.hypot(x-primerPunto.x, y-primerPunto.y); setTrazos(prev => [...prev, { tipo: 'circulo', cx: primerPunto.x, cy: primerPunto.y, rx: x, ry: y, r, color, grosor }]); setPrimerPunto(null) }
     } else if (herramienta === 'cuadrado') {
       if (!primerPunto) setPrimerPunto({ x, y })
-      else { setTrazos(prev => [...prev, { tipo: 'cuadrado', x1: primerPunto.x, y1: primerPunto.y, x2: x, y2: y, color }]); setPrimerPunto(null) }
+      else { setTrazos(prev => [...prev, { tipo: 'cuadrado', x1: primerPunto.x, y1: primerPunto.y, x2: x, y2: y, color, grosor }]); setPrimerPunto(null) }
     } else if (herramienta === 'borrar') {
       const idx = trazoCercanoParaBorrar(x, y, trazos); if (idx === -1) return
       setTrazos(prev => prev.filter((_, i) => i !== idx)); setBorrarHover(-1)
@@ -2608,11 +2714,11 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         </div>
       </div>
 
-      {/* Área principal: sidebar + canvas */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* Área principal: tres card panels */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', background: T.gray2, padding: '16px 20px', gap: 12 }}>
 
-        {/* Sidebar izquierdo */}
-        <div style={{ width: 168, borderRight: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', flexShrink: 0, background: T.white, overflowY: 'auto' }}>
+        {/* Card herramientas */}
+        <div style={{ width: 168, flexShrink: 0, background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '14px 14px 6px', fontSize: 9, fontFamily: T.font, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray5, fontWeight: 600 }}>Herramientas</div>
 
           {/* ── Grupo Dibujar ── */}
@@ -2622,32 +2728,34 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
               <SideToolBtn active={herramienta === key} onClick={() => { resetInProgress(); setHerramienta(key) }}>
                 <Ico />{label}
               </SideToolBtn>
-              {key === 'punto' && herramienta === 'punto' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 14px 8px 36px' }}>
-                  <span style={{ fontSize: 8, fontFamily: T.font, color: T.gray4, letterSpacing: '0.12em', textTransform: 'uppercase', marginRight: 2 }}>Grosor</span>
+            </SideToolGroup>
+          ))}
+
+          {/* Grosor + Color — herramientas de dibujo */}
+          {['punto', 'linea', 'circulo', 'cuadrado'].includes(herramienta) && (
+            <div style={{ padding: '4px 14px 10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div>
+                <span style={{ fontSize: 8, fontFamily: T.font, color: T.gray4, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>Grosor</span>
+                <div style={{ display: 'flex', gap: 4 }}>
                   {[1, 2, 3].map(g => (
                     <button key={g} onClick={() => setGrosor(g)}
-                      style={{ width: 26, height: 20, fontSize: 9, fontFamily: T.font, fontWeight: 600, border: `1px solid ${grosor === g ? T.black : T.gray2}`, background: grosor === g ? T.black : T.white, color: grosor === g ? T.white : T.gray4, cursor: 'pointer', borderRadius: 2 }}>
+                      style={{ width: 28, height: 22, fontSize: 9, fontFamily: T.font, fontWeight: 600, border: `1px solid ${grosor === g ? T.black : T.gray2}`, background: grosor === g ? T.black : T.white, color: grosor === g ? T.white : T.gray4, cursor: 'pointer', borderRadius: 2 }}>
                       {g}×
                     </button>
                   ))}
                 </div>
-              )}
-            </SideToolGroup>
-          ))}
-
-          {/* Color picker — herramientas de dibujo */}
-          {['punto', 'linea', 'circulo', 'cuadrado'].includes(herramienta) && (
-            <div style={{ padding: '4px 14px 10px 14px' }}>
-              <span style={{ fontSize: 8, fontFamily: T.font, color: T.gray4, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Color</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                {COLORES_PRESET.map(c => (
-                  <button key={c} onClick={() => setColor(c)}
-                    style={{ width: 22, height: 22, background: c, border: color === c ? `2px solid ${T.black}` : `1px solid ${T.gray2}`, borderRadius: 3, cursor: 'pointer', outline: color === c ? '1px solid #888' : 'none', outlineOffset: 1 }} />
-                ))}
-                <label style={{ width: 22, height: 22, cursor: 'pointer', position: 'relative', border: `1px solid ${T.gray2}`, borderRadius: 3, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'conic-gradient(red,yellow,lime,aqua,blue,magenta,red)', title: 'Color personalizado' }}>
-                  <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
-                </label>
+              </div>
+              <div>
+                <span style={{ fontSize: 8, fontFamily: T.font, color: T.gray4, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>Color</span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {COLORES_PRESET.map(c => (
+                    <button key={c} onClick={() => setColor(c)}
+                      style={{ width: 22, height: 22, background: c, border: color === c ? `2px solid ${T.black}` : `1px solid ${T.gray2}`, borderRadius: 3, cursor: 'pointer', outline: color === c ? '1px solid #888' : 'none', outlineOffset: 1 }} />
+                  ))}
+                  <label style={{ width: 22, height: 22, cursor: 'pointer', position: 'relative', border: `1px solid ${T.gray2}`, borderRadius: 3, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'conic-gradient(red,yellow,lime,aqua,blue,magenta,red)' }}>
+                    <input type="color" value={color} onChange={e => setColor(e.target.value)} style={{ opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer' }} />
+                  </label>
+                </div>
               </div>
             </div>
           )}
@@ -2692,19 +2800,28 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
           )}
         </div>
 
-        {/* Canvas */}
-        <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: T.black }}>
-          <img src={imagen} alt={nombre} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
-          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, cursor: canvasCursor }} onClick={handleCanvasClick} onMouseMove={handleMouseMove} onMouseLeave={() => { setMouse(null); setLineaHover(-1); setBorrarHover(-1) }} />
+        {/* Card imagen / canvas */}
+        <div
+          ref={containerRef}
+          style={{ flex: 1, position: 'relative', overflow: 'hidden', background: T.black, borderRadius: 12 }}
+          onMouseDown={e => { if (e.button === 1) { e.preventDefault(); panningRef.current = { startX: e.clientX, startY: e.clientY, startPanX: pan.x, startPanY: pan.y } } }}
+          onMouseMove={e => { if (panningRef.current) setPan({ x: panningRef.current.startPanX + e.clientX - panningRef.current.startX, y: panningRef.current.startPanY + e.clientY - panningRef.current.startY }) }}
+          onMouseUp={e => { if (e.button === 1) panningRef.current = null }}
+          onMouseLeave={() => { panningRef.current = null }}
+        >
+          <div style={{ position: 'absolute', inset: 0, transformOrigin: '0 0', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})` }}>
+            <img src={imagen} alt={nombre} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
+            <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, cursor: canvasCursor }} onClick={handleCanvasClick} onMouseMove={handleMouseMove} onMouseLeave={() => { setMouse(null); setLineaHover(-1); setBorrarHover(-1) }} />
+          </div>
           <RatioPanel trazos={trazos} />
           <span style={{ position: 'absolute', bottom: 12, right: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: T.font, pointerEvents: 'none' }}>{nombre}</span>
         </div>
 
         {confirmDialog}
 
-        {/* Panel descripción */}
-        <div style={{ width: 260, borderLeft: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', flexShrink: 0, background: T.white }}>
-          <div style={{ padding: '12px 14px 8px', fontSize: 9, fontFamily: T.font, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray5, fontWeight: 600, borderBottom: `1px solid ${T.gray1}` }}>
+        {/* Card descripción / análisis */}
+        <div style={{ width: 260, flexShrink: 0, background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '12px 14px 8px', fontSize: 9, fontFamily: T.font, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray5, fontWeight: 600, borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
             Descripción / Análisis
           </div>
           <textarea
