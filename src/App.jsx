@@ -993,6 +993,48 @@ const TIPO_PAGO = {
 const VACÍO_FORM = { apellido: '', nombre: '', dni: '', fechaNac: '', telefono: '', email: '', direccion: '', obraSocial: '', nroAfiliado: '', planObraSocial: '', titularObraSocial: '', ocupacion: '', grupoSanguineo: '', alergias: '', medicaciones: '', antecedentes: '', antecedentesFamiliares: '', peso: '', altura: '' }
 const COLS_PAC = [{ label: 'Paciente', w: '2fr' }, { label: 'DNI', w: '1fr' }, { label: 'Teléfono', w: '1fr' }, { label: 'Obra social', w: '1.5fr' }, { label: 'Registrado', w: '1fr' }]
 
+function VistaNuevoPaciente({ apiFetch, onVolver, onCreado }) {
+  const [form,      setForm]      = useState(VACÍO_FORM)
+  const [guardando, setGuardando] = useState(false)
+  const [err,       setErr]       = useState(null)
+
+  async function handleCrear(e) {
+    e.preventDefault()
+    if (!form.apellido.trim() || !form.nombre.trim()) { setErr('Apellido y nombre son requeridos'); return }
+    setErr(null); setGuardando(true)
+    const body = { nombre: form.nombre, apellido: form.apellido, dni: form.dni || null, fechaNac: form.fechaNac || null, telefono: form.telefono || null, email: form.email || null, direccion: form.direccion || null, obraSocial: form.obraSocial || null, nroAfiliado: form.nroAfiliado || null, planObraSocial: form.planObraSocial || null, titularObraSocial: form.titularObraSocial || null, ocupacion: form.ocupacion || null, grupoSanguineo: form.grupoSanguineo || null, alergias: form.alergias || null, medicaciones: form.medicaciones || null, antecedentes: form.antecedentes || null, antecedentesFamiliares: form.antecedentesFamiliares || null, peso: form.peso ? Number(form.peso) : null, altura: form.altura ? Number(form.altura) : null }
+    const res = await apiFetch('/pacientes', { method: 'POST', body: JSON.stringify(body) })
+    if (!res) { setGuardando(false); return }
+    if (res.ok) {
+      const d = await res.json()
+      onCreado?.(d.id)
+    } else {
+      const e = await res.json().catch(() => null)
+      setErr(e?.error || 'Error al registrar')
+      setGuardando(false)
+    }
+  }
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 24px 16px', flexShrink: 0 }}>
+        <BackBtn onClick={onVolver} />
+        <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>Nuevo paciente</span>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}>
+        <form onSubmit={handleCrear} style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 24, maxWidth: 700, display: 'flex', flexDirection: 'column', gap: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <PacienteFormFields form={form} handleChange={e => setForm(p => ({ ...p, [e.target.name]: e.target.value }))} setField={(name, val) => setForm(p => ({ ...p, [name]: val }))} apiFetch={apiFetch} />
+          <ErrorMsg>{err}</ErrorMsg>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Btn variant="outline" type="button" onClick={onVolver} disabled={guardando}>Cancelar</Btn>
+            <Btn type="submit" disabled={guardando}>{guardando ? 'Registrando…' : 'Registrar paciente'}</Btn>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function VistaPacientes({ apiFetch, onIrAConsultorios, usuario }) {
   const [sub,              setSub]              = useState('lista')
   const [pacienteId,       setPacienteId]       = useState(null)
@@ -1007,7 +1049,8 @@ function VistaPacientes({ apiFetch, onIrAConsultorios, usuario }) {
   function abrirNuevaConsulta()        { setConsultaActual(null);   setSub('nueva-consulta') }
   function abrirEditarConsulta(c)      { setConsultaActual(c);      setSub('nueva-consulta') }
 
-  if (sub === 'lista')           return <ListaPacientes apiFetch={apiFetch} onDetalle={abrirDetalle} />
+  if (sub === 'lista')           return <ListaPacientes apiFetch={apiFetch} onDetalle={abrirDetalle} onNuevo={() => setSub('nuevo')} />
+  if (sub === 'nuevo')           return <VistaNuevoPaciente apiFetch={apiFetch} onVolver={() => setSub('lista')} onCreado={abrirDetalle} />
   if (sub === 'detalle')         return <DetallePaciente apiFetch={apiFetch} id={pacienteId} onVolver={volver} onNuevoEstudio={abrirNuevoEstudio} onAbrirEstudio={abrirEstudioExistente} onIrAConsultorios={onIrAConsultorios} onIniciarConsulta={abrirNuevaConsulta} onEditarConsulta={abrirEditarConsulta} usuario={usuario} />
   if (sub === 'estudios')        return <VistaEstudios apiFetch={apiFetch} pacienteIdInicial={pacienteId} estudioIdInicial={estudioIdAbierto} onVolver={volverADetalle} />
   if (sub === 'nueva-consulta')  return <VistaNuevaConsulta apiFetch={apiFetch} pacienteId={pacienteId} onVolver={volverADetalle} usuario={usuario} consulta={consultaActual} />
@@ -1131,16 +1174,12 @@ function PieChart({ items }) {
   )
 }
 
-function ListaPacientes({ apiFetch, onDetalle }) {
-  const [buscar,    setBuscar]    = useState('')
-  const [pagina,    setPagina]    = useState(null)
-  const [cargando,  setCargando]  = useState(true)
-  const [error,     setError]     = useState(null)
-  const [panelOpen, setPanelOpen] = useState(false)
-  const [form,      setForm]      = useState(VACÍO_FORM)
-  const [guardando, setGuardando] = useState(false)
-  const [formErr,   setFormErr]   = useState(null)
-  const [vista,     setVista]     = useState(() => localStorage.getItem('pacientes-vista') ?? 'list')
+function ListaPacientes({ apiFetch, onDetalle, onNuevo }) {
+  const [buscar,   setBuscar]   = useState('')
+  const [pagina,   setPagina]   = useState(null)
+  const [cargando, setCargando] = useState(true)
+  const [error,    setError]    = useState(null)
+  const [vista,    setVista]    = useState(() => localStorage.getItem('pacientes-vista') ?? 'list')
 
   function toggleVista(v) { setVista(v); localStorage.setItem('pacientes-vista', v) }
 
@@ -1160,19 +1199,6 @@ function ListaPacientes({ apiFetch, onDetalle }) {
     return () => clearTimeout(t)
   }, [buscar, cargar])
 
-  function cerrarPanel() { setPanelOpen(false); setForm(VACÍO_FORM); setFormErr(null) }
-
-  async function handleCrear(e) {
-    e.preventDefault()
-    if (!form.apellido.trim() || !form.nombre.trim()) { setFormErr('Apellido y nombre son requeridos'); return }
-    setFormErr(null); setGuardando(true)
-    const body = { nombre: form.nombre, apellido: form.apellido, dni: form.dni || null, fechaNac: form.fechaNac || null, telefono: form.telefono || null, email: form.email || null, direccion: form.direccion || null, obraSocial: form.obraSocial || null, nroAfiliado: form.nroAfiliado || null, planObraSocial: form.planObraSocial || null, titularObraSocial: form.titularObraSocial || null, ocupacion: form.ocupacion || null, grupoSanguineo: form.grupoSanguineo || null, alergias: form.alergias || null, medicaciones: form.medicaciones || null, antecedentes: form.antecedentes || null, antecedentesFamiliares: form.antecedentesFamiliares || null, peso: form.peso ? Number(form.peso) : null, altura: form.altura ? Number(form.altura) : null }
-    const res = await apiFetch('/pacientes', { method: 'POST', body: JSON.stringify(body) })
-    if (!res) return
-    if (res.ok) { const d = await res.json(); cerrarPanel(); onDetalle(d.id) }
-    else { const err = await res.json().catch(() => null); setFormErr(err?.error || 'Error al registrar'); setGuardando(false) }
-  }
-
   const pacientes = pagina?.content ?? []
 
   return (
@@ -1183,7 +1209,7 @@ function ListaPacientes({ apiFetch, onDetalle }) {
         <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>
           Pacientes
         </span>
-        <Btn onClick={() => setPanelOpen(true)}>+ Nuevo paciente</Btn>
+        <Btn onClick={onNuevo}>+ Nuevo paciente</Btn>
       </div>
 
       {/* ── white list card ── */}
@@ -1230,18 +1256,6 @@ function ListaPacientes({ apiFetch, onDetalle }) {
           </div>
         </div>
       </div>
-
-      <SidePanel open={panelOpen} onClose={cerrarPanel} title="Nuevo paciente" width={560}
-        footer={<>
-          <Btn variant="outline" onClick={cerrarPanel} disabled={guardando}>Cancelar</Btn>
-          <Btn onClick={handleCrear} disabled={guardando}>{guardando ? 'Registrando…' : 'Registrar paciente'}</Btn>
-        </>}
-      >
-        <form onSubmit={handleCrear} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <PacienteFormFields form={form} handleChange={e => setForm(p => ({ ...p, [e.target.name]: e.target.value }))} setField={(name, val) => setForm(p => ({ ...p, [name]: val }))} apiFetch={apiFetch} />
-          <ErrorMsg>{formErr}</ErrorMsg>
-        </form>
-      </SidePanel>
     </div>
   )
 }
@@ -2161,11 +2175,11 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
   const [vistaMode,      setVistaMode]      = useState(() => localStorage.getItem('consultas-vista') ?? 'list')
   const [sub,            setSub]            = useState('lista')
   const [pacienteSelecId, setPacienteSelecId] = useState(null)
+  const [consultaEditar, setConsultaEditar] = useState(null)
   const [modalPac,       setModalPac]       = useState(false)
   const [pacientes,      setPacientes]      = useState([])
   const [pacSelecTemp,   setPacSelecTemp]   = useState('')
   const [sinConsultorios, setSinConsultorios] = useState(false)
-
   function toggleVista(v) { setVistaMode(v); localStorage.setItem('consultas-vista', v) }
 
   const cargar = useCallback(async () => {
@@ -2203,11 +2217,34 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
   function volverALista() {
     setSub('lista')
     setPacienteSelecId(null)
+    setConsultaEditar(null)
     cargar()
   }
 
+  function abrirEditar(a) {
+    setConsultaEditar(a)
+    setPacienteSelecId(a.pacienteId)
+    setSub('nueva-consulta')
+  }
+
   if (sub === 'nueva-consulta') {
-    return <VistaNuevaConsulta apiFetch={apiFetch} pacienteId={pacienteSelecId} onVolver={volverALista} usuario={usuario} />
+    return <VistaNuevaConsulta apiFetch={apiFetch} pacienteId={pacienteSelecId} onVolver={volverALista} usuario={usuario} consulta={consultaEditar} />
+  }
+
+  if (sub === 'nuevo-paciente') {
+    return (
+      <VistaNuevoPaciente
+        apiFetch={apiFetch}
+        onVolver={() => { setSub('lista'); setModalPac(true) }}
+        onCreado={async (id) => {
+          setPacSelecTemp(id)
+          const rp = await apiFetch('/pacientes?size=200')
+          if (rp?.ok) { const dp = await rp.json(); setPacientes(Array.isArray(dp) ? dp : (dp.content ?? [])) }
+          setSub('lista')
+          setModalPac(true)
+        }}
+      />
+    )
   }
 
   const pendientesCount = items.filter(i => i.monto == null).length
@@ -2252,7 +2289,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
                 <TableHead cols={COLS_CO} />
                 <EmptyOrError cargando={cargando} error={error} empty={filtradas.length === 0} msg={buscar ? 'Sin resultados' : 'No hay consultas registradas'} />
                 {filtradas.map(a => (
-                  <ConsultaFila key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} />
+                  <ConsultaFila key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} onEditar={() => abrirEditar(a)} />
                 ))}
               </>
             ) : (
@@ -2263,7 +2300,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
               ) : (
                 <div style={{ padding: '20px 24px', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start' }}>
                   {filtradas.map(a => (
-                    <ConsultaCard key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} />
+                    <ConsultaCard key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} onEditar={() => abrirEditar(a)} />
                   ))}
                 </div>
               )
@@ -2294,6 +2331,12 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
               <FieldLabel>Paciente</FieldLabel>
               <PacientePicker pacientes={pacientes} value={pacSelecTemp} onChange={setPacSelecTemp} placeholder="Buscar por nombre o DNI…" />
             </div>
+            <button
+              onClick={() => { setModalPac(false); setSub('nuevo-paciente') }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textAlign: 'left', padding: 0, textDecoration: 'underline' }}
+            >
+              + Agregar nuevo paciente
+            </button>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <Btn variant="outline" onClick={() => setModalPac(false)}>Cancelar</Btn>
               <Btn onClick={confirmarPaciente} disabled={!pacSelecTemp}>Continuar</Btn>
@@ -2305,13 +2348,14 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
   )
 }
 
-function ConsultaFila({ a, fmtMonto, fmtTipo }) {
+function ConsultaFila({ a, fmtMonto, fmtTipo, onEditar }) {
   const [hov, setHov] = useState(false)
   const pendiente = a.monto == null
   return (
     <div
+      onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr', padding: '0 24px', minHeight: 50, alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: hov ? T.gray2 : T.white, borderLeft: pendiente ? '3px solid #f59e0b' : 'none', transition: 'background 0.1s' }}
+      style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr', padding: '0 24px', minHeight: 50, alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: hov ? T.gray2 : T.white, borderLeft: pendiente ? '3px solid #f59e0b' : 'none', transition: 'background 0.1s', cursor: 'pointer' }}
     >
       <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, color: T.black, letterSpacing: '0.02em' }}>{a.pacienteApellido}, {a.pacienteNombre}</span>
       <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, letterSpacing: '0.02em', paddingRight: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.descripcion || '—'}</span>
@@ -2326,13 +2370,14 @@ function ConsultaFila({ a, fmtMonto, fmtTipo }) {
   )
 }
 
-function ConsultaCard({ a, fmtMonto, fmtTipo }) {
+function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar }) {
   const [hov, setHov] = useState(false)
   const pendiente = a.monto == null
   return (
     <div
+      onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ width: 240, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: pendiente ? '3px solid #f59e0b' : hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
+      style={{ width: 240, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: pendiente ? '3px solid #f59e0b' : hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer' }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', color: T.black, fontFamily: T.font, lineHeight: 1.3 }}>
         {a.pacienteApellido}, {a.pacienteNombre}
@@ -2788,11 +2833,11 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     </div>
   )
 
-  // ── UPLOAD (desde paciente) ──
+  // ── UPLOAD ──
   if (sub === 'upload') return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <PageBar>
-        <BackBtn onClick={onVolver} />
+        <BackBtn onClick={onVolver ?? (() => setSub('lista'))} />
         <PageTitle>Nuevo estudio</PageTitle>
       </PageBar>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
@@ -2835,17 +2880,28 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     </div>
   )
 
+  // ── NUEVO PACIENTE (desde modal asignar) ──
+  if (sub === 'nuevo-paciente') {
+    return (
+      <VistaNuevoPaciente
+        apiFetch={apiFetch}
+        onVolver={() => setSub('lista')}
+        onCreado={async (id) => {
+          setPacSelId(id)
+          const rp = await apiFetch('/pacientes?size=200')
+          if (rp?.ok) { const dp = await rp.json(); setPacientesOpts(Array.isArray(dp) ? dp : (dp.content ?? [])) }
+          setSub('lista')
+        }}
+      />
+    )
+  }
+
   // ── LISTA ──
   if (sub === 'lista') return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
       <PageBar>
         <PageTitle>Estudios</PageTitle>
-        <div>
-          <Btn onClick={() => inputRef.current?.click()} disabled={subiendo}>
-            {subiendo ? 'Subiendo…' : '+ Nuevo estudio'}
-          </Btn>
-          <input ref={inputRef} type="file" accept="image/*" onChange={e => seleccionarArchivo(e.target.files[0])} style={{ display: 'none' }} />
-        </div>
+        <Btn onClick={() => setSub('upload')}>+ Nuevo estudio</Btn>
       </PageBar>
       <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
@@ -2888,18 +2944,21 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
       {asignandoId && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={e => { if (e.target === e.currentTarget) setAsignandoId(null) }}>
-          <div style={{ background: T.white, borderRadius: 4, padding: 28, width: 340, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black, letterSpacing: '0.02em' }}>Asignar paciente</span>
-            <select value={pacSelId} onChange={e => setPacSelId(e.target.value)}
-              style={{ height: 36, border: `1px solid ${T.gray1}`, padding: '0 10px', fontFamily: T.font, fontSize: 12, color: T.black, outline: 'none', borderRadius: 2 }}>
-              <option value="">— Seleccioná un paciente —</option>
-              {pacientesOpts.map(p => (
-                <option key={p.id} value={p.id}>{p.apellido}, {p.nombre}</option>
-              ))}
-            </select>
+          <div style={{ background: T.white, borderRadius: 12, padding: '28px 32px', width: 420, display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.14)' }}>
+            <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>Asignar paciente</span>
+            <div>
+              <FieldLabel>Paciente</FieldLabel>
+              <PacientePicker pacientes={pacientesOpts} value={pacSelId} onChange={setPacSelId} placeholder="Buscar por nombre o DNI…" />
+            </div>
+            <button
+              onClick={() => setSub('nuevo-paciente')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textAlign: 'left', padding: 0, textDecoration: 'underline' }}
+            >
+              + Agregar nuevo paciente
+            </button>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <Btn variant="outline" size="sm" onClick={() => setAsignandoId(null)}>Cancelar</Btn>
-              <Btn size="sm" onClick={confirmarAsignacion} disabled={!pacSelId}>Asignar</Btn>
+              <Btn variant="outline" onClick={() => setAsignandoId(null)}>Cancelar</Btn>
+              <Btn onClick={confirmarAsignacion} disabled={!pacSelId}>Asignar</Btn>
             </div>
           </div>
         </div>
@@ -3330,9 +3389,24 @@ function RatioPanel({ trazos }) {
 
 /* ─── VistaTurnos ────────────────────────────────────────────── */
 
+function GoogleCalendarIcon({ size = 18 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
+      <rect x="1.5" y="2.5" width="15" height="14" rx="2" fill="white" stroke="#dadce0" strokeWidth="0.8"/>
+      <rect x="1.5" y="2.5" width="15" height="4.5" rx="2" fill="#4285F4"/>
+      <rect x="1.5" y="5" width="15" height="2" fill="#4285F4"/>
+      <rect x="5.25" y="0.5" width="1.5" height="4" rx="0.75" fill="#4285F4"/>
+      <rect x="11.25" y="0.5" width="1.5" height="4" rx="0.75" fill="#4285F4"/>
+      <circle cx="6" cy="13" r="1.1" fill="#EA4335"/>
+      <circle cx="9" cy="13" r="1.1" fill="#FBBC04"/>
+      <circle cx="12" cy="13" r="1.1" fill="#34A853"/>
+    </svg>
+  )
+}
+
 const ESTADO_TURNO_COLORS = {
-  PENDIENTE:  { bg: '#fef9c3', border: '#ca8a04', text: '#713f12' },
-  CONFIRMADO: { bg: '#dcfce7', border: '#16a34a', text: '#14532d' },
+  PENDIENTE:  { bg: '#ffffff', border: '#e0e0dc', text: '#111111' },
+  CONFIRMADO: { bg: '#111111', border: '#111111', text: '#ffffff' },
 }
 
 const VACÍO_TURNO = {
@@ -3547,26 +3621,18 @@ function VistaTurnos({ apiFetch }) {
       {/* top bar */}
       <PageBar>
         <PageTitle>Turnos</PageTitle>
-        <Btn onClick={() => abrirNuevo(new Date())}>+ Nuevo turno</Btn>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img src="/google_calendar_icon.png" alt="Google Calendar" style={{ width: 16, height: 16, flexShrink: 0 }} />
+          <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>
+            {calConectado ? 'Google Calendar conectado. Los turnos se sincronizan automáticamente.' : 'Conectá tu Google Calendar para sincronizar turnos automáticamente.'}
+          </span>
+          {calConectado
+            ? <Btn size="sm" variant="ghost" onClick={desconectarCalendar}>Desconectar</Btn>
+            : <Btn size="sm" variant="ghost" onClick={conectarCalendar}>Conectar</Btn>
+          }
+          <Btn onClick={() => abrirNuevo(new Date())}>+ Nuevo turno</Btn>
+        </div>
       </PageBar>
-
-      {/* calendar connect banner */}
-      {calConectado === false && (
-        <div style={{ background: '#fef9c3', borderBottom: `1px solid #ca8a04`, padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, fontFamily: T.font, color: '#713f12', flex: 1 }}>
-            Conectá tu Google Calendar para sincronizar turnos automáticamente.
-          </span>
-          <Btn size="sm" onClick={conectarCalendar}>Conectar Google Calendar</Btn>
-        </div>
-      )}
-      {calConectado === true && (
-        <div style={{ background: '#f0fdf4', borderBottom: `1px solid #86efac`, padding: '10px 24px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, fontFamily: T.font, color: '#166534', flex: 1 }}>
-            Google Calendar conectado. Los turnos se sincronizan automáticamente.
-          </span>
-          <Btn size="sm" variant="ghost" onClick={desconectarCalendar}>Desconectar</Btn>
-        </div>
-      )}
 
       {/* body: today panel + calendar */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -3616,20 +3682,20 @@ function VistaTurnos({ apiFetch }) {
 
         {/* week navigation */}
         <div style={{ padding: '10px 18px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-        <button onClick={() => setSemanaInicio(s => addDays(s, -7))}
-          style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: T.gray4 }}>
-          ‹
-        </button>
-        <button onClick={() => setSemanaInicio(startOfWeek(new Date()))}
-          style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', height: 30, padding: '0 12px', fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray4 }}>
-          Hoy
-        </button>
-        <button onClick={() => setSemanaInicio(s => addDays(s, 7))}
-          style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: T.gray4 }}>
-          ›
-        </button>
-        <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, letterSpacing: '0.04em' }}>{fmtRangoSemana()}</span>
-      </div>
+          <button onClick={() => setSemanaInicio(s => addDays(s, -7))}
+            style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: T.gray4 }}>
+            ‹
+          </button>
+          <button onClick={() => setSemanaInicio(startOfWeek(new Date()))}
+            style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', height: 30, padding: '0 12px', fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray4 }}>
+            Hoy
+          </button>
+          <button onClick={() => setSemanaInicio(s => addDays(s, 7))}
+            style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: T.gray4 }}>
+            ›
+          </button>
+          <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, letterSpacing: '0.04em' }}>{fmtRangoSemana()}</span>
+        </div>
 
       {/* calendar grid */}
       {(() => {
