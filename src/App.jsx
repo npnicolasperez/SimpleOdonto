@@ -223,6 +223,7 @@ const NAV_ITEMS = [
 
 function MainLayout({ token, usuario, onLogout }) {
   const [vista, setVista] = useState('dashboard')
+  const [consultasFiltroInicial, setConsultasFiltroInicial] = useState(false)
 
   const apiFetch = useCallback(async (path, opts = {}) => {
     const res = await fetch(`${API_URL}${path}`, {
@@ -268,8 +269,8 @@ function MainLayout({ token, usuario, onLogout }) {
           {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
           {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} />}
           {vista === 'estudios'       && <VistaEstudios apiFetch={apiFetch} />}
-          {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
-          {vista === 'finanzas'       && <VistaFinanzas apiFetch={apiFetch} onIrAConsultas={() => setVista('consultas')} />}
+          {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} />}
+          {vista === 'finanzas'       && <VistaFinanzas apiFetch={apiFetch} onIrAConsultas={() => { setConsultasFiltroInicial(true); setVista('consultas') }} />}
           {vista === 'obras-sociales' && <VistaObrasSociales apiFetch={apiFetch} />}
           {vista === 'consultorios'   && <VistaConsultorios apiFetch={apiFetch} />}
           {vista === 'medios-pago'    && <VistaMediosPago apiFetch={apiFetch} />}
@@ -933,6 +934,47 @@ function FilaSimple({ cols, gridCols, onEliminar }) {
 
 /* ─── EmptyOrError ───────────────────────────────────────────── */
 
+function PacientePicker({ pacientes, value, onChange, placeholder = 'Buscar por nombre o DNI…' }) {
+  const [query, setQuery] = useState('')
+  const selec = pacientes.find(p => String(p.id) === String(value))
+  const filtrados = query.length > 0
+    ? pacientes.filter(p =>
+        `${p.apellido} ${p.nombre} ${p.dni ?? ''}`.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 8)
+    : []
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        value={query}
+        onChange={e => { setQuery(e.target.value); onChange('') }}
+        onBlur={() => setTimeout(() => setQuery(''), 150)}
+        placeholder={selec ? `${selec.apellido}, ${selec.nombre}` : placeholder}
+        style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, outline: 'none', boxSizing: 'border-box', background: T.white }}
+      />
+      {filtrados.length > 0 && (
+        <div style={{ position: 'absolute', top: 38, left: 0, right: 0, background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 6, maxHeight: 220, overflowY: 'auto', zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+          {filtrados.map(p => (
+            <div key={p.id}
+              onMouseDown={() => { onChange(p.id); setQuery('') }}
+              style={{ padding: '9px 12px', cursor: 'pointer', fontSize: 13, fontFamily: T.font, color: T.black, borderBottom: `1px solid ${T.gray1}` }}
+              onMouseEnter={e => e.currentTarget.style.background = T.gray2}
+              onMouseLeave={e => e.currentTarget.style.background = T.white}
+            >
+              <span style={{ fontWeight: 500 }}>{p.apellido}, {p.nombre}</span>
+              {p.dni && <span style={{ fontSize: 11, color: T.gray4, marginLeft: 8 }}>DNI {p.dni}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {query.length > 0 && filtrados.length === 0 && (
+        <div style={{ position: 'absolute', top: 38, left: 0, right: 0, background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '10px 12px', fontSize: 12, color: T.gray4, fontFamily: T.font, zIndex: 50 }}>
+          Sin resultados
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EmptyOrError({ cargando, error, empty, msg }) {
   if (cargando) return <div style={{ padding: '3rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
   if (error)    return <div style={{ padding: '2rem 24px', fontSize: 13, color: T.red, fontFamily: T.font }}>{error}</div>
@@ -1008,7 +1050,7 @@ function StatCard({ label, value, sub, inverted = false, pct = null, bottomRight
         )}
         {pendienteInfo && pendienteInfo.count > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontFamily: T.mono, fontSize: 9, background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a', borderRadius: 20, padding: '2px 8px', fontWeight: 700 }}>
+            <span style={{ fontFamily: T.mono, fontSize: 9, color: 'rgba(255,255,255,0.6)', borderLeft: '2px solid #f59e0b', paddingLeft: 6, fontWeight: 600 }}>
               {pendienteInfo.count} pendiente{pendienteInfo.count !== 1 ? 's' : ''}
             </span>
             <button onClick={pendienteInfo.onVer} style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: 'rgba(255,255,255,0.15)', color: T.white, border: '1px solid rgba(255,255,255,0.25)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
@@ -1551,6 +1593,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
   const { openConfirm, dialog }             = useConfirm()
   const [guardando,      setGuardando]      = useState(false)
   const [err,            setErr]            = useState(null)
+  const [cobrarDespues,  setCobrarDespues]  = useState(modoEdicion ? consulta.monto == null : false)
 
   useEffect(() => {
     async function cargar() {
@@ -1739,17 +1782,19 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
             {/* Card: Clínica — consultorio arriba, campos en el medio, archivo abajo */}
             <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div style={secLabel}>Clínica</div>
-              <div>
-                <FieldLabel>Fecha de la consulta</FieldLabel>
-                <Input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} />
-              </div>
-              <div>
-                <FieldLabel>Consultorio</FieldLabel>
-                <select value={form.consultorioId} onChange={e => setForm(f => ({ ...f, consultorioId: e.target.value }))}
-                  style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
-                  <option value="">Sin consultorio</option>
-                  {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div style={{ flex: '0 0 160px' }}>
+                  <FieldLabel>Fecha de la consulta</FieldLabel>
+                  <Input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <FieldLabel>Consultorio</FieldLabel>
+                  <select value={form.consultorioId} onChange={e => setForm(f => ({ ...f, consultorioId: e.target.value }))}
+                    style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
+                    <option value="">Sin consultorio</option>
+                    {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                  </select>
+                </div>
               </div>
               <div>
                 <FieldLabel>Descripción</FieldLabel>
@@ -1803,35 +1848,47 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
 
             {/* Card: Pago */}
             <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={secLabel}>Pago</div>
-              <div>
-                <FieldLabel>Tipo de pago *</FieldLabel>
-                <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden', maxWidth: 300 }}>
-                  {Object.entries(TIPO_PAGO).map(([op, label], idx, arr) => (
-                    <button key={op} type="button" onClick={() => setForm(f => ({ ...f, tipoPago: op }))}
-                      style={{ flex: 1, border: 'none', borderRight: idx < arr.length - 1 ? `1px solid ${T.gray1}` : 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', background: form.tipoPago === op ? T.black : T.white, color: form.tipoPago === op ? T.white : T.black, transition: 'background 0.15s, color 0.15s' }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={secLabel}>Pago</div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <span style={{ fontFamily: T.font, fontSize: 12, color: cobrarDespues ? T.black : T.gray4, fontWeight: cobrarDespues ? 600 : 400 }}>
+                    Registrar cobro después
+                  </span>
+                  <div onClick={() => setCobrarDespues(v => !v)} style={{ width: 36, height: 20, borderRadius: 10, background: cobrarDespues ? T.black : T.gray1, position: 'relative', transition: 'background 0.2s', cursor: 'pointer', flexShrink: 0 }}>
+                    <div style={{ position: 'absolute', top: 3, left: cobrarDespues ? 19 : 3, width: 14, height: 14, borderRadius: '50%', background: T.white, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                  </div>
+                </label>
               </div>
-              <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div style={{ maxWidth: 180 }}>
-                  <FieldLabel>Monto</FieldLabel>
-                  <Input type="number" min="0" step="0.01" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="Sin cobro" />
+              {!cobrarDespues && <>
+                <div>
+                  <FieldLabel>Tipo de pago *</FieldLabel>
+                  <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden', maxWidth: 300 }}>
+                    {Object.entries(TIPO_PAGO).map(([op, label], idx, arr) => (
+                      <button key={op} type="button" onClick={() => setForm(f => ({ ...f, tipoPago: op }))}
+                        style={{ flex: 1, border: 'none', borderRight: idx < arr.length - 1 ? `1px solid ${T.gray1}` : 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', background: form.tipoPago === op ? T.black : T.white, color: form.tipoPago === op ? T.white : T.black, transition: 'background 0.15s, color 0.15s' }}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ flex: 1, minWidth: 160 }}>
-                  <FieldLabel>Medio de pago</FieldLabel>
-                  <select value={form.medioPagoId} onChange={e => setForm(f => ({ ...f, medioPagoId: e.target.value }))}
-                    style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
-                    <option value="">Sin especificar</option>
-                    {mediosPago.map(mp => <option key={mp.id} value={mp.id}>{mp.nombre}</option>)}
-                  </select>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div style={{ maxWidth: 180 }}>
+                    <FieldLabel>Monto</FieldLabel>
+                    <Input type="number" min="0" step="0.01" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="Sin cobro" />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <FieldLabel>Medio de pago</FieldLabel>
+                    <select value={form.medioPagoId} onChange={e => setForm(f => ({ ...f, medioPagoId: e.target.value }))}
+                      style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
+                      <option value="">Sin especificar</option>
+                      {mediosPago.map(mp => <option key={mp.id} value={mp.id}>{mp.nombre}</option>)}
+                    </select>
+                  </div>
                 </div>
-              </div>
-              {!form.monto && (
-                <div style={{ fontSize: 11, fontFamily: T.font, color: T.gray5, background: '#fafafa', border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 12px' }}>
-                  Sin monto → el ingreso quedará como <strong>pendiente</strong>
+              </>}
+              {cobrarDespues && (
+                <div style={{ fontSize: 11, fontFamily: T.font, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 12px' }}>
+                  El ingreso quedará como <strong>pendiente</strong> hasta que se registre el cobro.
                 </div>
               )}
             </div>
@@ -1881,7 +1938,7 @@ function ConsultaHCItem({ a, last, apiFetch, onEditar }) {
     <div
       onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ padding: '14px 0', borderBottom: last ? 'none' : `1px solid ${T.gray2}`, display: 'flex', gap: 20, background: hov ? T.gray2 : 'transparent', transition: 'background 0.1s', paddingLeft: hov ? 8 : 0, cursor: 'pointer' }}
+      style={{ padding: '14px 0', borderBottom: last ? 'none' : `1px solid ${T.gray2}`, display: 'flex', gap: 20, background: hov ? T.gray2 : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
     >
       <div style={{ flexShrink: 0, width: 90 }}>
         <div style={{ fontSize: 11, fontFamily: T.font, color: T.black, letterSpacing: '0.04em' }}>{a.fecha || fmtFecha(a.dateCreated)}</div>
@@ -1908,7 +1965,7 @@ function ConsultaHCItem({ a, last, apiFetch, onEditar }) {
       <div style={{ flexShrink: 0, textAlign: 'right' }}>
         {a.monto != null
           ? <div style={{ fontSize: 15, fontFamily: T.font, fontWeight: 500, color: T.black }}>{fmtM(a.monto)}</div>
-          : <div style={{ fontSize: 10, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray5, marginTop: 2 }}>Cobro no<br/>registrado</div>
+          : <div style={{ fontSize: 9, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4, borderLeft: '2px solid #f59e0b', paddingLeft: 6, fontWeight: 600, whiteSpace: 'nowrap' }}>Cobro pendiente</div>
         }
         <div style={{ marginTop: 3, fontSize: 10, fontFamily: T.font, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray4, fontWeight: 500 }}>
           {TIPO_PAGO[a.tipoPago] ?? ''}
@@ -2095,21 +2152,21 @@ const COLS_CO = [
   { label: 'Fecha',       w: '1fr' },
 ]
 
-function VistaConsultas({ apiFetch, onIrAConsultorios, usuario }) {
-  const [items,      setItems]      = useState([])
-  const [cargando,   setCargando]   = useState(true)
-  const [error,      setError]      = useState(null)
-  const [panelOpen,  setPanelOpen]  = useState(false)
-  const [form,       setForm]       = useState(VACÍO_CO)
-  const [guardando,  setGuardando]  = useState(false)
-  const [formErr,    setFormErr]    = useState(null)
-  const [buscar,        setBuscar]        = useState('')
-  const [vista,         setVista]         = useState(() => localStorage.getItem('consultas-vista') ?? 'list')
-  const [pacientes,     setPacientes]     = useState([])
-  const [consultorios,  setConsultorios]  = useState([])
+function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteInicial = false }) {
+  const [items,          setItems]          = useState([])
+  const [cargando,       setCargando]       = useState(true)
+  const [error,          setError]          = useState(null)
+  const [buscar,         setBuscar]         = useState('')
+  const [soloPendientes, setSoloPendientes] = useState(filtroPendienteInicial)
+  const [vistaMode,      setVistaMode]      = useState(() => localStorage.getItem('consultas-vista') ?? 'list')
+  const [sub,            setSub]            = useState('lista')
+  const [pacienteSelecId, setPacienteSelecId] = useState(null)
+  const [modalPac,       setModalPac]       = useState(false)
+  const [pacientes,      setPacientes]      = useState([])
+  const [pacSelecTemp,   setPacSelecTemp]   = useState('')
   const [sinConsultorios, setSinConsultorios] = useState(false)
 
-  function toggleVista(v) { setVista(v); localStorage.setItem('consultas-vista', v) }
+  function toggleVista(v) { setVistaMode(v); localStorage.setItem('consultas-vista', v) }
 
   const cargar = useCallback(async () => {
     setCargando(true); setError(null)
@@ -2123,43 +2180,40 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario }) {
   useEffect(() => { cargar() }, [cargar])
 
   useEffect(() => {
-    if (!panelOpen) return
+    if (!modalPac) return
     apiFetch('/pacientes?size=200').then(r => r?.ok && r.json().then(d => setPacientes(Array.isArray(d) ? d : (d.content ?? []))))
-    apiFetch('/consultorios').then(r => r?.ok && r.json().then(d => setConsultorios(d)))
-  }, [panelOpen, apiFetch])
+  }, [modalPac, apiFetch])
 
-  function cerrarPanel() { setPanelOpen(false); setForm(VACÍO_CO); setFormErr(null) }
-
-  function handleChange(e) {
-    const { name, value } = e.target
-    setForm(f => ({ ...f, [name]: value }))
-  }
-
-  async function handleGuardar(e) {
-    e.preventDefault()
-    if (!form.pacienteId) { setFormErr('Seleccioná un paciente'); return }
-    if (!form.monto || isNaN(Number(form.monto))) { setFormErr('Ingresá un monto válido'); return }
-    setFormErr(null); setGuardando(true)
-    const body = {
-      pacienteId:    Number(form.pacienteId),
-      consultorioId: form.consultorioId ? Number(form.consultorioId) : null,
-      fecha:         form.fecha || null,
-      descripcion:   form.descripcion   || null,
-      monto:         Number(form.monto),
-      tipoPago:      form.tipoPago,
-    }
-    const res = await apiFetch('/consultas', { method: 'POST', body: JSON.stringify(body) })
+  async function abrirNuevaConsulta() {
+    const res = await apiFetch('/consultorios')
     if (!res) return
-    if (res.ok) { cerrarPanel(); cargar() }
-    else { const err = await res.json().catch(() => null); setFormErr(err?.error || 'Error al guardar') }
-    setGuardando(false)
+    const lista = await res.json()
+    if (!lista.length) { setSinConsultorios(true); return }
+    setPacSelecTemp('')
+    setModalPac(true)
   }
 
-  const filtradas = buscar.trim()
-    ? items.filter(i =>
-        `${i.pacienteApellido} ${i.pacienteNombre} ${i.descripcion ?? ''}`.toLowerCase().includes(buscar.toLowerCase())
-      )
-    : items
+  function confirmarPaciente() {
+    if (!pacSelecTemp) return
+    setPacienteSelecId(pacSelecTemp)
+    setModalPac(false)
+    setSub('nueva-consulta')
+  }
+
+  function volverALista() {
+    setSub('lista')
+    setPacienteSelecId(null)
+    cargar()
+  }
+
+  if (sub === 'nueva-consulta') {
+    return <VistaNuevaConsulta apiFetch={apiFetch} pacienteId={pacienteSelecId} onVolver={volverALista} usuario={usuario} />
+  }
+
+  const pendientesCount = items.filter(i => i.monto == null).length
+  const filtradas = items
+    .filter(i => !soloPendientes || i.monto == null)
+    .filter(i => !buscar.trim() || `${i.pacienteApellido} ${i.pacienteNombre} ${i.descripcion ?? ''}`.toLowerCase().includes(buscar.toLowerCase()))
 
   const fmtMonto = m => m != null ? `$${Number(m).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
   const fmtTipo  = t => TIPO_PAGO[t] ?? t
@@ -2168,14 +2222,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
       <PageBar>
         <PageTitle>Consultas</PageTitle>
-        <Btn onClick={async () => {
-          const res = await apiFetch('/consultorios')
-          if (!res) return
-          const lista = await res.json()
-          if (!lista.length) { setSinConsultorios(true); return }
-          setConsultorios(lista)
-          setPanelOpen(true)
-        }}>Iniciar consulta</Btn>
+        <Btn onClick={abrirNuevaConsulta}>Iniciar consulta</Btn>
       </PageBar>
 
       <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
@@ -2190,11 +2237,17 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario }) {
                 style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }}
               />
             </div>
-            <ViewToggle vista={vista} onToggle={toggleVista} />
+            {pendientesCount > 0 && (
+              <button onClick={() => setSoloPendientes(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 6, border: soloPendientes ? '1px solid #f59e0b' : `1px solid ${T.gray1}`, background: soloPendientes ? '#fffbeb' : T.white, cursor: 'pointer', fontFamily: T.font, fontSize: 12, fontWeight: soloPendientes ? 600 : 400, color: soloPendientes ? '#92400e' : T.gray4, transition: 'all 0.15s' }}>
+                Cobros pendientes
+                <span style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a', borderRadius: 20, padding: '1px 6px' }}>{pendientesCount}</span>
+              </button>
+            )}
+            <ViewToggle vista={vistaMode} onToggle={toggleVista} />
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {vista === 'list' ? (
+            {vistaMode === 'list' ? (
               <>
                 <TableHead cols={COLS_CO} />
                 <EmptyOrError cargando={cargando} error={error} empty={filtradas.length === 0} msg={buscar ? 'Sin resultados' : 'No hay consultas registradas'} />
@@ -2233,96 +2286,39 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario }) {
         </div>
       )}
 
-      <SidePanel open={panelOpen} onClose={cerrarPanel} title="Nueva consulta" width={860}
-        footer={<>
-          <Btn variant="outline" onClick={cerrarPanel} disabled={guardando}>Cancelar</Btn>
-          <Btn onClick={handleGuardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar'}</Btn>
-        </>}
-      >
-        <form onSubmit={handleGuardar} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-
-          {/* campos superiores */}
-          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14, flexShrink: 0 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 14 }}>
-              <div>
-                <FieldLabel>Paciente *</FieldLabel>
-                <select name="pacienteId" value={form.pacienteId} onChange={handleChange}
-                  style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
-                  <option value="">Seleccionar paciente…</option>
-                  {pacientes.map(p => (
-                    <option key={p.id} value={p.id}>{p.apellido}, {p.nombre}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <FieldLabel>Consultorio</FieldLabel>
-                <select name="consultorioId" value={form.consultorioId} onChange={handleChange}
-                  style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
-                  <option value="">Sin consultorio</option>
-                  {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                </select>
-              </div>
-              <div>
-                <FieldLabel>Tipo de pago *</FieldLabel>
-                <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden' }}>
-                  {Object.entries(TIPO_PAGO).map(([op, label], idx, arr) => (
-                    <button key={op} type="button"
-                      onClick={() => setForm(f => ({ ...f, tipoPago: op }))}
-                      style={{ flex: 1, border: 'none', borderRight: idx < arr.length - 1 ? `1px solid ${T.gray1}` : 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', background: form.tipoPago === op ? T.black : T.white, color: form.tipoPago === op ? T.white : T.black, transition: 'background 0.15s, color 0.15s' }}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div style={{ maxWidth: 180 }}>
-              <FieldLabel>Fecha de la consulta</FieldLabel>
-              <Input type="date" name="fecha" value={form.fecha} onChange={handleChange} />
-            </div>
-          </div>
-
-          {/* odontograma — solo para odontólogos */}
-          {usuario?.especialidadNombre?.toLowerCase().includes('odontolog') && (
-            <div style={{ borderTop: `1px solid ${T.gray1}`, borderBottom: `1px solid ${T.gray1}`, padding: '16px 24px', flexShrink: 0 }}>
-              <div style={{ fontSize: 10, fontFamily: T.font, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4, marginBottom: 14 }}>Odontograma</div>
-              {form.pacienteId ? (
-                <Odontograma key={form.pacienteId} apiFetch={apiFetch} pacienteId={Number(form.pacienteId)} />
-              ) : (
-                <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 11, fontFamily: T.font, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5 }}>
-                  Seleccioná un paciente para ver el odontograma
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* campos inferiores — scrollable */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {modalPac && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: T.white, borderRadius: 12, padding: '28px 32px', width: 420, display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.14)' }}>
+            <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>Seleccionar paciente</span>
             <div>
-              <FieldLabel>Descripción</FieldLabel>
-              <Textarea name="descripcion" value={form.descripcion} onChange={handleChange} rows={3} />
+              <FieldLabel>Paciente</FieldLabel>
+              <PacientePicker pacientes={pacientes} value={pacSelecTemp} onChange={setPacSelecTemp} placeholder="Buscar por nombre o DNI…" />
             </div>
-            <div style={{ maxWidth: 180 }}>
-              <FieldLabel>Monto *</FieldLabel>
-              <Input type="number" min="0" step="0.01" name="monto" value={form.monto} onChange={handleChange} />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Btn variant="outline" onClick={() => setModalPac(false)}>Cancelar</Btn>
+              <Btn onClick={confirmarPaciente} disabled={!pacSelecTemp}>Continuar</Btn>
             </div>
-            <ErrorMsg>{formErr}</ErrorMsg>
           </div>
-        </form>
-      </SidePanel>
+        </div>
+      )}
     </div>
   )
 }
 
 function ConsultaFila({ a, fmtMonto, fmtTipo }) {
   const [hov, setHov] = useState(false)
+  const pendiente = a.monto == null
   return (
     <div
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr', padding: '0 24px', minHeight: 50, alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: hov ? T.gray2 : T.white, transition: 'background 0.1s' }}
+      style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr', padding: '0 24px', minHeight: 50, alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: hov ? T.gray2 : T.white, borderLeft: pendiente ? '3px solid #f59e0b' : 'none', transition: 'background 0.1s' }}
     >
       <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, color: T.black, letterSpacing: '0.02em' }}>{a.pacienteApellido}, {a.pacienteNombre}</span>
       <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, letterSpacing: '0.02em', paddingRight: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.descripcion || '—'}</span>
-      <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, letterSpacing: '0.02em' }}>{fmtMonto(a.monto)}</span>
+      {pendiente
+        ? <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cobro pendiente</span>
+        : <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, letterSpacing: '0.02em' }}>{fmtMonto(a.monto)}</span>
+      }
       <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{fmtTipo(a.tipoPago)}</span>
       <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, letterSpacing: '0.02em' }}>{a.consultorioNombre || '—'}</span>
       <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray3, letterSpacing: '0.04em' }}>{a.fecha || fmtFecha(a.dateCreated)}</span>
@@ -2332,10 +2328,11 @@ function ConsultaFila({ a, fmtMonto, fmtTipo }) {
 
 function ConsultaCard({ a, fmtMonto, fmtTipo }) {
   const [hov, setHov] = useState(false)
+  const pendiente = a.monto == null
   return (
     <div
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ width: 240, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
+      style={{ width: 240, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: pendiente ? '3px solid #f59e0b' : hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', color: T.black, fontFamily: T.font, lineHeight: 1.3 }}>
         {a.pacienteApellido}, {a.pacienteNombre}
@@ -2346,8 +2343,13 @@ function ConsultaCard({ a, fmtMonto, fmtTipo }) {
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
-        <span style={{ fontSize: 13, fontWeight: 500, color: T.black, fontFamily: T.font }}>{fmtMonto(a.monto)}</span>
-        <span style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4, fontFamily: T.font }}>{fmtTipo(a.tipoPago)}</span>
+        {pendiente
+          ? <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cobro pendiente</span>
+          : <>
+              <span style={{ fontSize: 13, fontWeight: 500, color: T.black, fontFamily: T.font }}>{fmtMonto(a.monto)}</span>
+              <span style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4, fontFamily: T.font }}>{fmtTipo(a.tipoPago)}</span>
+            </>
+        }
       </div>
       {a.consultorioNombre && (
         <div style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{a.consultorioNombre}</div>
@@ -3387,7 +3389,6 @@ function VistaTurnos({ apiFetch }) {
   const [pacientes,       setPacientes]       = useState([])
   const [consultorios,    setConsultorios]    = useState([])
   const [usarPacienteLib, setUsarPacienteLib] = useState(false)
-  const [buscarPac,       setBuscarPac]       = useState('')
 
   const semanaFin = addDays(semanaInicio, 6)
 
@@ -3446,7 +3447,7 @@ function VistaTurnos({ apiFetch }) {
     cargarFormDeps()
   }
 
-  function cerrarModal() { setModalOpen(false); setForm(VACÍO_TURNO); setEditId(null); setFormErr(null); setBuscarPac('') }
+  function cerrarModal() { setModalOpen(false); setForm(VACÍO_TURNO); setEditId(null); setFormErr(null) }
 
   function handleChange(e) {
     const { name, value } = e.target
@@ -3739,45 +3740,16 @@ function VistaTurnos({ apiFetch }) {
                   <FieldLabel>Nombre del paciente</FieldLabel>
                   <Input name="nombrePacienteLibre" value={form.nombrePacienteLibre} onChange={handleChange} placeholder="Nombre y apellido…" />
                 </div>
-              ) : (() => {
-                const pacSelec = pacientes.find(p => String(p.id) === String(form.pacienteId))
-                const filtrados = buscarPac.length > 0
-                  ? pacientes.filter(p => `${p.apellido} ${p.nombre}`.toLowerCase().includes(buscarPac.toLowerCase())).slice(0, 8)
-                  : []
-                return (
-                  <div>
-                    <FieldLabel>Paciente</FieldLabel>
-                    <div style={{ position: 'relative' }}>
-                      <input
-                        value={buscarPac}
-                        onChange={e => { setBuscarPac(e.target.value); setForm(f => ({ ...f, pacienteId: '' })) }}
-                        onBlur={() => setTimeout(() => setBuscarPac(''), 150)}
-                        placeholder={pacSelec ? `${pacSelec.apellido}, ${pacSelec.nombre}` : 'Buscar por nombre…'}
-                        style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 0, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, outline: 'none', boxSizing: 'border-box', background: T.white }}
-                      />
-                      {filtrados.length > 0 && (
-                        <div style={{ position: 'absolute', top: 38, left: 0, right: 0, background: T.white, border: `1px solid ${T.gray1}`, maxHeight: 220, overflowY: 'auto', zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                          {filtrados.map(p => (
-                            <div key={p.id}
-                              onMouseDown={() => { setForm(f => ({ ...f, pacienteId: p.id })); setBuscarPac('') }}
-                              style={{ padding: '9px 12px', cursor: 'pointer', fontSize: 13, fontFamily: T.font, color: T.black, borderBottom: `1px solid ${T.gray1}` }}
-                              onMouseEnter={e => e.currentTarget.style.background = T.gray2}
-                              onMouseLeave={e => e.currentTarget.style.background = T.white}
-                            >
-                              {p.apellido}, {p.nombre}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {buscarPac.length > 0 && filtrados.length === 0 && (
-                        <div style={{ position: 'absolute', top: 38, left: 0, right: 0, background: T.white, border: `1px solid ${T.gray1}`, padding: '10px 12px', fontSize: 12, color: T.gray4, fontFamily: T.font, zIndex: 50 }}>
-                          Sin resultados
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })()}
+              ) : (
+                <div>
+                  <FieldLabel>Paciente</FieldLabel>
+                  <PacientePicker
+                    pacientes={pacientes}
+                    value={form.pacienteId}
+                    onChange={id => setForm(f => ({ ...f, pacienteId: id }))}
+                  />
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
                 <div>
@@ -4082,34 +4054,6 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
         <StatCard label="Egresos" value={cargando ? null : fmtPesos(totalEgresosNum)} bottomRight={cargando ? null : fmtPesos(saldoNum)} />
       </div>
 
-      {/* ── cards por consultorio ── */}
-      {!filtroCons && resumenPorConsultorio.length > 0 && (
-        <div style={{ padding: '0 24px 20px', display: 'flex', gap: 12, flexShrink: 0, overflowX: 'auto' }}>
-          {resumenPorConsultorio.map(c => {
-            const pos = c.balance >= 0
-            return (
-              <div key={c.id} style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: '16px 20px', minWidth: 190, flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray4 }}>{c.nombre}</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4 }}>Ingresos</span>
-                    <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>{fmtPesos(c.totalIng)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4 }}>Egresos</span>
-                    <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>{fmtPesos(c.totalEgr)}</span>
-                  </div>
-                  <div style={{ borderTop: `1px solid ${T.gray1}`, paddingTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 600, color: T.black }}>Balance</span>
-                    <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: pos ? '#16a34a' : '#dc2626' }}>{fmtPesos(c.balance)}</span>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
-
       <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, height: '100%' }}>
 
@@ -4177,10 +4121,9 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
                       const [y, mo, d] = (m.fecha || '').split('-')
                       const fechaFmt = m.fecha ? `${d}/${mo}/${y}` : '—'
                       const borderLeft = pendiente ? '3px solid #f59e0b' : esIngreso ? 'none' : '3px solid #9b1c1c'
-                      const rowBg = pendiente ? '#fffbeb' : 'transparent'
                       return (
-                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 90px 100px', columnGap: 16, padding: '11px 20px', borderBottom: `1px solid ${T.gray1}`, alignItems: 'center', borderLeft, background: rowBg }}>
-                          <span style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: pendiente ? '#fef9c3' : T.gray2, color: pendiente ? '#92400e' : T.gray4, border: pendiente ? '1px solid #fde68a' : 'none', padding: '3px 8px', borderRadius: 20, display: 'inline-block', whiteSpace: 'nowrap' }}>
+                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 90px 100px', columnGap: 16, padding: '11px 20px', borderBottom: `1px solid ${T.gray1}`, alignItems: 'center', borderLeft }}>
+                          <span style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: T.gray2, color: T.gray4, padding: '3px 8px', borderRadius: 20, display: 'inline-block', whiteSpace: 'nowrap' }}>
                             {pendiente ? 'Pendiente' : esIngreso ? 'Ingreso' : 'Egreso'}
                           </span>
                           <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
