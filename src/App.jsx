@@ -210,7 +210,7 @@ export default function App() {
 /* ─── MainLayout ─────────────────────────────────────────────── */
 
 const NAV_ITEMS = [
-  { key: 'dashboard',      label: 'Dashboard'         },
+  { key: 'dashboard',      label: 'Resumen'           },
   { key: 'pacientes',      label: 'Pacientes'          },
   { key: 'turnos',         label: 'Turnos'            },
   { key: 'estudios',       label: 'Estudios'          },
@@ -265,7 +265,7 @@ function MainLayout({ token, usuario, onLogout }) {
 
         {/* main */}
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
-          {vista === 'dashboard'      && <VistaDashboard apiFetch={apiFetch} usuario={usuario} />}
+          {vista === 'dashboard'      && <VistaDashboard apiFetch={apiFetch} usuario={usuario} setVista={setVista} />}
           {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
           {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} />}
           {vista === 'estudios'       && <VistaEstudios apiFetch={apiFetch} />}
@@ -585,11 +585,11 @@ function useConfirm() {
 
 /* ─── table components ───────────────────────────────────────── */
 
-function TableHead({ cols, extraCol = true }) {
+function TableHead({ cols, extraCol = true, gap = 0 }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `${cols.map(c => c.w || '1fr').join(' ')}${extraCol ? ' 40px' : ''}`, padding: '0 24px', height: 40, alignItems: 'center', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: `${cols.map(c => c.w || '1fr').join(' ')}${extraCol ? ' 40px' : ''}`, columnGap: gap, padding: '0 24px', height: 40, alignItems: 'center', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
       {cols.map(c => (
-        <span key={c.label} style={{ fontSize: 10, fontFamily: T.mono, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray3 }}>{c.label}</span>
+        <span key={c.label} style={{ fontSize: 10, fontFamily: T.mono, fontWeight: 400, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray3, textAlign: c.align ?? 'left' }}>{c.label}</span>
       ))}
       {extraCol && <span />}
     </div>
@@ -736,14 +736,40 @@ function VistaCompletarPerfil({ token, onLogin, onLogout }) {
 
 /* ─── VistaDashboard ─────────────────────────────────────────── */
 
-function VistaDashboard({ apiFetch, usuario }) {
+function VistaDashboard({ apiFetch, usuario, setVista }) {
   const [stats, setStats] = useState({ total: null, nuevos: null, conTurno: null })
+  const [turnosHoy, setTurnosHoy] = useState([])
+  const [pendientesSemana, setPendientesSemana] = useState(null)
 
   useEffect(() => {
     apiFetch('/pacientes/stats').then(async res => {
       if (!res?.ok) return
       const s = await res.json()
       setStats({ total: s.total, nuevos: s.nuevosEsteMes, conTurno: s.conTurnoProximo })
+    })
+  }, [apiFetch])
+
+  useEffect(() => {
+    const pad = n => String(n).padStart(2, '0')
+    const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T00:00:00`
+
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
+    const manana = new Date(hoy); manana.setDate(manana.getDate() + 1)
+
+    const en7dias = new Date(hoy); en7dias.setDate(hoy.getDate() + 7)
+
+    Promise.all([
+      apiFetch(`/turnos?desde=${encodeURIComponent(fmt(hoy))}&hasta=${encodeURIComponent(fmt(manana))}`),
+      apiFetch(`/turnos?desde=${encodeURIComponent(fmt(hoy))}&hasta=${encodeURIComponent(fmt(en7dias))}`),
+    ]).then(async ([resHoy, resSemana]) => {
+      if (resHoy?.ok) {
+        const data = await resHoy.json()
+        setTurnosHoy(data.sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora)))
+      }
+      if (resSemana?.ok) {
+        const data = await resSemana.json()
+        setPendientesSemana(data.filter(t => t.estado === 'PENDIENTE').length)
+      }
     })
   }, [apiFetch])
 
@@ -754,10 +780,16 @@ function VistaDashboard({ apiFetch, usuario }) {
           Bienvenido/a, {usuario?.nombre}
         </span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: 12, padding: '0 24px 24px', flexShrink: 0 }}>
-        <StatCard inverted label="Total pacientes" value={stats.total} />
-        <StatCard label="Nuevos" value={stats.nuevos} sub="este mes" />
-        <StatCard label="Con turno" value={stats.conTurno} />
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12, padding: '0 24px 16px', flexShrink: 0 }}>
+        <StatCard inverted label="Total pacientes" value={stats.total} bottomRight={stats.nuevos ?? null} bottomRightLabel="nuevos este mes" />
+        <div onClick={() => setVista?.('turnos')} style={{ cursor: 'pointer', display: 'flex' }}>
+          <StatCard label="Turnos pendientes a confirmar" value={pendientesSemana} sub="próximos 7 días" style={{ flex: 1, borderLeft: '3px solid #f59e0b' }} />
+        </div>
+      </div>
+      <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px', display: 'flex', gap: 12 }}>
+        <div style={{ width: 280, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <TurnosHoyPanel turnos={turnosHoy} onClickTurno={() => setVista?.('turnos')} />
+        </div>
       </div>
     </div>
   )
@@ -786,10 +818,12 @@ function NombreCard({ item, onEliminar }) {
         {item.nombre}
       </div>
       <button onClick={onEliminar}
-        style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: T.gray5, lineHeight: 1, padding: 0, transition: 'color 0.15s' }}
-        onMouseEnter={e => e.currentTarget.style.color = T.black}
+        style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: T.gray5, padding: 0, display: 'flex', transition: 'color 0.15s' }}
+        onMouseEnter={e => e.currentTarget.style.color = T.red}
         onMouseLeave={e => e.currentTarget.style.color = T.gray5}
-      >×</button>
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
     </div>
   )
 }
@@ -835,7 +869,12 @@ function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, addLabel, msg
   async function handleEliminar(id) {
     if (!await openConfirm(msgConfirmar)) return
     const res = await apiFetch(`${endpoint}/${id}`, { method: 'DELETE' })
-    if (res && (res.ok || res.status === 204)) cargar()
+    if (!res) return
+    if (res.ok || res.status === 204) { cargar(); return }
+    if (res.status === 409) {
+      const body = await res.json().catch(() => null)
+      setError(body?.error || 'No se puede eliminar porque está en uso.')
+    }
   }
 
   const filtrados = buscar.trim()
@@ -925,8 +964,8 @@ function FilaSimple({ cols, gridCols, onEliminar }) {
         <span key={i} style={{ fontFamily: T.font, fontSize: 13, fontWeight: i === 0 ? 500 : 400, color: i === 0 ? T.black : T.gray4, letterSpacing: '0.02em' }}>{val}</span>
       ))}
       <button onClick={onEliminar} onMouseEnter={() => setHovT(true)} onMouseLeave={() => setHovT(false)}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: hovT ? T.red : T.gray6, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.15s' }}>
-        ✕
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: hovT ? T.red : T.gray5, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.15s' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       </button>
     </div>
   )
@@ -990,7 +1029,7 @@ const TIPO_PAGO = {
 
 /* ─── VistaPacientes ─────────────────────────────────────────── */
 
-const VACÍO_FORM = { apellido: '', nombre: '', dni: '', fechaNac: '', telefono: '', email: '', direccion: '', obraSocial: '', nroAfiliado: '', planObraSocial: '', titularObraSocial: '', ocupacion: '', grupoSanguineo: '', alergias: '', medicaciones: '', antecedentes: '', antecedentesFamiliares: '', peso: '', altura: '' }
+const VACÍO_FORM = { apellido: '', nombre: '', dni: '', fechaNac: '', telefono: '', email: '', direccion: '', obraSocialId: '', nroAfiliado: '', planObraSocial: '', titularObraSocial: '', ocupacion: '', grupoSanguineo: '', alergias: '', medicaciones: '', antecedentes: '', antecedentesFamiliares: '', peso: '', altura: '' }
 const COLS_PAC = [{ label: 'Paciente', w: '2fr' }, { label: 'DNI', w: '1fr' }, { label: 'Teléfono', w: '1fr' }, { label: 'Obra social', w: '1.5fr' }, { label: 'Registrado', w: '1fr' }]
 
 function VistaNuevoPaciente({ apiFetch, onVolver, onCreado }) {
@@ -1002,7 +1041,7 @@ function VistaNuevoPaciente({ apiFetch, onVolver, onCreado }) {
     e.preventDefault()
     if (!form.apellido.trim() || !form.nombre.trim()) { setErr('Apellido y nombre son requeridos'); return }
     setErr(null); setGuardando(true)
-    const body = { nombre: form.nombre, apellido: form.apellido, dni: form.dni || null, fechaNac: form.fechaNac || null, telefono: form.telefono || null, email: form.email || null, direccion: form.direccion || null, obraSocial: form.obraSocial || null, nroAfiliado: form.nroAfiliado || null, planObraSocial: form.planObraSocial || null, titularObraSocial: form.titularObraSocial || null, ocupacion: form.ocupacion || null, grupoSanguineo: form.grupoSanguineo || null, alergias: form.alergias || null, medicaciones: form.medicaciones || null, antecedentes: form.antecedentes || null, antecedentesFamiliares: form.antecedentesFamiliares || null, peso: form.peso ? Number(form.peso) : null, altura: form.altura ? Number(form.altura) : null }
+    const body = { nombre: form.nombre, apellido: form.apellido, dni: form.dni || null, fechaNac: form.fechaNac || null, telefono: form.telefono || null, email: form.email || null, direccion: form.direccion || null, obraSocialId: form.obraSocialId ? Number(form.obraSocialId) : null, nroAfiliado: form.nroAfiliado || null, planObraSocial: form.planObraSocial || null, titularObraSocial: form.titularObraSocial || null, ocupacion: form.ocupacion || null, grupoSanguineo: form.grupoSanguineo || null, alergias: form.alergias || null, medicaciones: form.medicaciones || null, antecedentes: form.antecedentes || null, antecedentesFamiliares: form.antecedentesFamiliares || null, peso: form.peso ? Number(form.peso) : null, altura: form.altura ? Number(form.altura) : null }
     const res = await apiFetch('/pacientes', { method: 'POST', body: JSON.stringify(body) })
     if (!res) { setGuardando(false); return }
     if (res.ok) {
@@ -1057,7 +1096,7 @@ function VistaPacientes({ apiFetch, onIrAConsultorios, usuario }) {
   return null
 }
 
-function StatCard({ label, value, sub, inverted = false, pct = null, bottomRight = null, pendienteInfo = null }) {
+function StatCard({ label, value, sub, inverted = false, pct = null, bottomRight = null, bottomRightLabel = null, pendienteInfo = null, style: styleProp }) {
   return (
     <div style={{
       background: inverted ? T.black : T.white,
@@ -1066,6 +1105,7 @@ function StatCard({ label, value, sub, inverted = false, pct = null, bottomRight
       padding: '20px 24px',
       display: 'flex', flexDirection: 'column', gap: 4,
       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+      ...styleProp,
     }}>
       <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: inverted ? 'rgba(255,255,255,0.45)' : T.gray3 }}>
         {label}
@@ -1087,8 +1127,8 @@ function StatCard({ label, value, sub, inverted = false, pct = null, bottomRight
         }
         {bottomRight && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-            <span style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3 }}>balance</span>
-            <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>{bottomRight}</span>
+            <span style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.12em', textTransform: 'uppercase', color: inverted ? 'rgba(255,255,255,0.4)' : T.gray3 }}>{bottomRightLabel ?? 'balance'}</span>
+            <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em', color: inverted ? T.white : T.black }}>{bottomRight}</span>
           </div>
         )}
         {pendienteInfo && pendienteInfo.count > 0 && (
@@ -1175,83 +1215,84 @@ function PieChart({ items }) {
 }
 
 function ListaPacientes({ apiFetch, onDetalle, onNuevo }) {
-  const [buscar,   setBuscar]   = useState('')
-  const [pagina,   setPagina]   = useState(null)
-  const [cargando, setCargando] = useState(true)
-  const [error,    setError]    = useState(null)
-  const [vista,    setVista]    = useState(() => localStorage.getItem('pacientes-vista') ?? 'list')
+  const [buscar,      setBuscar]      = useState('')
+  const [pacientes,   setPacientes]   = useState([])
+  const [meta,        setMeta]        = useState(null)   // { last, number, totalElements }
+  const [cargando,    setCargando]    = useState(true)
+  const [cargandoMas, setCargandoMas] = useState(false)
+  const [error,       setError]       = useState(null)
+  const [vista,       setVista]       = useState(() => localStorage.getItem('pacientes-vista') ?? 'list')
 
   function toggleVista(v) { setVista(v); localStorage.setItem('pacientes-vista', v) }
 
-  const cargar = useCallback(async (q) => {
-    setCargando(true); setError(null)
-    const params = new URLSearchParams({ size: 50, sort: 'apellido,asc' })
+  const cargar = useCallback(async (q, page = 0) => {
+    if (page === 0) { setCargando(true); setError(null) }
+    else setCargandoMas(true)
+    const params = new URLSearchParams({ size: 50, page, sort: 'apellido,asc' })
     if (q) params.set('buscar', q)
     const res = await apiFetch(`/pacientes?${params}`)
-    if (!res) return
-    if (res.ok) setPagina(await res.json())
-    else setError('Error al cargar pacientes')
-    setCargando(false)
+    if (res?.ok) {
+      const data = await res.json()
+      setPacientes(prev => page === 0 ? data.content : [...prev, ...data.content])
+      setMeta({ last: data.last, number: data.number, totalElements: data.totalElements })
+    } else {
+      setError('Error al cargar pacientes')
+    }
+    if (page === 0) setCargando(false)
+    else setCargandoMas(false)
   }, [apiFetch])
 
   useEffect(() => {
-    const t = setTimeout(() => cargar(buscar), buscar ? 350 : 0)
+    const t = setTimeout(() => cargar(buscar, 0), buscar ? 350 : 0)
     return () => clearTimeout(t)
   }, [buscar, cargar])
 
-  const pacientes = pagina?.content ?? []
+  const msgVacio = buscar ? 'Sin resultados' : 'No hay pacientes registrados'
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
-
-      {/* ── header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', flexShrink: 0 }}>
-        <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>
-          Pacientes
-        </span>
+      <PageBar>
+        <PageTitle>Pacientes</PageTitle>
         <Btn onClick={onNuevo}>+ Nuevo paciente</Btn>
-      </div>
+      </PageBar>
 
-      {/* ── white list card ── */}
-      <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+      <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
 
-          {/* card header */}
-          <div style={{ padding: '14px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            <span style={{ fontFamily: T.font, fontSize: 14, fontWeight: 600, color: T.black, flex: 1, letterSpacing: '-0.01em' }}>
-              Lista de pacientes
-            </span>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, width: 260, borderRadius: 6, background: T.gray2 }}>
+          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360, borderRadius: 6, background: T.gray2 }}>
               <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
-              <input
-                value={buscar} onChange={e => setBuscar(e.target.value)}
-                placeholder="Buscar por nombre o DNI…"
-                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.02em', width: '100%' }}
-              />
+              <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar por nombre o DNI…"
+                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.02em', width: '100%' }} />
             </div>
+            {meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} pacientes</span>}
             <ViewToggle vista={vista} onToggle={toggleVista} />
           </div>
 
-          {/* list / grid */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {vista === 'list' ? (
               <>
                 <TableHead cols={COLS_PAC} />
-                <EmptyOrError cargando={cargando && !pagina} error={error} empty={!cargando && !error && pacientes.length === 0} msg={buscar ? 'Sin resultados' : 'No hay pacientes registrados'} />
-                {pacientes.map(p => <FilaPaciente key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar)} apiFetch={apiFetch} />)}
+                <EmptyOrError cargando={cargando} error={error} empty={!cargando && !error && pacientes.length === 0} msg={msgVacio} />
+                {pacientes.map(p => <FilaPaciente key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar, 0)} apiFetch={apiFetch} />)}
               </>
             ) : (
-              cargando && !pagina ? (
+              cargando ? (
                 <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
-              ) : !cargando && pacientes.length === 0 ? (
-                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{buscar ? 'Sin resultados' : 'No hay pacientes registrados'}</div>
+              ) : pacientes.length === 0 ? (
+                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{msgVacio}</div>
               ) : (
                 <div style={{ padding: '20px', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start' }}>
-                  {pacientes.map(p => (
-                    <PacienteCard key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar)} apiFetch={apiFetch} />
-                  ))}
+                  {pacientes.map(p => <PacienteCard key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar, 0)} apiFetch={apiFetch} />)}
                 </div>
               )
+            )}
+            {!cargando && !error && !meta?.last && pacientes.length > 0 && (
+              <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'center', borderTop: `1px solid ${T.gray1}` }}>
+                <Btn variant="outline" onClick={() => cargar(buscar, (meta?.number ?? 0) + 1)} disabled={cargandoMas}>
+                  {cargandoMas ? 'Cargando…' : `Cargar más`}
+                </Btn>
+              </div>
             )}
           </div>
         </div>
@@ -1290,7 +1331,7 @@ function PacienteCard({ paciente: p, onClick, onEliminar, apiFetch }) {
       </div>
       {p.dni && <div style={{ fontSize: 11, color: T.gray4, fontFamily: T.font }}>DNI {p.dni}</div>}
       {p.telefono && <div style={{ fontSize: 11, color: T.gray4, fontFamily: T.font }}>{p.telefono}</div>}
-      {p.obraSocial && <div style={{ fontSize: 10, color: T.gray3, fontFamily: T.font, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{p.obraSocial}</div>}
+      {p.obraSocialNombre && <div style={{ fontSize: 10, color: T.gray3, fontFamily: T.font, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{p.obraSocialNombre}</div>}
     </div>
     {dialog}
     </>
@@ -1318,7 +1359,7 @@ function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch }) {
       <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, color: T.black, letterSpacing: '0.02em' }}>{p.apellido}, {p.nombre}</span>
       <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>{p.dni || '—'}</span>
       <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>{p.telefono || '—'}</span>
-      <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>{p.obraSocial || '—'}</span>
+      <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>{p.obraSocialNombre || '—'}</span>
       <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray3, letterSpacing: '0.04em' }}>{fmtFecha(p.dateCreated)}</span>
       <button onClick={handleEliminar} onMouseEnter={e => { e.stopPropagation(); setHovT(true) }} onMouseLeave={() => setHovT(false)}
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: hovT ? T.red : T.gray6, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.15s' }}>
@@ -1388,7 +1429,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
     setFormEdit({
       apellido: paciente.apellido ?? '', nombre: paciente.nombre ?? '', dni: paciente.dni ?? '',
       fechaNac: paciente.fechaNac ?? '', telefono: paciente.telefono ?? '', email: paciente.email ?? '',
-      direccion: paciente.direccion ?? '', obraSocial: paciente.obraSocial ?? '',
+      direccion: paciente.direccion ?? '', obraSocialId: paciente.obraSocialId ?? '',
       nroAfiliado: paciente.nroAfiliado ?? '', planObraSocial: paciente.planObraSocial ?? '', titularObraSocial: paciente.titularObraSocial ?? '', ocupacion: paciente.ocupacion ?? '',
       grupoSanguineo: paciente.grupoSanguineo ?? '', alergias: paciente.alergias ?? '',
       medicaciones: paciente.medicaciones ?? '', antecedentes: paciente.antecedentes ?? '',
@@ -1401,7 +1442,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
 
   async function handleGuardarEdit(e) {
     e.preventDefault(); setEditErr(null); setGuardando(true)
-    const body = { nombre: formEdit.nombre, apellido: formEdit.apellido, dni: formEdit.dni || null, fechaNac: formEdit.fechaNac || null, telefono: formEdit.telefono || null, email: formEdit.email || null, direccion: formEdit.direccion || null, obraSocial: formEdit.obraSocial || null, nroAfiliado: formEdit.nroAfiliado || null, planObraSocial: formEdit.planObraSocial || null, titularObraSocial: formEdit.titularObraSocial || null, ocupacion: formEdit.ocupacion || null, grupoSanguineo: formEdit.grupoSanguineo || null, alergias: formEdit.alergias || null, medicaciones: formEdit.medicaciones || null, antecedentes: formEdit.antecedentes || null, antecedentesFamiliares: formEdit.antecedentesFamiliares || null, peso: formEdit.peso ? Number(formEdit.peso) : null, altura: formEdit.altura ? Number(formEdit.altura) : null }
+    const body = { nombre: formEdit.nombre, apellido: formEdit.apellido, dni: formEdit.dni || null, fechaNac: formEdit.fechaNac || null, telefono: formEdit.telefono || null, email: formEdit.email || null, direccion: formEdit.direccion || null, obraSocialId: formEdit.obraSocialId ? Number(formEdit.obraSocialId) : null, nroAfiliado: formEdit.nroAfiliado || null, planObraSocial: formEdit.planObraSocial || null, titularObraSocial: formEdit.titularObraSocial || null, ocupacion: formEdit.ocupacion || null, grupoSanguineo: formEdit.grupoSanguineo || null, alergias: formEdit.alergias || null, medicaciones: formEdit.medicaciones || null, antecedentes: formEdit.antecedentes || null, antecedentesFamiliares: formEdit.antecedentesFamiliares || null, peso: formEdit.peso ? Number(formEdit.peso) : null, altura: formEdit.altura ? Number(formEdit.altura) : null }
     const res = await apiFetch(`/pacientes/${id}`, { method: 'PUT', body: JSON.stringify(body) })
     if (!res) return
     if (res.ok) { setPanelEdit(false); cargar() }
@@ -1468,7 +1509,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
               <DatoClinico label="Teléfono"     value={p.telefono} />
               <DatoClinico label="Email"        value={p.email} truncate />
               <div style={{ gridColumn: '1 / -1' }}><DatoClinico label="Dirección" value={p.direccion} truncate /></div>
-              <DatoClinico label="Obra social"  value={p.obraSocial} truncate />
+              <DatoClinico label="Obra social"  value={p.obraSocialNombre} truncate />
               <DatoClinico label="Nro afiliado" value={p.nroAfiliado} />
               <DatoClinico label="Plan"         value={p.planObraSocial} truncate />
               <DatoClinico label="Titular"      value={p.titularObraSocial} truncate />
@@ -1756,7 +1797,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 <DatoClinico label="Teléfono"     value={p?.telefono} />
                 <DatoClinico label="Email"        value={p?.email} truncate />
                 <div style={{ gridColumn: '1 / -1' }}><DatoClinico label="Dirección" value={p?.direccion} truncate /></div>
-                <DatoClinico label="Obra social"  value={p?.obraSocial} truncate />
+                <DatoClinico label="Obra social"  value={p?.obraSocialNombre} truncate />
                 <DatoClinico label="Nro afiliado" value={p?.nroAfiliado} />
                 <DatoClinico label="Plan"         value={p?.planObraSocial} truncate />
                 <DatoClinico label="Titular"      value={p?.titularObraSocial} truncate />
@@ -1952,7 +1993,7 @@ function ConsultaHCItem({ a, last, apiFetch, onEditar }) {
     <div
       onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ padding: '14px 0', borderBottom: last ? 'none' : `1px solid ${T.gray2}`, display: 'flex', gap: 20, background: hov ? T.gray2 : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
+      style={{ padding: '14px 0', borderBottom: last ? 'none' : `1px solid ${T.gray2}`, borderLeft: a.monto == null ? '3px solid #f59e0b' : 'none', paddingLeft: a.monto == null ? 12 : 0, display: 'flex', gap: 20, background: hov ? T.gray2 : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
     >
       <div style={{ flexShrink: 0, width: 90 }}>
         <div style={{ fontSize: 11, fontFamily: T.font, color: T.black, letterSpacing: '0.04em' }}>{a.fecha || fmtFecha(a.dateCreated)}</div>
@@ -1979,7 +2020,7 @@ function ConsultaHCItem({ a, last, apiFetch, onEditar }) {
       <div style={{ flexShrink: 0, textAlign: 'right' }}>
         {a.monto != null
           ? <div style={{ fontSize: 15, fontFamily: T.font, fontWeight: 500, color: T.black }}>{fmtM(a.monto)}</div>
-          : <div style={{ fontSize: 9, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4, borderLeft: '2px solid #f59e0b', paddingLeft: 6, fontWeight: 600, whiteSpace: 'nowrap' }}>Cobro pendiente</div>
+          : <div style={{ fontSize: 9, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray4, whiteSpace: 'nowrap' }}>Cobro pendiente</div>
         }
         <div style={{ marginTop: 3, fontSize: 10, fontFamily: T.font, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray4, fontWeight: 500 }}>
           {TIPO_PAGO[a.tipoPago] ?? ''}
@@ -2013,7 +2054,7 @@ function ObraSocialSelector({ apiFetch, value, onChange }) {
     if (res?.ok) {
       const nueva = await res.json()
       setObras(prev => [...prev, nueva])
-      onChange({ target: { name: 'obraSocial', value: nueva.nombre } })
+      onChange({ target: { name: 'obraSocialId', value: nueva.id } })
       setNuevoNombre('')
       setShowNew(false)
     } else {
@@ -2032,9 +2073,9 @@ function ObraSocialSelector({ apiFetch, value, onChange }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', gap: 6 }}>
-        <select name="obraSocial" value={value} onChange={onChange} style={selectStyle}>
+        <select name="obraSocialId" value={value} onChange={onChange} style={selectStyle}>
           <option value="">Sin obra social</option>
-          {obras.map(o => <option key={o.id} value={o.nombre}>{o.nombre}</option>)}
+          {obras.map(o => <option key={o.id} value={o.id}>{o.nombre}</option>)}
         </select>
         <button
           type="button"
@@ -2118,7 +2159,7 @@ function PacienteFormFields({ form, handleChange, setField, apiFetch }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           <div style={{ gridColumn: '1 / -1' }}>
             <FieldLabel>Obra social / Prepaga</FieldLabel>
-            <ObraSocialSelector apiFetch={apiFetch} value={form.obraSocial} onChange={handleChange} />
+            <ObraSocialSelector apiFetch={apiFetch} value={form.obraSocialId} onChange={handleChange} />
           </div>
           <div style={{ gridColumn: '1 / -1' }}><FieldLabel>Nro. de afiliado</FieldLabel><Input name="nroAfiliado" value={form.nroAfiliado} onChange={handleChange} /></div>
           <div><FieldLabel>Plan de obra social</FieldLabel><Input name="planObraSocial" value={form.planObraSocial} onChange={handleChange} /></div>
@@ -2168,7 +2209,9 @@ const COLS_CO = [
 
 function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteInicial = false }) {
   const [items,          setItems]          = useState([])
+  const [meta,           setMeta]           = useState(null)
   const [cargando,       setCargando]       = useState(true)
+  const [cargandoMas,    setCargandoMas]    = useState(false)
   const [error,          setError]          = useState(null)
   const [buscar,         setBuscar]         = useState('')
   const [soloPendientes, setSoloPendientes] = useState(filtroPendienteInicial)
@@ -2182,16 +2225,27 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
   const [sinConsultorios, setSinConsultorios] = useState(false)
   function toggleVista(v) { setVistaMode(v); localStorage.setItem('consultas-vista', v) }
 
-  const cargar = useCallback(async () => {
-    setCargando(true); setError(null)
-    const res = await apiFetch('/consultas')
-    if (!res) return
-    if (res.ok) setItems(await res.json())
-    else setError('Error al cargar consultas')
-    setCargando(false)
+  const cargar = useCallback(async (q, page = 0) => {
+    if (page === 0) { setCargando(true); setError(null) }
+    else setCargandoMas(true)
+    const params = new URLSearchParams({ size: 30, page })
+    if (q) params.set('buscar', q)
+    const res = await apiFetch(`/consultas?${params}`)
+    if (res?.ok) {
+      const data = await res.json()
+      setItems(prev => page === 0 ? data.content : [...prev, ...data.content])
+      setMeta({ last: data.last, number: data.number, totalElements: data.totalElements })
+    } else {
+      setError('Error al cargar consultas')
+    }
+    if (page === 0) setCargando(false)
+    else setCargandoMas(false)
   }, [apiFetch])
 
-  useEffect(() => { cargar() }, [cargar])
+  useEffect(() => {
+    const t = setTimeout(() => cargar(buscar, 0), buscar ? 350 : 0)
+    return () => clearTimeout(t)
+  }, [buscar, cargar])
 
   useEffect(() => {
     if (!modalPac) return
@@ -2218,7 +2272,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
     setSub('lista')
     setPacienteSelecId(null)
     setConsultaEditar(null)
-    cargar()
+    cargar(buscar, 0)
   }
 
   function abrirEditar(a) {
@@ -2248,9 +2302,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
   }
 
   const pendientesCount = items.filter(i => i.monto == null).length
-  const filtradas = items
-    .filter(i => !soloPendientes || i.monto == null)
-    .filter(i => !buscar.trim() || `${i.pacienteApellido} ${i.pacienteNombre} ${i.descripcion ?? ''}`.toLowerCase().includes(buscar.toLowerCase()))
+  const filtradas = items.filter(i => !soloPendientes || i.monto == null)
 
   const fmtMonto = m => m != null ? `$${Number(m).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
   const fmtTipo  = t => TIPO_PAGO[t] ?? t
@@ -2274,19 +2326,21 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
                 style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }}
               />
             </div>
+            <ViewToggle vista={vistaMode} onToggle={toggleVista} />
+            <div style={{ flex: 1 }} />
+            {meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} consultas</span>}
             {pendientesCount > 0 && (
               <button onClick={() => setSoloPendientes(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 6, border: soloPendientes ? '1px solid #f59e0b' : `1px solid ${T.gray1}`, background: soloPendientes ? '#fffbeb' : T.white, cursor: 'pointer', fontFamily: T.font, fontSize: 12, fontWeight: soloPendientes ? 600 : 400, color: soloPendientes ? '#92400e' : T.gray4, transition: 'all 0.15s' }}>
                 Cobros pendientes
                 <span style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a', borderRadius: 20, padding: '1px 6px' }}>{pendientesCount}</span>
               </button>
             )}
-            <ViewToggle vista={vistaMode} onToggle={toggleVista} />
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {vistaMode === 'list' ? (
               <>
-                <TableHead cols={COLS_CO} />
+                <TableHead cols={COLS_CO} gap={16} extraCol={false} />
                 <EmptyOrError cargando={cargando} error={error} empty={filtradas.length === 0} msg={buscar ? 'Sin resultados' : 'No hay consultas registradas'} />
                 {filtradas.map(a => (
                   <ConsultaFila key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} onEditar={() => abrirEditar(a)} />
@@ -2304,6 +2358,13 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
                   ))}
                 </div>
               )
+            )}
+            {!cargando && !error && !meta?.last && items.length > 0 && (
+              <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'center', borderTop: `1px solid ${T.gray1}` }}>
+                <Btn variant="outline" onClick={() => cargar(buscar, (meta?.number ?? 0) + 1)} disabled={cargandoMas}>
+                  {cargandoMas ? 'Cargando…' : 'Cargar más'}
+                </Btn>
+              </div>
             )}
           </div>
 
@@ -2355,10 +2416,10 @@ function ConsultaFila({ a, fmtMonto, fmtTipo, onEditar }) {
     <div
       onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr', padding: '0 24px', minHeight: 50, alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: hov ? T.gray2 : T.white, borderLeft: pendiente ? '3px solid #f59e0b' : 'none', transition: 'background 0.1s', cursor: 'pointer' }}
+      style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr', columnGap: 16, padding: '10px 24px', minHeight: 50, alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: hov ? T.gray2 : T.white, borderLeft: pendiente ? '3px solid #f59e0b' : 'none', transition: 'background 0.1s', cursor: 'pointer' }}
     >
       <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, color: T.black, letterSpacing: '0.02em' }}>{a.pacienteApellido}, {a.pacienteNombre}</span>
-      <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, letterSpacing: '0.02em', paddingRight: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.descripcion || '—'}</span>
+      <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, letterSpacing: '0.02em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: 1.4 }}>{a.descripcion || '—'}</span>
       {pendiente
         ? <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cobro pendiente</span>
         : <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, letterSpacing: '0.02em' }}>{fmtMonto(a.monto)}</span>
@@ -2449,7 +2510,10 @@ function desnormalizarTrazos(trazos, w, h, escala) {
 function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = null, onVolver = null }) {
   const [sub,          setSub]          = useState(onVolver ? (estudioIdInicial ? 'cargando' : 'upload') : 'lista')
   const [lista,        setLista]        = useState([])
+  const [metaEst,      setMetaEst]      = useState(null)
+  const [buscarEst,    setBuscarEst]    = useState('')
   const [cargandoLista,setCargandoLista]= useState(true)
+  const [cargandoMasEst,setCargandoMasEst]= useState(false)
   const [estudioId,   setEstudioId]   = useState(null)
   const [imagen,       setImagen]       = useState(null)
   const [nombre,       setNombre]       = useState('')
@@ -2482,11 +2546,19 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   const latestRef       = useRef({})
   const { openConfirm, dialog: confirmDialog } = useConfirm()
 
-  const cargarLista = useCallback(async () => {
-    setCargandoLista(true)
-    const res = await apiFetch('/estudios')
-    if (res?.ok) setLista(await res.json())
-    setCargandoLista(false)
+  const cargarLista = useCallback(async (q, page = 0) => {
+    if (page === 0) setCargandoLista(true)
+    else setCargandoMasEst(true)
+    const params = new URLSearchParams({ size: 30, page })
+    if (q) params.set('buscar', q)
+    const res = await apiFetch(`/estudios?${params}`)
+    if (res?.ok) {
+      const data = await res.json()
+      setLista(prev => page === 0 ? data.content : [...prev, ...data.content])
+      setMetaEst({ last: data.last, number: data.number, totalElements: data.totalElements })
+    }
+    if (page === 0) setCargandoLista(false)
+    else setCargandoMasEst(false)
   }, [apiFetch])
 
   async function abrirAsignacion(id) {
@@ -2505,10 +2577,14 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
       body: JSON.stringify({ pacienteId: Number(pacSelId), trazos: data.trazos ?? [], escala: data.escala ?? 1 })
     })
     setAsignandoId(null)
-    cargarLista()
+    cargarLista(buscarEst, 0)
   }
 
-  useEffect(() => { if (sub === 'lista') cargarLista() }, [sub, cargarLista])
+  useEffect(() => {
+    if (sub !== 'lista') return
+    const t = setTimeout(() => cargarLista(buscarEst, 0), buscarEst ? 350 : 0)
+    return () => clearTimeout(t)
+  }, [sub, buscarEst, cargarLista])
 
   useEffect(() => {
     if (!estudioIdInicial) return
@@ -2575,7 +2651,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   async function handleEliminar(id) {
     if (!await openConfirm('¿Eliminar este estudio?')) return
     await apiFetch(`/estudios/${id}`, { method: 'DELETE' })
-    cargarLista()
+    cargarLista(buscarEst, 0)
   }
 
   async function handleEliminarDesdeEditor() {
@@ -2905,12 +2981,30 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
       </PageBar>
       <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360, borderRadius: 6, background: T.gray2 }}>
+              <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
+              <input
+                value={buscarEst} onChange={e => setBuscarEst(e.target.value)}
+                placeholder="Buscar por nombre o paciente…"
+                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }}
+              />
+            </div>
+            {metaEst && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap', marginLeft: 'auto' }}>{metaEst.totalElements} estudios</span>}
+          </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             <TableHead cols={COLS_ANALISIS} />
-            <EmptyOrError cargando={cargandoLista} error={null} empty={lista.length === 0} msg="No hay estudios guardados" />
+            <EmptyOrError cargando={cargandoLista} error={null} empty={lista.length === 0} msg={buscarEst ? 'Sin resultados' : 'No hay estudios guardados'} />
             {lista.map(a => (
               <EstudioFila key={a.id} a={a} onClick={() => cargarEstudio(a.id)} onEliminar={() => handleEliminar(a.id)} onAsignar={!a.pacienteApellido ? () => abrirAsignacion(a.id) : null} />
             ))}
+            {!cargandoLista && !metaEst?.last && lista.length > 0 && (
+              <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'center', borderTop: `1px solid ${T.gray1}` }}>
+                <Btn variant="outline" onClick={() => cargarLista(buscarEst, (metaEst?.number ?? 0) + 1)} disabled={cargandoMasEst}>
+                  {cargandoMasEst ? 'Cargando…' : 'Cargar más'}
+                </Btn>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -3405,8 +3499,8 @@ function GoogleCalendarIcon({ size = 18 }) {
 }
 
 const ESTADO_TURNO_COLORS = {
-  PENDIENTE:  { bg: '#ffffff', border: '#e0e0dc', text: '#111111' },
-  CONFIRMADO: { bg: '#111111', border: '#111111', text: '#ffffff' },
+  PENDIENTE:  { bg: '#fef9c3', border: '#ca8a04', text: '#713f12' },
+  CONFIRMADO: { bg: '#dcfce7', border: '#16a34a', text: '#14532d' },
 }
 
 const VACÍO_TURNO = {
@@ -3445,6 +3539,62 @@ function formatFechaHoraInput(fechaHora) {
   if (isNaN(d)) return ''
   const pad = n => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+const DIAS_SEMANA_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+const MESES_CORTO = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+
+function nombrePaciente(t) {
+  if (t.pacienteNombre) return `${t.pacienteApellido ?? ''} ${t.pacienteNombre}`.trim()
+  return t.nombrePacienteLibre || 'Sin nombre'
+}
+
+function formatHora(fechaHora) {
+  const d = new Date(fechaHora)
+  if (isNaN(d)) return ''
+  return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+function TurnosHoyPanel({ turnos, onClickTurno }) {
+  const hoy = new Date()
+  return (
+    <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
+      <div style={{ padding: '14px 18px 10px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
+        <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, letterSpacing: '-0.02em', display: 'block' }}>
+          Turnos de hoy
+        </span>
+        <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray4 }}>
+          {DIAS_SEMANA_LABELS[hoy.getDay() === 0 ? 6 : hoy.getDay() - 1]} {hoy.getDate()} {MESES_CORTO[hoy.getMonth()]}
+        </span>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {turnos.length === 0 ? (
+          <div style={{ padding: '28px 18px', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>
+            Sin turnos hoy
+          </div>
+        ) : (
+          turnos.map(t => {
+            const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
+            return (
+              <div key={t.id} onClick={() => onClickTurno?.(t)}
+                style={{ padding: '12px 18px', borderBottom: `1px solid ${T.gray1}`, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 3 }}
+                onMouseEnter={e => e.currentTarget.style.background = T.gray2}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>{formatHora(t.fechaHora)}</span>
+                  <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', background: col.bg, color: col.text, border: `1px solid ${col.border}`, padding: '1px 6px', borderRadius: 3 }}>{t.estado}</span>
+                </div>
+                <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, fontWeight: 500 }}>{nombrePaciente(t)}</span>
+                {t.consultorioNombre && <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4 }}>{t.consultorioNombre}</span>}
+                {t.motivo && <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4, fontStyle: 'italic' }}>{t.motivo}</span>}
+                <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray5, letterSpacing: '0.06em' }}>{t.duracionMinutos} min</span>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
 }
 
 function VistaTurnos({ apiFetch }) {
@@ -3578,9 +3728,6 @@ function VistaTurnos({ apiFetch }) {
   }
 
   const diasSemana = Array.from({ length: 7 }, (_, i) => addDays(semanaInicio, i))
-  const DIAS_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-  const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-
   function turnosDelDia(dia) {
     return turnos.filter(t => {
       const td = new Date(t.fechaHora)
@@ -3590,22 +3737,11 @@ function VistaTurnos({ apiFetch }) {
     }).sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora))
   }
 
-  function nombrePaciente(t) {
-    if (t.pacienteNombre) return `${t.pacienteApellido ?? ''} ${t.pacienteNombre}`.trim()
-    return t.nombrePacienteLibre || 'Sin nombre'
-  }
-
-  function formatHora(fechaHora) {
-    const d = new Date(fechaHora)
-    if (isNaN(d)) return ''
-    return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
-  }
-
   const fmtRangoSemana = () => {
     const d1 = diasSemana[0], d7 = diasSemana[6]
     if (d1.getMonth() === d7.getMonth())
-      return `${d1.getDate()} – ${d7.getDate()} ${MESES[d1.getMonth()]} ${d1.getFullYear()}`
-    return `${d1.getDate()} ${MESES[d1.getMonth()]} – ${d7.getDate()} ${MESES[d7.getMonth()]} ${d7.getFullYear()}`
+      return `${d1.getDate()} – ${d7.getDate()} ${MESES_CORTO[d1.getMonth()]} ${d1.getFullYear()}`
+    return `${d1.getDate()} ${MESES_CORTO[d1.getMonth()]} – ${d7.getDate()} ${MESES_CORTO[d7.getMonth()]} ${d7.getFullYear()}`
   }
 
   const selectStyle = {
@@ -3639,42 +3775,7 @@ function VistaTurnos({ apiFetch }) {
 
         {/* ── panel Hoy ── */}
         <div style={{ width: 260, flexShrink: 0, padding: '16px 16px 16px 24px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1 }}>
-            <div style={{ padding: '14px 18px 10px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0 }}>
-              <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, letterSpacing: '-0.02em', display: 'block' }}>
-                Turnos de hoy
-              </span>
-              <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray4 }}>
-                {DIAS_LABELS[hoy.getDay() === 0 ? 6 : hoy.getDay() - 1]} {hoy.getDate()} {MESES[hoy.getMonth()]}
-              </span>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {turnosDelDia(hoy).length === 0 ? (
-                <div style={{ padding: '28px 18px', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>
-                  Sin turnos hoy
-                </div>
-              ) : (
-                turnosDelDia(hoy).map(t => {
-                  const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
-                  return (
-                    <div key={t.id} onClick={() => abrirEditar(t)}
-                      style={{ padding: '12px 18px', borderBottom: `1px solid ${T.gray1}`, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 3 }}
-                      onMouseEnter={e => e.currentTarget.style.background = T.gray2}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>{formatHora(t.fechaHora)}</span>
-                        <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', background: col.bg, color: col.text, border: `1px solid ${col.border}`, padding: '1px 6px', borderRadius: 3 }}>{t.estado}</span>
-                      </div>
-                      <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, fontWeight: 500 }}>{nombrePaciente(t)}</span>
-                      {t.consultorioNombre && <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4 }}>{t.consultorioNombre}</span>}
-                      {t.motivo && <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4, fontStyle: 'italic' }}>{t.motivo}</span>}
-                      <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray5, letterSpacing: '0.06em' }}>{t.duracionMinutos} min</span>
-                    </div>
-                  )
-                })
-              )}
-            </div>
-          </div>
+          <TurnosHoyPanel turnos={turnosDelDia(hoy)} onClickTurno={abrirEditar} />
         </div>
 
         {/* ── calendario ── */}
@@ -3711,7 +3812,7 @@ function VistaTurnos({ apiFetch }) {
                 const esHoy = dia.getFullYear() === hoy.getFullYear() && dia.getMonth() === hoy.getMonth() && dia.getDate() === hoy.getDate()
                 return (
                   <div key={i} style={{ flex: 1, padding: '8px 10px', borderLeft: `1px solid ${T.gray1}`, background: esHoy ? T.black : T.white, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 10, fontFamily: T.font, letterSpacing: '0.1em', textTransform: 'uppercase', color: esHoy ? T.white : T.gray3 }}>{DIAS_LABELS[i]}</span>
+                    <span style={{ fontSize: 10, fontFamily: T.font, letterSpacing: '0.1em', textTransform: 'uppercase', color: esHoy ? T.white : T.gray3 }}>{DIAS_SEMANA_LABELS[i]}</span>
                     <span style={{ fontSize: 13, fontFamily: T.font, fontWeight: 500, color: esHoy ? T.white : T.black }}>{dia.getDate()}</span>
                   </div>
                 )
@@ -3947,7 +4048,14 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
   const [mediosPago,   setMediosPago]   = useState([])
   const [consultorios, setConsultorios] = useState([])
   const [filtroCons,   setFiltroCons]   = useState('')
+  const [filtroConsId, setFiltroConsId] = useState(null)
+  const [filtroTipo,   setFiltroTipo]   = useState(null)
   const [buscarMov,    setBuscarMov]    = useState('')
+  const [movs,         setMovs]         = useState([])
+  const [metaMov,      setMetaMov]      = useState(null)
+  const [cargandoMovs, setCargandoMovs] = useState(false)
+  const [cargandoMasMov,setCargandoMasMov]= useState(false)
+  const [subVista,     setSubVista]     = useState('dash')
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -3964,6 +4072,29 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
   }, [apiFetch, año, mes])
 
   useEffect(() => { cargar() }, [cargar])
+
+  const cargarMovs = useCallback(async (q, page = 0) => {
+    if (page === 0) setCargandoMovs(true)
+    else setCargandoMasMov(true)
+    const params = new URLSearchParams({ mes: mesStr(año, mes), size: 30, page })
+    if (q) params.set('buscar', q)
+    if (filtroConsId) params.set('consultorioId', filtroConsId)
+    if (filtroTipo) params.set('tipo', filtroTipo)
+    const res = await apiFetch(`/finanzas/movimientos?${params}`)
+    if (res?.ok) {
+      const data = await res.json()
+      setMovs(prev => page === 0 ? data.content : [...prev, ...data.content])
+      setMetaMov({ last: data.last, number: data.number, totalElements: data.totalElements })
+    }
+    if (page === 0) setCargandoMovs(false)
+    else setCargandoMasMov(false)
+  }, [apiFetch, año, mes, filtroConsId, filtroTipo])
+
+  useEffect(() => {
+    if (subVista !== 'movimientos') return
+    const t = setTimeout(() => cargarMovs(buscarMov, 0), buscarMov ? 350 : 0)
+    return () => clearTimeout(t)
+  }, [subVista, buscarMov, cargarMovs])
 
   useEffect(() => {
     apiFetch('/medios-pago').then(r => r?.ok && r.json().then(setMediosPago))
@@ -4058,26 +4189,81 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
     return { id: c.id, nombre: c.nombre, totalIng, totalEgr, balance: totalIng - totalEgr }
   })
 
-  const movimientos = [
-    ...ingresosFiltrados.map(i => ({
-      tipo: 'ingreso',
-      fecha: i.fecha ?? i.dateCreated?.slice(0, 10) ?? '',
-      descripcion: i.consultaId
-        ? `Consulta · ${[i.pacienteApellido, i.pacienteNombre].filter(Boolean).join(', ')}`
-        : (i.descripcion || 'Ingreso libre'),
-      monto: Number(i.monto ?? 0),
-      estado: i.estado,
-    })),
-    ...egresosFiltrados.map(e => ({
-      tipo: 'egreso',
-      fecha: e.fecha ?? '',
-      descripcion: e.descripcion || 'Sin descripción',
-      monto: Number(e.monto ?? 0),
-      estado: null,
-    })),
-  ].sort((a, b) => (b.fecha > a.fecha ? 1 : b.fecha < a.fecha ? -1 : 0))
-
   const navBtnStyle = { background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: T.gray4, borderRadius: 6 }
+
+  if (subVista === 'movimientos') {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
+        <PageBar>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <BackBtn onClick={() => setSubVista('dash')} />
+            <PageTitle>Movimientos · {MESES_LABEL[mes - 1]} {año}</PageTitle>
+          </div>
+        </PageBar>
+        <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+            <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360, borderRadius: 6, background: T.gray2 }}>
+                  <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
+                  <input value={buscarMov} onChange={e => setBuscarMov(e.target.value)} placeholder="Buscar por descripción o paciente…"
+                    style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }} />
+                </div>
+                {metaMov && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap', marginLeft: 'auto' }}>{metaMov.totalElements} movimientos</span>}
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[
+                  { key: null,        label: 'Todos' },
+                  { key: 'ingreso',   label: 'Ingresos' },
+                  { key: 'egreso',    label: 'Egresos' },
+                  { key: 'pendiente', label: 'Pendientes' },
+                ].map(({ key, label }) => {
+                  const sel = filtroTipo === key
+                  return (
+                    <button key={key ?? 'todos'} onClick={() => setFiltroTipo(key)}
+                      style={{ fontFamily: T.font, fontSize: 12, fontWeight: sel ? 600 : 400, background: sel ? T.black : T.white, color: sel ? T.white : T.black, border: `1px solid ${sel ? T.black : T.gray1}`, borderRadius: 20, padding: '0 14px', height: 28, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <TableHead cols={[{ label: 'Tipo', w: '90px' }, { label: 'Descripción', w: '1fr' }, { label: 'Fecha', w: '90px' }, { label: 'Monto', w: '110px' }]} extraCol={false} gap={16} />
+              <EmptyOrError cargando={cargandoMovs} error={null} empty={!cargandoMovs && movs.length === 0} msg={buscarMov ? 'Sin resultados' : 'Sin movimientos'} />
+              {movs.map((m, idx) => {
+                const esIngreso = m.tipo === 'ingreso'
+                const pendiente = m.tipo === 'pendiente'
+                const [y, mo, d] = (m.fecha || '').split('-')
+                const fechaFmt = m.fecha ? `${d}/${mo}/${y}` : '—'
+                const borderLeft = pendiente ? '3px solid #f59e0b' : esIngreso ? 'none' : '3px solid #9b1c1c'
+                return (
+                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 90px 110px', columnGap: 16, padding: '0 24px', minHeight: 50, borderBottom: `1px solid ${T.gray1}`, alignItems: 'center', borderLeft }}>
+                    <span style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: T.gray2, color: T.gray4, padding: '3px 8px', borderRadius: 20, display: 'inline-block', whiteSpace: 'nowrap', justifySelf: 'start' }}>
+                      {pendiente ? 'Pendiente' : esIngreso ? 'Ingreso' : 'Egreso'}
+                    </span>
+                    <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.descripcion}</span>
+                    <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray4 }}>{fechaFmt}</span>
+                    {pendiente
+                      ? <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cobro pendiente</span>
+                      : <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 700, color: T.black }}>{esIngreso ? '' : '−'}{fmtPesos(m.monto)}</span>
+                    }
+                  </div>
+                )
+              })}
+              {!cargandoMovs && !metaMov?.last && movs.length > 0 && (
+                <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'center', borderTop: `1px solid ${T.gray1}` }}>
+                  <Btn variant="outline" onClick={() => cargarMovs(buscarMov, (metaMov?.number ?? 0) + 1)} disabled={cargandoMasMov}>
+                    {cargandoMasMov ? 'Cargando…' : 'Cargar más'}
+                  </Btn>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
@@ -4106,7 +4292,7 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
           const sel = filtroCons === (c.id === '' ? '' : c.nombre)
           return (
             <button key={c.id === '' ? '__total' : c.id}
-              onClick={() => setFiltroCons(c.id === '' ? '' : c.nombre)}
+              onClick={() => { setFiltroCons(c.id === '' ? '' : c.nombre); setFiltroConsId(c.id === '' ? null : c.id) }}
               style={{ background: sel ? T.black : T.white, color: sel ? T.white : T.black, border: `1px solid ${sel ? T.black : T.gray1}`, borderRadius: 20, padding: '0 14px', height: 30, fontFamily: T.font, fontSize: 12, fontWeight: sel ? 600 : 400, cursor: 'pointer', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
               {c.nombre}
             </button>
@@ -4116,12 +4302,12 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
 
       {/* ── stat cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 24px 16px', flexShrink: 0 }}>
-        <StatCard inverted label="Ingresos" value={totalCobros} sub="confirmados" pendienteInfo={{ count: pendienteCount, onVer: onIrAConsultas }} />
+        <StatCard inverted label="Ingresos" value={totalCobros} sub="confirmados" />
         <StatCard label="Egresos" value={cargando ? null : fmtPesos(totalEgresosNum)} bottomRight={cargando ? null : fmtPesos(saldoNum)} />
       </div>
 
       <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, height: '100%' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, height: '100%' }}>
 
           {/* ── breakdowns ── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
@@ -4154,59 +4340,32 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
 
           </div>
 
-          {/* ── tabla movimientos ── */}
-          {(() => {
-            const movsFiltrados = buscarMov
-              ? movimientos.filter(m => m.descripcion.toLowerCase().includes(buscarMov.toLowerCase()))
-              : movimientos
-            return (
-              <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
-                <div style={{ padding: '12px 20px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black, letterSpacing: '-0.01em' }}>Movimientos</span>
-                  <input
-                    value={buscarMov}
-                    onChange={e => setBuscarMov(e.target.value)}
-                    placeholder="Buscar por descripción…"
-                    style={{ fontFamily: T.font, fontSize: 12, border: `1px solid ${T.gray1}`, borderRadius: 20, padding: '5px 14px', outline: 'none', color: T.black, width: 200, background: T.gray2 }}
-                  />
+          {/* ── card movimientos ── */}
+          <div style={{ alignSelf: 'start', background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px 10px' }}>
+              <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: T.gray3 }}>Movimientos</span>
+            </div>
+            <div style={{ padding: '0 20px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>Ingresos</span>
+                  {!cargando && pendienteCount > 0 && (
+                    <button onClick={onIrAConsultas} style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#f59e0b', background: 'none', border: '1px solid #f59e0b', borderRadius: 3, padding: '2px 6px', cursor: 'pointer' }}>
+                      {pendienteCount} pendiente{pendienteCount !== 1 ? 's' : ''}
+                    </button>
+                  )}
                 </div>
-                {cargando && <div style={{ padding: '2rem 20px', fontSize: 11, color: T.gray4, fontFamily: T.font }}>Cargando…</div>}
-                {!cargando && movsFiltrados.length === 0 && (
-                  <div style={{ padding: '2rem 20px', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Sin movimientos</div>
-                )}
-                {!cargando && movsFiltrados.length > 0 && (
-                  <div style={{ flex: 1, overflowY: 'auto' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 90px 100px', columnGap: 16, padding: '8px 20px', borderBottom: `1px solid ${T.gray1}`, position: 'sticky', top: 0, background: T.white }}>
-                      {['Tipo', 'Descripción', 'Fecha', 'Monto'].map(h => (
-                        <span key={h} style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>{h}</span>
-                      ))}
-                    </div>
-                    {movsFiltrados.map((m, idx) => {
-                      const esIngreso = m.tipo === 'ingreso'
-                      const pendiente = m.estado === 'PENDIENTE'
-                      const [y, mo, d] = (m.fecha || '').split('-')
-                      const fechaFmt = m.fecha ? `${d}/${mo}/${y}` : '—'
-                      const borderLeft = pendiente ? '3px solid #f59e0b' : esIngreso ? 'none' : '3px solid #9b1c1c'
-                      return (
-                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 90px 100px', columnGap: 16, padding: '11px 20px', borderBottom: `1px solid ${T.gray1}`, alignItems: 'center', borderLeft }}>
-                          <span style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: T.gray2, color: T.gray4, padding: '3px 8px', borderRadius: 20, display: 'inline-block', whiteSpace: 'nowrap' }}>
-                            {pendiente ? 'Pendiente' : esIngreso ? 'Ingreso' : 'Egreso'}
-                          </span>
-                          <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {m.descripcion}
-                          </span>
-                          <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray4 }}>{fechaFmt}</span>
-                          <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 700, color: T.black, textAlign: 'right' }}>
-                            {esIngreso ? '' : '−'}{fmtPesos(m.monto)}
-                          </span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
+                <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>{cargando ? '—' : confirmados.length + pendienteCount}</span>
               </div>
-            )
-          })()}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>Egresos</span>
+                <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>{cargando ? '—' : egresosFiltrados.length}</span>
+              </div>
+            </div>
+            <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.gray1}`, flexShrink: 0 }}>
+              <Btn fullWidth variant="outline" onClick={() => setSubVista('movimientos')}>Ver movimientos</Btn>
+            </div>
+          </div>
 
         </div>
       </div>
