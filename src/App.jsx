@@ -269,7 +269,7 @@ function MainLayout({ token, usuario, onLogout }) {
           {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
           {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} />}
           {vista === 'estudios'       && <VistaEstudios apiFetch={apiFetch} />}
-          {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} />}
+          {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} onVolverAFinanzas={consultasFiltroInicial ? () => { setConsultasFiltroInicial(false); setVista('finanzas') } : undefined} />}
           {vista === 'finanzas'       && <VistaFinanzas apiFetch={apiFetch} onIrAConsultas={() => { setConsultasFiltroInicial(true); setVista('consultas') }} />}
           {vista === 'obras-sociales' && <VistaObrasSociales apiFetch={apiFetch} />}
           {vista === 'consultorios'   && <VistaConsultorios apiFetch={apiFetch} />}
@@ -626,6 +626,8 @@ const FEATURES = [
 function VistaLogin({ onLogin }) {
   const [cargando, setCargando] = useState(false)
   const [error,    setError]    = useState(null)
+  const [modo,     setModo]     = useState('login') // 'login' | 'registro' | 'exito'
+  const [form,     setForm]     = useState({ nombre: '', apellido: '', email: '' })
 
   async function handleGoogleSuccess(credentialResponse) {
     setError(null); setCargando(true)
@@ -639,6 +641,21 @@ function VistaLogin({ onLogin }) {
     finally { setCargando(false) }
   }
 
+  async function handleRegistro(e) {
+    e.preventDefault()
+    setError(null); setCargando(true)
+    try {
+      const res = await fetch(`${API_URL}/auth/registro`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(data.error || 'Error al crear la cuenta'); return }
+      setModo('exito')
+    } catch { setError('No se pudo conectar con el servidor') }
+    finally { setCargando(false) }
+  }
+
+  const inputStyle = { fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 12px', outline: 'none', width: '100%', boxSizing: 'border-box', color: T.black }
+  const labelStyle = { fontFamily: T.font, fontSize: 12, color: T.gray5, display: 'flex', flexDirection: 'column', gap: 5 }
+
   return (
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: T.white }}>
       <div style={{ marginBottom: 10 }}><Logo size={28} /></div>
@@ -646,22 +663,58 @@ function VistaLogin({ onLogin }) {
         Gestión odontológica profesional
       </span>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 48 }}>
-        {FEATURES.map(({ icon: Icon, label }) => (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Icon size={15} color={T.gray4} strokeWidth={1.5} />
-            <span style={{ fontSize: 12, letterSpacing: '0.06em', color: T.gray4, fontFamily: T.font }}>{label}</span>
-          </div>
-        ))}
-      </div>
+      {modo === 'login' && <>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 48 }}>
+          {FEATURES.map(({ icon: Icon, label }) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Icon size={15} color={T.gray4} strokeWidth={1.5} />
+              <span style={{ fontSize: 12, letterSpacing: '0.06em', color: T.gray4, fontFamily: T.font }}>{label}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          {cargando
+            ? <span style={{ fontSize: 12, color: T.gray5, fontFamily: T.font, letterSpacing: '0.08em' }}>Cargando…</span>
+            : <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError('Error al iniciar sesión con Google')} locale="es" text="signin_with" />
+          }
+          <ErrorMsg>{error}</ErrorMsg>
+          <button onClick={() => { setModo('registro'); setError(null) }} style={{ marginTop: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textDecoration: 'underline' }}>
+            Crear mi cuenta
+          </button>
+        </div>
+      </>}
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-        {cargando
-          ? <span style={{ fontSize: 12, color: T.gray5, fontFamily: T.font, letterSpacing: '0.08em' }}>Cargando…</span>
-          : <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError('Error al iniciar sesión con Google')} locale="es" text="signin_with" />
-        }
-        <ErrorMsg>{error}</ErrorMsg>
-      </div>
+      {modo === 'registro' && (
+        <form onSubmit={handleRegistro} style={{ display: 'flex', flexDirection: 'column', gap: 14, width: 300 }}>
+          <label style={labelStyle}>Nombre
+            <input style={inputStyle} value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} required />
+          </label>
+          <label style={labelStyle}>Apellido
+            <input style={inputStyle} value={form.apellido} onChange={e => setForm(f => ({ ...f, apellido: e.target.value }))} required />
+          </label>
+          <label style={labelStyle}>Email
+            <input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
+          </label>
+          <ErrorMsg>{error}</ErrorMsg>
+          <button type="submit" disabled={cargando} style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, background: T.black, color: T.white, border: 'none', borderRadius: 6, padding: '10px 0', cursor: 'pointer' }}>
+            {cargando ? 'Enviando…' : 'Solicitar acceso'}
+          </button>
+          <button type="button" onClick={() => { setModo('login'); setError(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textDecoration: 'underline' }}>
+            Volver al inicio
+          </button>
+        </form>
+      )}
+
+      {modo === 'exito' && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center', maxWidth: 300 }}>
+          <span style={{ fontSize: 13, fontFamily: T.font, color: T.black, lineHeight: 1.6 }}>
+            Tu solicitud fue enviada. Un administrador revisará tu cuenta y te habilitará el acceso.
+          </span>
+          <button onClick={() => { setModo('login'); setForm({ nombre: '', apellido: '', email: '' }) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textDecoration: 'underline' }}>
+            Volver al inicio
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -2207,7 +2260,7 @@ const COLS_CO = [
   { label: 'Fecha',       w: '1fr' },
 ]
 
-function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteInicial = false }) {
+function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteInicial = false, onVolverAFinanzas }) {
   const [items,          setItems]          = useState([])
   const [meta,           setMeta]           = useState(null)
   const [cargando,       setCargando]       = useState(true)
@@ -2310,8 +2363,11 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
       <PageBar>
-        <PageTitle>Consultas</PageTitle>
-        <Btn onClick={abrirNuevaConsulta}>Iniciar consulta</Btn>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+          {onVolverAFinanzas && <BackBtn onClick={onVolverAFinanzas} />}
+          <PageTitle>Consultas</PageTitle>
+        </div>
+        {!onVolverAFinanzas && <Btn onClick={abrirNuevaConsulta}>Iniciar consulta</Btn>}
       </PageBar>
 
       <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
