@@ -69,6 +69,9 @@ const COLORES_PRESET = ['#ff3333', '#2563eb', '#22c55e', '#f59e0b', '#ffffff', '
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api'
 
+// Cloudflare Turnstile — sitekey pública (va en el HTML, no es secreta).
+const TURNSTILE_SITEKEY = import.meta.env.VITE_TURNSTILE_SITEKEY ?? '0x4AAAAAADaI7NQj1V3qw4BK'
+
 /* ─── design tokens ──────────────────────────────────────────── */
 const T = {
   font:    "'DM Sans', sans-serif",
@@ -624,10 +627,42 @@ const FEATURES = [
 ]
 
 function VistaLogin({ onLogin }) {
-  const [cargando, setCargando] = useState(false)
-  const [error,    setError]    = useState(null)
-  const [modo,     setModo]     = useState('login') // 'login' | 'registro' | 'exito'
-  const [form,     setForm]     = useState({ nombre: '', apellido: '', email: '' })
+  const [cargando,        setCargando]        = useState(false)
+  const [error,           setError]           = useState(null)
+  const [modo,            setModo]            = useState('login') // 'login' | 'registro' | 'exito'
+  const [form,            setForm]            = useState({ nombre: '', apellido: '', email: '' })
+  const [turnstileToken,  setTurnstileToken]  = useState(null)
+  const turnstileRef      = useRef(null)
+  const turnstileWidgetId = useRef(null)
+
+  // Renderiza el widget de Turnstile cuando se entra al modo registro.
+  useEffect(() => {
+    if (modo !== 'registro') return
+    let cancelled = false
+    const tryRender = () => {
+      if (cancelled) return
+      if (window.turnstile && turnstileRef.current && turnstileWidgetId.current === null) {
+        turnstileWidgetId.current = window.turnstile.render(turnstileRef.current, {
+          sitekey:            TURNSTILE_SITEKEY,
+          callback:           (token) => setTurnstileToken(token),
+          'error-callback':   () => setTurnstileToken(null),
+          'expired-callback': () => setTurnstileToken(null),
+          theme:              'light',
+        })
+      } else if (!window.turnstile) {
+        setTimeout(tryRender, 150)
+      }
+    }
+    tryRender()
+    return () => {
+      cancelled = true
+      if (window.turnstile && turnstileWidgetId.current !== null) {
+        try { window.turnstile.remove(turnstileWidgetId.current) } catch {}
+        turnstileWidgetId.current = null
+      }
+      setTurnstileToken(null)
+    }
+  }, [modo])
 
   async function handleGoogleSuccess(credentialResponse) {
     setError(null); setCargando(true)
@@ -643,11 +678,23 @@ function VistaLogin({ onLogin }) {
 
   async function handleRegistro(e) {
     e.preventDefault()
+    if (!turnstileToken) { setError('Completá la verificación anti-bot'); return }
     setError(null); setCargando(true)
     try {
-      const res = await fetch(`${API_URL}/auth/registro`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const res = await fetch(`${API_URL}/auth/registro`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ ...form, turnstileToken }),
+      })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setError(data.error || 'Error al crear la cuenta'); return }
+      if (!res.ok) {
+        setError(data.error || 'Error al crear la cuenta')
+        if (window.turnstile && turnstileWidgetId.current !== null) {
+          window.turnstile.reset(turnstileWidgetId.current)
+        }
+        setTurnstileToken(null)
+        return
+      }
       setModo('exito')
     } catch { setError('No se pudo conectar con el servidor') }
     finally { setCargando(false) }
@@ -695,8 +742,9 @@ function VistaLogin({ onLogin }) {
           <label style={labelStyle}>Email
             <input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
           </label>
+          <div ref={turnstileRef} style={{ display: 'flex', justifyContent: 'center' }} />
           <ErrorMsg>{error}</ErrorMsg>
-          <button type="submit" disabled={cargando} style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, background: T.black, color: T.white, border: 'none', borderRadius: 6, padding: '10px 0', cursor: 'pointer' }}>
+          <button type="submit" disabled={cargando || !turnstileToken} style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, background: T.black, color: T.white, border: 'none', borderRadius: 6, padding: '10px 0', cursor: (cargando || !turnstileToken) ? 'not-allowed' : 'pointer', opacity: (cargando || !turnstileToken) ? 0.5 : 1 }}>
             {cargando ? 'Enviando…' : 'Solicitar acceso'}
           </button>
           <button type="button" onClick={() => { setModo('login'); setError(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textDecoration: 'underline' }}>
@@ -789,59 +837,133 @@ function VistaCompletarPerfil({ token, onLogin, onLogout }) {
 
 /* ─── VistaDashboard ─────────────────────────────────────────── */
 
-function VistaDashboard({ apiFetch, usuario, setVista }) {
-  const [stats, setStats] = useState({ total: null, nuevos: null, conTurno: null })
-  const [turnosHoy, setTurnosHoy] = useState([])
-  const [pendientesSemana, setPendientesSemana] = useState(null)
+function DashRow({ label, value, alert, muted }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: `1px solid ${T.gray1}` }}>
+      <span style={{ fontFamily: T.font, fontSize: 12, color: muted ? T.gray4 : T.gray5 }}>{label}</span>
+      <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: alert ? '#b45309' : T.black }}>{value ?? '—'}</span>
+    </div>
+  )
+}
 
-  useEffect(() => {
-    apiFetch('/pacientes/stats').then(async res => {
-      if (!res?.ok) return
-      const s = await res.json()
-      setStats({ total: s.total, nuevos: s.nuevosEsteMes, conTurno: s.conTurnoProximo })
-    })
-  }, [apiFetch])
+function DashBlock({ title, children }) {
+  return (
+    <div style={{ background: T.white, borderRadius: 10, border: `1px solid ${T.gray1}`, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray3, display: 'block', marginBottom: 8 }}>{title}</span>
+      {children}
+    </div>
+  )
+}
+
+function VistaDashboard({ apiFetch, usuario, setVista }) {
+  const [dash,      setDash]      = useState(null)
+  const [turnosHoy, setTurnosHoy] = useState([])
+  const [cargando,  setCargando]  = useState(true)
 
   useEffect(() => {
     const pad = n => String(n).padStart(2, '0')
     const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T00:00:00`
-
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
     const manana = new Date(hoy); manana.setDate(manana.getDate() + 1)
 
-    const en7dias = new Date(hoy); en7dias.setDate(hoy.getDate() + 7)
-
     Promise.all([
+      apiFetch('/dashboard'),
       apiFetch(`/turnos?desde=${encodeURIComponent(fmt(hoy))}&hasta=${encodeURIComponent(fmt(manana))}`),
-      apiFetch(`/turnos?desde=${encodeURIComponent(fmt(hoy))}&hasta=${encodeURIComponent(fmt(en7dias))}`),
-    ]).then(async ([resHoy, resSemana]) => {
+    ]).then(async ([resDash, resHoy]) => {
+      if (resDash?.ok) setDash(await resDash.json())
       if (resHoy?.ok) {
         const data = await resHoy.json()
         setTurnosHoy(data.sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora)))
       }
-      if (resSemana?.ok) {
-        const data = await resSemana.json()
-        setPendientesSemana(data.filter(t => t.estado === 'PENDIENTE').length)
-      }
+      setCargando(false)
     })
   }, [apiFetch])
 
+  const mesActual = new Date().toLocaleDateString('es-AR', { month: 'long' })
+
+  const fmtPesos = n => n == null ? '—' : new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
+
+  const cobradoPct = dash && Number(dash.facturadoMes) > 0
+    ? Math.round(Number(dash.cobradoMes) / Number(dash.facturadoMes) * 100)
+    : 0
+
+  const proximoTurno = dash?.proximoTurno
+  const fmtProximo = proximoTurno ? (() => {
+    const d = new Date(proximoTurno.fechaHora)
+    const hoy = new Date(); hoy.setHours(0,0,0,0)
+    const esHoy = d >= hoy && d < new Date(hoy.getTime() + 86400000)
+    const hora = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+    const nombre = [proximoTurno.pacienteApellido, proximoTurno.pacienteNombre].filter(Boolean).join(', ')
+    return { hora, nombre, esHoy, dia: d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }) }
+  })() : null
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
-      <div style={{ padding: '20px 24px 16px', flexShrink: 0 }}>
+
+      <div style={{ padding: '20px 24px 14px', flexShrink: 0 }}>
         <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>
           Bienvenido/a, {usuario?.nombre}
         </span>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12, padding: '0 24px 16px', flexShrink: 0 }}>
-        <StatCard inverted label="Total pacientes" value={stats.total} bottomRight={stats.nuevos ?? null} bottomRightLabel="nuevos este mes" />
-        <div onClick={() => setVista?.('turnos')} style={{ cursor: 'pointer', display: 'flex' }}>
-          <StatCard label="Turnos pendientes a confirmar" value={pendientesSemana} sub="próximos 7 días" style={{ flex: 1, borderLeft: '3px solid #f59e0b' }} />
-        </div>
-      </div>
+
       <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px', display: 'flex', gap: 12 }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* ── Columna izquierda: Turnos hoy ── */}
+        <div style={{ width: 268, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
           <TurnosHoyPanel turnos={turnosHoy} onClickTurno={() => setVista?.('turnos')} />
+
+          {/* Próximo turno */}
+          {fmtProximo && (
+            <div style={{ background: T.black, borderRadius: 10, padding: '12px 16px', flexShrink: 0 }}>
+              <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 6 }}>Próximo turno</span>
+              <span style={{ fontFamily: T.font, fontSize: 18, fontWeight: 700, color: T.white, letterSpacing: '-0.02em' }}>{fmtProximo.hora}</span>
+              <span style={{ fontFamily: T.font, fontSize: 12, color: 'rgba(255,255,255,0.65)', display: 'block', marginTop: 2 }}>{fmtProximo.nombre}</span>
+              {!fmtProximo.esHoy && <span style={{ fontFamily: T.mono, fontSize: 9, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', display: 'block', marginTop: 4 }}>{fmtProximo.dia}</span>}
+            </div>
+          )}
+        </div>
+
+        {/* ── Columna derecha: 3 bloques ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
+
+          {/* Pacientes */}
+          <DashBlock title="Pacientes">
+            <DashRow label="Total registrados"      value={cargando ? '…' : dash?.pacientesTotal} />
+            <DashRow label="Nuevos este mes"         value={cargando ? '…' : dash?.pacientesNuevosEsteMes} muted />
+            <DashRow label="Sin volver en 90 días"  value={cargando ? '…' : dash?.pacientesNoVolvieron90Dias} alert={!cargando && dash?.pacientesNoVolvieron90Dias > 0} muted />
+          </DashBlock>
+
+          {/* Turnos */}
+          <DashBlock title="Turnos">
+            <DashRow label="Pendientes de confirmar hoy" value={cargando ? '…' : dash?.turnosPendientesHoy} alert={!cargando && dash?.turnosPendientesHoy > 0} muted />
+          </DashBlock>
+
+          {/* Financiero */}
+          <DashBlock title={`Financiero · ${mesActual}`}>
+            <div style={{ marginBottom: 10 }}>
+              <span style={{ fontFamily: T.font, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: T.black, lineHeight: 1 }}>
+                {cargando ? '…' : fmtPesos(dash?.facturadoMes)}
+              </span>
+              <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.1em', marginLeft: 8 }}>FACTURADO</span>
+            </div>
+            {/* Barra cobrado / pendiente */}
+            <div style={{ height: 6, background: T.gray2, borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
+              <div style={{ height: '100%', width: `${cobradoPct}%`, background: T.black, borderRadius: 3, transition: 'width 0.4s ease' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.08em' }}>Cobrado {cobradoPct}%</span>
+              <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.08em' }}>Pendiente {100 - cobradoPct}%</span>
+            </div>
+            <DashRow label={`Cobros pendientes`} value={cargando ? '…' : `${dash?.cobrosPendientesCantidad ?? 0} paciente${dash?.cobrosPendientesCantidad !== 1 ? 's' : ''}`} alert={!cargando && dash?.cobrosPendientesCantidad > 0} muted />
+          </DashBlock>
+
+          {/* Productividad */}
+          <DashBlock title="Productividad — este mes">
+            <DashRow label="Día más activo"          value={cargando ? '…' : (dash?.diaMasConsultas ?? 'Sin datos')} muted />
+            <DashRow label="Obra social con más pac." value={cargando ? '…' : (dash?.obraSocialMasPacientes ?? 'Sin datos')} muted />
+            <DashRow label="Consultas por día prom." value={cargando ? '…' : (dash?.promedioConsultasPorDia != null ? dash.promedioConsultasPorDia.toFixed(1) : 'Sin datos')} muted />
+          </DashBlock>
+
         </div>
       </div>
     </div>
@@ -1149,7 +1271,7 @@ function VistaPacientes({ apiFetch, onIrAConsultorios, usuario }) {
   return null
 }
 
-function StatCard({ label, value, sub, inverted = false, pct = null, bottomRight = null, bottomRightLabel = null, pendienteInfo = null, style: styleProp }) {
+function StatCard({ label, value, sub, inverted = false, pct = null, trend = null, bottomRight = null, bottomRightLabel = null, pendienteInfo = null, style: styleProp }) {
   return (
     <div style={{
       background: inverted ? T.black : T.white,
@@ -1170,6 +1292,11 @@ function StatCard({ label, value, sub, inverted = false, pct = null, bottomRight
         {pct && (
           <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 600, letterSpacing: '-0.02em', color: inverted ? 'rgba(255,255,255,0.5)' : T.gray4 }}>
             {pct}
+          </span>
+        )}
+        {trend && (
+          <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: trend.up ? (inverted ? '#4ade80' : '#16a34a') : (inverted ? '#f87171' : '#dc2626') }}>
+            {trend.up ? '↑' : '↓'} {trend.label}
           </span>
         )}
       </div>
@@ -4358,7 +4485,15 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
 
       {/* ── stat cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 24px 16px', flexShrink: 0 }}>
-        <StatCard inverted label="Ingresos" value={totalCobros} sub="confirmados" />
+        <StatCard
+          inverted
+          label="Ingresos"
+          value={totalCobros}
+          sub="confirmados"
+          trend={!cargando && resumen?.variacionPct != null ? { label: Math.abs(resumen.variacionPct).toFixed(1) + '%', up: resumen.variacionPct >= 0 } : null}
+          bottomRight={!cargando && resumen?.ticketPromedio != null ? fmtPesos(resumen.ticketPromedio) : null}
+          bottomRightLabel="ticket prom."
+        />
         <StatCard label="Egresos" value={cargando ? null : fmtPesos(totalEgresosNum)} bottomRight={cargando ? null : fmtPesos(saldoNum)} />
       </div>
 
