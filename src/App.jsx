@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Upload, LayoutList, LayoutGrid, Users, ScanLine, ClipboardList, Building2 } from 'lucide-react'
+import { Upload, LayoutList, LayoutGrid, Users, ScanLine, ClipboardList, Building2, Menu, X } from 'lucide-react'
 import { GoogleLogin } from '@react-oauth/google'
 
 /* ─── constants ─────────────────────────────────────────────── */
@@ -110,6 +110,20 @@ function TopLoader() {
       </div>
     </>
   )
+}
+
+/* ─── responsive helpers ─────────────────────────────────────── */
+const MOBILE_BREAKPOINT = 1024
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT
+  )
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return isMobile
 }
 
 /* ─── design tokens ──────────────────────────────────────────── */
@@ -269,6 +283,14 @@ const NAV_ITEMS = [
 function MainLayout({ token, usuario, onLogout }) {
   const [vista, setVista] = useState('dashboard')
   const [consultasFiltroInicial, setConsultasFiltroInicial] = useState(false)
+  const isMobile = useIsMobile()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  // Auto-cerrar el drawer al pasar a desktop o al navegar
+  useEffect(() => { if (!isMobile) setSidebarOpen(false) }, [isMobile])
+  useEffect(() => { setSidebarOpen(false) }, [vista])
+
+  function navegar(key) { setVista(key) }
 
   const apiFetch = useCallback(async (path, opts = {}) => {
     const res = await fetchTracked(`${API_URL}${path}`, {
@@ -283,24 +305,65 @@ function MainLayout({ token, usuario, onLogout }) {
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', background: T.white, overflow: 'hidden' }}>
 
       {/* ── global header ── */}
-      <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0, background: T.white, zIndex: 10 }}>
-        <Logo size={16} />
+      <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 16px' : '0 24px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0, background: T.white, zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {isMobile && (
+            <button
+              onClick={() => setSidebarOpen(o => !o)}
+              aria-label={sidebarOpen ? 'Cerrar menú' : 'Abrir menú'}
+              style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', display: 'flex', alignItems: 'center', color: T.black }}
+            >
+              {sidebarOpen ? <X size={22} strokeWidth={1.5} /> : <Menu size={22} strokeWidth={1.5} />}
+            </button>
+          )}
+          <Logo size={16} />
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {usuario?.foto && <img src={usuario.foto} alt="" referrerPolicy="no-referrer" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />}
-          <span style={{ fontFamily: T.font, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4 }}>
-            {usuario?.nombre} {usuario?.apellido}
-          </span>
+          {!isMobile && (
+            <span style={{ fontFamily: T.font, fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4 }}>
+              {usuario?.nombre} {usuario?.apellido}
+            </span>
+          )}
         </div>
       </header>
 
       {/* ── body ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'row', overflow: 'hidden', position: 'relative' }}>
 
-        {/* sidebar */}
-        <aside style={{ width: 200, flexShrink: 0, display: 'flex', flexDirection: 'column', borderRight: `1px solid ${T.gray1}`, background: T.white }}>
+        {/* backdrop (solo mobile + sidebar abierta) */}
+        {isMobile && sidebarOpen && (
+          <div
+            onClick={() => setSidebarOpen(false)}
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 20, animation: 'so-fade 150ms ease-out' }}
+          />
+        )}
+        <style>{`@keyframes so-fade { from { opacity: 0 } to { opacity: 1 } }`}</style>
+
+        {/* sidebar — fija en desktop, drawer en mobile */}
+        <aside
+          style={{
+            width: 220,
+            flexShrink: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            borderRight: `1px solid ${T.gray1}`,
+            background: T.white,
+            ...(isMobile ? {
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              zIndex: 30,
+              transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+              transition: 'transform 200ms ease-out',
+              boxShadow: sidebarOpen ? '2px 0 12px rgba(0,0,0,0.08)' : 'none',
+            } : {}),
+          }}
+        >
           <nav style={{ flex: 1, paddingTop: 8, paddingBottom: 8 }}>
             {NAV_ITEMS.map(({ key, label }) => (
-              <NavItem key={key} label={label} active={vista === key} onClick={() => setVista(key)} />
+              <NavItem key={key} label={label} active={vista === key} onClick={() => navegar(key)} />
             ))}
           </nav>
           <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.gray7}` }}>
