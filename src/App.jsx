@@ -126,6 +126,70 @@ function useIsMobile() {
   return isMobile
 }
 
+/**
+ * FAB (Floating Action Button) con speed dial. Pensado para mobile.
+ * Recibe un array de acciones; si hay 1, click directo dispara el onClick.
+ * Si hay >1, click expande un menú vertical sobre el FAB con cada acción.
+ *
+ *   acciones: [{ label: string, onClick: () => void, variant?: 'primary'|'outline' }]
+ */
+function FabAcciones({ acciones = [] }) {
+  const [open, setOpen] = useState(false)
+  if (!acciones.length) return null
+  const fabSize = 56
+  const handleClick = () => {
+    if (acciones.length === 1) acciones[0].onClick()
+    else setOpen(o => !o)
+  }
+  return (
+    <>
+      {/* backdrop invisible para cerrar al tocar fuera */}
+      {open && (
+        <div onClick={() => setOpen(false)}
+             style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+      )}
+      <div style={{ position: 'fixed', bottom: 24, right: 20, zIndex: 999, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
+        {/* Sub-acciones, aparecen sobre el FAB principal cuando open */}
+        {open && acciones.map((a, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, animation: `so-fab-in 160ms ease-out ${i * 30}ms backwards` }}>
+            <span style={{ background: T.black, color: T.white, fontFamily: T.font, fontSize: 12, fontWeight: 500, padding: '6px 12px', borderRadius: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+              {a.label}
+            </span>
+            <button
+              onClick={() => { a.onClick(); setOpen(false) }}
+              aria-label={a.label}
+              style={{
+                width: 44, height: 44, borderRadius: '50%',
+                background: a.variant === 'outline' ? T.white : T.black,
+                color:      a.variant === 'outline' ? T.black : T.white,
+                border:     a.variant === 'outline' ? `1px solid ${T.gray1}` : 'none',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.18)', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 18, fontWeight: 300,
+              }}
+            >+</button>
+          </div>
+        ))}
+        {/* FAB principal */}
+        <button
+          onClick={handleClick}
+          aria-label={acciones.length === 1 ? acciones[0].label : (open ? 'Cerrar' : 'Agregar')}
+          style={{
+            width: fabSize, height: fabSize, borderRadius: '50%',
+            background: T.black, color: T.white, border: 'none',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.22)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'transform 200ms ease', transform: open ? 'rotate(45deg)' : 'rotate(0)',
+          }}
+        >
+          <span style={{ fontSize: 28, fontWeight: 200, lineHeight: 1 }}>+</span>
+        </button>
+      </div>
+      <style>{`@keyframes so-fab-in { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }`}</style>
+    </>
+  )
+}
+
 /* ─── design tokens ──────────────────────────────────────────── */
 const T = {
   font:    "'DM Sans', sans-serif",
@@ -4334,6 +4398,7 @@ const INGRESO_LIBRE_EMPTY = { descripcion: '', monto: '', tipoPago: '', medioPag
 const EGRESO_EMPTY = { fecha: new Date().toISOString().slice(0, 10), monto: '', descripcion: '', consultorioId: '' }
 
 function VistaFinanzas({ apiFetch, onIrAConsultas }) {
+  const isMobile = useIsMobile()
   const hoy = new Date()
   const [año,      setAño]      = useState(hoy.getFullYear())
   const [mes,      setMes]      = useState(hoy.getMonth() + 1)
@@ -4571,9 +4636,9 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
 
       {/* ── header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px 16px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>Finanzas</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '16px 16px 12px' : '20px 24px 16px', flexShrink: 0, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 16, flexWrap: 'wrap' }}>
+          <span style={{ fontFamily: T.font, fontSize: isMobile ? 18 : 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>Finanzas</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button style={navBtnStyle} onClick={() => navMes(-1)}>‹</button>
             <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, color: T.black, minWidth: 110, textAlign: 'center' }}>
@@ -4582,10 +4647,12 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
             <button style={navBtnStyle} onClick={() => navMes(1)}>›</button>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <Btn variant="outline" onClick={() => setModalEgreso(true)}>+ Egreso</Btn>
-          <Btn onClick={() => setModal(true)}>+ Ingreso</Btn>
-        </div>
+        {!isMobile && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Btn variant="outline" onClick={() => setModalEgreso(true)}>+ Egreso</Btn>
+            <Btn onClick={() => setModal(true)}>+ Ingreso</Btn>
+          </div>
+        )}
       </div>
 
       {/* ── botones consultorio ── */}
@@ -4603,7 +4670,7 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
       </div>
 
       {/* ── stat cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '0 24px 16px', flexShrink: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, padding: isMobile ? '0 16px 16px' : '0 24px 16px', flexShrink: 0 }}>
         <StatCard
           inverted
           label="Ingresos"
@@ -4616,11 +4683,11 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
         <StatCard label="Egresos" value={cargando ? null : fmtPesos(totalEgresosNum)} bottomRight={cargando ? null : fmtPesos(saldoNum)} />
       </div>
 
-      <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, height: '100%' }}>
+      <div style={{ flex: 1, overflow: isMobile ? 'auto' : 'hidden', padding: isMobile ? '0 16px 96px' : '0 24px 24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, height: isMobile ? 'auto' : '100%' }}>
 
           {/* ── breakdowns ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflow: 'hidden', order: isMobile ? 2 : 1 }}>
 
             <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', flex: 1 }}>
               <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
@@ -4651,7 +4718,7 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
           </div>
 
           {/* ── card movimientos ── */}
-          <div style={{ alignSelf: 'start', background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden' }}>
+          <div style={{ alignSelf: 'start', background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', order: isMobile ? 1 : 2 }}>
             <div style={{ padding: '14px 20px 10px' }}>
               <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: T.gray3 }}>Movimientos</span>
             </div>
@@ -4682,9 +4749,9 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
 
       {/* ── modal ingreso libre ── */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
              onClick={e => e.target === e.currentTarget && setModal(false)}>
-          <div style={{ background: T.white, borderRadius: 16, width: 420, padding: 28, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+          <div style={{ background: T.white, borderRadius: 16, width: 'min(420px, 100%)', maxHeight: '92vh', overflowY: 'auto', padding: isMobile ? 20 : 28, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, color: T.black, letterSpacing: '-0.02em' }}>Nuevo ingreso</span>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -4747,9 +4814,9 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
 
       {/* ── modal egreso ── */}
       {modalEgreso && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}
              onClick={e => e.target === e.currentTarget && setModalEgreso(false)}>
-          <div style={{ background: T.white, borderRadius: 16, width: 400, padding: 28, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+          <div style={{ background: T.white, borderRadius: 16, width: 'min(400px, 100%)', maxHeight: '92vh', overflowY: 'auto', padding: isMobile ? 20 : 28, display: 'flex', flexDirection: 'column', gap: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
             <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, color: T.black, letterSpacing: '-0.02em' }}>Nuevo egreso</span>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -4794,6 +4861,14 @@ function VistaFinanzas({ apiFetch, onIrAConsultas }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── FAB mobile-only: ingreso / egreso ── */}
+      {isMobile && (
+        <FabAcciones acciones={[
+          { label: 'Ingreso', onClick: () => setModal(true), variant: 'primary' },
+          { label: 'Egreso',  onClick: () => setModalEgreso(true), variant: 'outline' },
+        ]} />
       )}
     </div>
   )
