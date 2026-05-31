@@ -72,6 +72,46 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api'
 // Cloudflare Turnstile — sitekey pública (va en el HTML, no es secreta).
 const TURNSTILE_SITEKEY = import.meta.env.VITE_TURNSTILE_SITEKEY ?? '0x4AAAAAADaI7NQj1V3qw4BK'
 
+/* ─── global request loading state (top progress bar) ──────────── */
+// Contador de requests activas. Notifica solo si la operación tarda más de 250ms,
+// para evitar parpadeos en requests rápidas.
+const _loading = { count: 0, visible: false, showTimer: null, listeners: new Set() }
+function _notify() { _loading.listeners.forEach(fn => fn(_loading.visible)) }
+function fetchTracked(input, init) {
+  _loading.count++
+  if (_loading.count === 1 && !_loading.showTimer) {
+    _loading.showTimer = setTimeout(() => {
+      _loading.showTimer = null
+      _loading.visible = true
+      _notify()
+    }, 250)
+  }
+  return fetch(input, init).finally(() => {
+    _loading.count = Math.max(0, _loading.count - 1)
+    if (_loading.count === 0) {
+      if (_loading.showTimer) { clearTimeout(_loading.showTimer); _loading.showTimer = null }
+      if (_loading.visible) { _loading.visible = false; _notify() }
+    }
+  })
+}
+function useGlobalLoading() {
+  const [v, setV] = useState(_loading.visible)
+  useEffect(() => { _loading.listeners.add(setV); return () => { _loading.listeners.delete(setV) } }, [])
+  return v
+}
+function TopLoader() {
+  const visible = useGlobalLoading()
+  if (!visible) return null
+  return (
+    <>
+      <style>{`@keyframes so-loader { 0% { left: -40%; width: 40%; } 50% { left: 30%; width: 40%; } 100% { left: 100%; width: 40%; } }`}</style>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 2, background: 'transparent', zIndex: 99999, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', top: 0, height: '100%', background: '#111', animation: 'so-loader 1.1s ease-in-out infinite' }} />
+      </div>
+    </>
+  )
+}
+
 /* ─── design tokens ──────────────────────────────────────────── */
 const T = {
   font:    "'DM Sans', sans-serif",
@@ -205,9 +245,11 @@ export default function App() {
     setToken(null); setUsuario(null)
   }
 
-  if (!token) return <VistaLogin onLogin={handleLogin} />
-  if (!usuario?.perfilCompleto) return <VistaCompletarPerfil token={token} onLogin={handleLogin} onLogout={handleLogout} />
-  return <MainLayout token={token} usuario={usuario} onLogout={handleLogout} />
+  let content
+  if (!token) content = <VistaLogin onLogin={handleLogin} />
+  else if (!usuario?.perfilCompleto) content = <VistaCompletarPerfil token={token} onLogin={handleLogin} onLogout={handleLogout} />
+  else content = <MainLayout token={token} usuario={usuario} onLogout={handleLogout} />
+  return <><TopLoader />{content}</>
 }
 
 /* ─── MainLayout ─────────────────────────────────────────────── */
@@ -229,7 +271,7 @@ function MainLayout({ token, usuario, onLogout }) {
   const [consultasFiltroInicial, setConsultasFiltroInicial] = useState(false)
 
   const apiFetch = useCallback(async (path, opts = {}) => {
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await fetchTracked(`${API_URL}${path}`, {
       ...opts,
       headers: { ...(opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), Authorization: `Bearer ${token}`, ...opts.headers },
     })
@@ -630,7 +672,7 @@ function VistaLogin({ onLogin }) {
   const [cargando,        setCargando]        = useState(false)
   const [error,           setError]           = useState(null)
   const [modo,            setModo]            = useState('login') // 'login' | 'registro' | 'exito'
-  const [form,            setForm]            = useState({ nombre: '', apellido: '', email: '' })
+  const [form,            setForm]            = useState({ nombre: '', apellido: '', email: '', confirmarEmail: '' })
   const [turnstileToken,  setTurnstileToken]  = useState(null)
   const turnstileRef      = useRef(null)
   const turnstileWidgetId = useRef(null)
@@ -668,7 +710,7 @@ function VistaLogin({ onLogin }) {
     setError(null); setCargando(true)
     try {
       const payload = JSON.parse(atob(credentialResponse.credential.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
-      const res = await fetch(`${API_URL}/auth/google`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: credentialResponse.credential }) })
+      const res = await fetchTracked(`${API_URL}/auth/google`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: credentialResponse.credential }) })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Error al iniciar sesión con Google'); return }
       onLogin({ ...data, foto: payload.picture })
@@ -678,13 +720,17 @@ function VistaLogin({ onLogin }) {
 
   async function handleRegistro(e) {
     e.preventDefault()
+    if (form.email.trim().toLowerCase() !== form.confirmarEmail.trim().toLowerCase()) {
+      setError('Los emails no coinciden'); return
+    }
     if (!turnstileToken) { setError('Completá la verificación anti-bot'); return }
     setError(null); setCargando(true)
     try {
-      const res = await fetch(`${API_URL}/auth/registro`, {
+      const { confirmarEmail: _ignored, ...payload } = form
+      const res = await fetchTracked(`${API_URL}/auth/registro`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ...form, turnstileToken }),
+        body:    JSON.stringify({ ...payload, turnstileToken }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -742,6 +788,16 @@ function VistaLogin({ onLogin }) {
           <label style={labelStyle}>Email
             <input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
           </label>
+          <label style={labelStyle}>Confirmar email
+            <input
+              style={{ ...inputStyle, borderColor: (form.confirmarEmail && form.email.trim().toLowerCase() !== form.confirmarEmail.trim().toLowerCase()) ? T.red : T.gray1 }}
+              type="email"
+              value={form.confirmarEmail}
+              onChange={e => setForm(f => ({ ...f, confirmarEmail: e.target.value }))}
+              onPaste={e => e.preventDefault()}
+              required
+            />
+          </label>
           <div ref={turnstileRef} style={{ display: 'flex', justifyContent: 'center' }} />
           <ErrorMsg>{error}</ErrorMsg>
           <button type="submit" disabled={cargando || !turnstileToken} style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, background: T.black, color: T.white, border: 'none', borderRadius: 6, padding: '10px 0', cursor: (cargando || !turnstileToken) ? 'not-allowed' : 'pointer', opacity: (cargando || !turnstileToken) ? 0.5 : 1 }}>
@@ -776,7 +832,7 @@ function VistaCompletarPerfil({ token, onLogin, onLogout }) {
   const [error,          setError]          = useState(null)
 
   useEffect(() => {
-    fetch(`${API_URL}/especialidades`)
+    fetchTracked(`${API_URL}/especialidades`)
       .then(r => r.json())
       .then(data => Array.isArray(data) ? setEspecialidades(data) : [])
       .catch(() => {})
@@ -787,7 +843,7 @@ function VistaCompletarPerfil({ token, onLogin, onLogout }) {
   async function handleSubmit(e) {
     e.preventDefault(); setError(null); setCargando(true)
     try {
-      const res = await fetch(`${API_URL}/auth/completar-perfil`, {
+      const res = await fetchTracked(`${API_URL}/auth/completar-perfil`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ especialidadId: Number(form.especialidadId), matricula: form.matricula || null })
