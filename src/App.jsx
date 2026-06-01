@@ -671,6 +671,9 @@ function ViewToggle({ vista, onToggle }) {
 /* ─── SidePanel (drawer from right) ─────────────────────────── */
 
 function SidePanel({ open, onClose, title, width = 520, footer, children }) {
+  const isMobile = useIsMobile()
+  const effectiveWidth = isMobile ? '100vw' : width
+  const slideOff = isMobile ? '100vw' : `${width}px`
   return (
     <>
       <div
@@ -685,11 +688,11 @@ function SidePanel({ open, onClose, title, width = 520, footer, children }) {
       />
       <div style={{
         position: 'fixed', top: 0, right: 0, bottom: 0,
-        width, zIndex: 50,
+        width: effectiveWidth, zIndex: 50,
         background: T.white,
         borderLeft: `1px solid ${T.gray1}`,
         display: 'flex', flexDirection: 'column',
-        transform: open ? 'translateX(0)' : `translateX(${width}px)`,
+        transform: open ? 'translateX(0)' : `translateX(${slideOff})`,
         transition: 'transform 0.3s ease',
         boxShadow: '-8px 0 32px rgba(0,0,0,0.08)',
         borderRadius: '12px 0 0 12px',
@@ -1187,6 +1190,7 @@ function NombreCard({ item, onEliminar }) {
 }
 
 function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, addLabel, msgVacio, msgConfirmar, storageKey, placeholder }) {
+  const isMobile = useIsMobile()
   const [items,     setItems]     = useState([])
   const [cargando,  setCargando]  = useState(true)
   const [error,     setError]     = useState(null)
@@ -1240,33 +1244,34 @@ function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, addLabel, msg
     : items
 
   const msgEmpty = buscar.trim() ? 'Sin resultados' : msgVacio
+  const vistaEfectiva = isMobile ? 'list' : vistaMode
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
       <PageBar>
         <PageTitle>{titulo}</PageTitle>
-        <Btn onClick={() => setPanelOpen(true)}>{addLabel}</Btn>
+        {!isMobile && <Btn onClick={() => setPanelOpen(true)}>{addLabel}</Btn>}
       </PageBar>
 
-      <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 96px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
 
-          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 320, borderRadius: 6, background: T.gray2 }}>
+          <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: isMobile ? 'none' : 320, borderRadius: 6, background: T.gray2 }}>
               <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
               <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder={`Buscar…`}
                 style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }} />
             </div>
-            <ViewToggle vista={vistaMode} onToggle={toggleVista} />
+            {!isMobile && <ViewToggle vista={vistaMode} onToggle={toggleVista} />}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {vistaMode === 'list' ? (
+            {vistaEfectiva === 'list' ? (
               <>
-                <TableHead cols={[{ label: 'Nombre', w: '1fr' }]} />
+                {!isMobile && <TableHead cols={[{ label: 'Nombre', w: '1fr' }]} />}
                 <EmptyOrError cargando={cargando} error={error} empty={filtrados.length === 0} msg={msgEmpty} />
                 {filtrados.map(item => (
-                  <FilaSimple key={item.id} cols={[item.nombre]} gridCols="1fr" onEliminar={() => handleEliminar(item.id)} />
+                  <FilaSimple key={item.id} cols={[item.nombre]} gridCols="1fr" onEliminar={() => handleEliminar(item.id)} compact={isMobile} />
                 ))}
               </>
             ) : (
@@ -1298,6 +1303,12 @@ function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, addLabel, msg
         </form>
       </SidePanel>
       {dialog}
+
+      {isMobile && (
+        <FabAcciones acciones={[
+          { label: addLabel.replace(/^[+ ]+/, ''), onClick: () => setPanelOpen(true), variant: 'primary' },
+        ]} />
+      )}
     </div>
   )
 }
@@ -1310,9 +1321,18 @@ function VistaObrasSociales({ apiFetch }) {
   return <VistaABMSimple apiFetch={apiFetch} endpoint="/obras-sociales" titulo="Obras sociales" panelTitulo="Nueva obra social" addLabel="+ Nueva obra social" msgVacio="No hay obras sociales registradas" msgConfirmar="¿Eliminar esta obra social?" storageKey="obras-sociales-vista" placeholder="Ej: OSDE, Swiss Medical, IOMA…" />
 }
 
-function FilaSimple({ cols, gridCols, onEliminar }) {
+function FilaSimple({ cols, gridCols, onEliminar, compact = false }) {
   const [hov, setHov] = useState(false)
   const [hovT, setHovT] = useState(false)
+
+  if (compact) {
+    return (
+      <div style={{ padding: '14px 16px', minHeight: 52, display: 'flex', alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: T.white }}>
+        <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 500, color: T.black, letterSpacing: '0.01em' }}>{cols[0]}</span>
+      </div>
+    )
+  }
+
   return (
     <div
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
@@ -1578,6 +1598,7 @@ function PieChart({ items }) {
 }
 
 function ListaPacientes({ apiFetch, onDetalle, onNuevo }) {
+  const isMobile = useIsMobile()
   const [buscar,      setBuscar]      = useState('')
   const [pacientes,   setPacientes]   = useState([])
   const [meta,        setMeta]        = useState(null)   // { last, number, totalElements }
@@ -1587,6 +1608,9 @@ function ListaPacientes({ apiFetch, onDetalle, onNuevo }) {
   const [vista,       setVista]       = useState(() => localStorage.getItem('pacientes-vista') ?? 'list')
 
   function toggleVista(v) { setVista(v); localStorage.setItem('pacientes-vista', v) }
+
+  // En mobile forzamos vista lista (las cards quedan muy apretadas en pantallas chicas).
+  const vistaEfectiva = isMobile ? 'list' : vista
 
   const cargar = useCallback(async (q, page = 0) => {
     if (page === 0) { setCargando(true); setError(null) }
@@ -1616,28 +1640,28 @@ function ListaPacientes({ apiFetch, onDetalle, onNuevo }) {
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
       <PageBar>
         <PageTitle>Pacientes</PageTitle>
-        <Btn onClick={onNuevo}>+ Nuevo paciente</Btn>
+        {!isMobile && <Btn onClick={onNuevo}>+ Nuevo paciente</Btn>}
       </PageBar>
 
-      <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 96px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
 
-          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360, borderRadius: 6, background: T.gray2 }}>
+          <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: isMobile ? 'none' : 360, borderRadius: 6, background: T.gray2 }}>
               <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
               <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar por nombre o DNI…"
                 style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.02em', width: '100%' }} />
             </div>
-            {meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} pacientes</span>}
-            <ViewToggle vista={vista} onToggle={toggleVista} />
+            {!isMobile && meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} pacientes</span>}
+            {!isMobile && <ViewToggle vista={vista} onToggle={toggleVista} />}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {vista === 'list' ? (
+            {vistaEfectiva === 'list' ? (
               <>
-                <TableHead cols={COLS_PAC} />
+                {!isMobile && <TableHead cols={COLS_PAC} />}
                 <EmptyOrError cargando={cargando} error={error} empty={!cargando && !error && pacientes.length === 0} msg={msgVacio} />
-                {pacientes.map(p => <FilaPaciente key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar, 0)} apiFetch={apiFetch} />)}
+                {pacientes.map(p => <FilaPaciente key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar, 0)} apiFetch={apiFetch} compact={isMobile} />)}
               </>
             ) : (
               cargando ? (
@@ -1660,6 +1684,12 @@ function ListaPacientes({ apiFetch, onDetalle, onNuevo }) {
           </div>
         </div>
       </div>
+
+      {isMobile && (
+        <FabAcciones acciones={[
+          { label: 'Nuevo paciente', onClick: onNuevo, variant: 'primary' },
+        ]} />
+      )}
     </div>
   )
 }
@@ -1701,7 +1731,7 @@ function PacienteCard({ paciente: p, onClick, onEliminar, apiFetch }) {
   )
 }
 
-function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch }) {
+function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch, compact = false }) {
   const [hov,  setHov]  = useState(false)
   const [hovT, setHovT] = useState(false)
   const { openConfirm, dialog } = useConfirm()
@@ -1711,6 +1741,19 @@ function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch }) {
     if (!await openConfirm(`¿Eliminar a ${p.apellido}, ${p.nombre}?`)) return
     const res = await apiFetch(`/pacientes/${p.id}`, { method: 'DELETE' })
     if (res && res.ok) onEliminar()
+  }
+
+  if (compact) {
+    return (
+      <div
+        onClick={onClick}
+        style={{ padding: '14px 16px', minHeight: 52, display: 'flex', alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, cursor: 'pointer', background: T.white }}
+      >
+        <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 500, color: T.black, letterSpacing: '0.01em' }}>
+          {p.apellido}, {p.nombre}
+        </span>
+      </div>
+    )
   }
 
   return (
@@ -1740,6 +1783,7 @@ const hoyISO = () => new Date().toISOString().slice(0, 10)
 const VACÍO_CO_DET = { consultorioId: '', fecha: hoyISO(), descripcion: '', monto: '', tipoPago: 'PARTICULAR' }
 
 function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudio, onIrAConsultorios, onIniciarConsulta, onEditarConsulta, usuario }) {
+  const isMobile = useIsMobile()
   const [paciente,        setPaciente]        = useState(null)
   const [cargando,        setCargando]        = useState(true)
   const [error,           setError]           = useState(null)
@@ -1752,7 +1796,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
   const { openConfirm, dialog }               = useConfirm()
   const [estudiosList,    setEstudiosList]    = useState([])
   const [cargandoAnal,    setCargandoAnal]    = useState(true)
-  const [tab,             setTab]             = useState('historia')
+  const [tab,             setTab]             = useState(isMobile ? 'datos' : 'historia')
 
   const cargar = useCallback(async () => {
     setCargando(true); setError(null)
@@ -1824,6 +1868,136 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
     if (today.getMonth() < nac.getMonth() || (today.getMonth() === nac.getMonth() && today.getDate() < nac.getDate())) e--
     return e
   })() : null
+
+  const esOdontologo = usuario?.especialidadNombre?.toLowerCase().includes('odontolog')
+
+  // ── Mobile: hero + tabs scrolleables + contenido del tab ───────────
+  if (isMobile) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
+        {/* top bar minimal */}
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: `1px solid ${T.gray1}`, background: T.white }}>
+          <BackBtn onClick={onVolver} />
+        </div>
+
+        {/* hero compacto */}
+        <div style={{ flexShrink: 0, padding: '14px 16px', borderBottom: `1px solid ${T.gray1}`, background: T.white, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: '50%', background: T.black, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, color: T.white, textTransform: 'uppercase' }}>{p.nombre?.[0]}{p.apellido?.[0]}</span>
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {p.apellido}, {p.nombre}
+            </div>
+            <div style={{ fontFamily: T.font, fontSize: 12, color: T.gray5, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {edad != null && `${edad} años`}
+              {edad != null && p.obraSocialNombre && ' · '}
+              {p.obraSocialNombre}
+            </div>
+          </div>
+        </div>
+
+        {/* tabs scrolleables */}
+        <div style={{ flexShrink: 0, display: 'flex', overflowX: 'auto', borderBottom: `1px solid ${T.gray1}`, background: T.white, scrollbarWidth: 'none' }}>
+          <style>{`div[data-tabs-mobile]::-webkit-scrollbar { display: none; }`}</style>
+          <div data-tabs-mobile style={{ display: 'flex' }}>
+            {[
+              { key: 'datos',       label: 'Datos' },
+              { key: 'historia',    label: 'Historia', count: !cargandoCO ? consultas.length : null },
+              esOdontologo && { key: 'odontograma', label: 'Odontograma' },
+              { key: 'estudios',    label: 'Estudios', count: !cargandoAnal ? estudiosList.length : null },
+            ].filter(Boolean).map(({ key, label, count }) => (
+              <button key={key} onClick={() => setTab(key)} style={{ padding: '12px 16px', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', border: 'none', borderBottom: tab === key ? `2px solid ${T.black}` : '2px solid transparent', background: 'none', color: tab === key ? T.black : T.gray5, cursor: 'pointer', fontFamily: T.font, fontWeight: tab === key ? 500 : 400, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {label}
+                {count != null && <span style={{ fontSize: 10, color: tab === key ? T.gray4 : T.gray5 }}>({count})</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* contenido del tab */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {tab === 'datos' && (
+            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 96 }}>
+              <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 16 }}>
+                <span style={{ fontSize: 9, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.gray5, display: 'block', marginBottom: 12 }}>Datos personales</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <DatoClinico label="DNI"          value={p.dni} />
+                  <DatoClinico label="Nacimiento"   value={p.fechaNac ? fmtFecha(p.fechaNac) : null} />
+                  <DatoClinico label="Teléfono"     value={p.telefono} />
+                  <DatoClinico label="Email"        value={p.email} truncate />
+                  <DatoClinico label="Dirección"    value={p.direccion} truncate />
+                  <DatoClinico label="Obra social"  value={p.obraSocialNombre} truncate />
+                  <DatoClinico label="Nro afiliado" value={p.nroAfiliado} />
+                  <DatoClinico label="Plan"         value={p.planObraSocial} truncate />
+                  <DatoClinico label="Titular"      value={p.titularObraSocial} truncate />
+                </div>
+              </div>
+              <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 16 }}>
+                <span style={{ fontSize: 9, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.gray5, display: 'block', marginBottom: 12 }}>Datos clínicos</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <DatoClinico label="Grupo sanguíneo" value={p.grupoSanguineo} />
+                  <div style={{ display: 'flex', gap: 24 }}>
+                    <DatoClinico label="Peso"   value={p.peso   != null ? `${p.peso} kg`   : null} />
+                    <DatoClinico label="Altura" value={p.altura != null ? `${p.altura} cm` : null} />
+                  </div>
+                  <DatoClinico label="Alergias"               value={p.alergias}               truncate warning />
+                  <DatoClinico label="Medicaciones"           value={p.medicaciones}           truncate />
+                  <DatoClinico label="Antecedentes personales" value={p.antecedentes}          truncate />
+                  <DatoClinico label="Antecedentes familiares" value={p.antecedentesFamiliares} truncate />
+                </div>
+              </div>
+              <Btn variant="outline" fullWidth onClick={abrirEdit}>Editar paciente</Btn>
+              <span style={{ fontSize: 10, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.gray5, textAlign: 'center', paddingTop: 4 }}>
+                Reg. {fmtFecha(p.dateCreated)}
+              </span>
+            </div>
+          )}
+          {tab === 'historia' && (
+            <div style={{ padding: '16px', paddingBottom: 96 }}>
+              <HistoriaClinica consultas={consultas} cargando={cargandoCO} apiFetch={apiFetch} onRefresh={cargarConsultas} onEditarConsulta={onEditarConsulta} />
+            </div>
+          )}
+          {tab === 'odontograma' && (
+            <div style={{ padding: '16px', paddingBottom: 96 }}>
+              <Odontograma apiFetch={apiFetch} pacienteId={id} />
+            </div>
+          )}
+          {tab === 'estudios' && (
+            <div style={{ padding: '8px 16px', paddingBottom: 96 }}>
+              {cargandoAnal ? (
+                <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font, display: 'block', padding: 16 }}>Cargando…</span>
+              ) : estudiosList.length === 0 ? (
+                <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font, letterSpacing: '0.04em', display: 'block', padding: 16 }}>Sin estudios registrados</span>
+              ) : (
+                estudiosList.map(a => (
+                  <EstudioFilaPaciente key={a.id} a={a} onAbrir={() => onAbrirEstudio(a.id)} onEliminar={() => handleEliminarEstudio(a.id)} />
+                ))
+              )}
+            </div>
+          )}
+        </div>
+
+        <SidePanel open={panelEdit} onClose={() => setPanelEdit(false)} title="Editar paciente" width={560}
+          footer={<>
+            <Btn variant="outline" onClick={() => setPanelEdit(false)} disabled={guardando}>Cancelar</Btn>
+            <Btn onClick={handleGuardarEdit} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar cambios'}</Btn>
+          </>}
+        >
+          <form onSubmit={handleGuardarEdit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+            <PacienteFormFields form={formEdit} handleChange={e => setFormEdit(p => ({ ...p, [e.target.name]: e.target.value }))} setField={(name, val) => setFormEdit(p => ({ ...p, [name]: val }))} apiFetch={apiFetch} />
+            <ErrorMsg>{editErr}</ErrorMsg>
+          </form>
+        </SidePanel>
+        {dialog}
+
+        <FabAcciones acciones={[
+          { label: 'Iniciar consulta', onClick: onIniciarConsulta, variant: 'primary' },
+          { label: 'Nuevo estudio',    onClick: onNuevoEstudio,    variant: 'outline' },
+        ]} />
+      </div>
+    )
+  }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -1993,6 +2167,7 @@ function Campo({ label, value }) {
 /* ─── VistaNuevaConsulta ─────────────────────────────────────── */
 
 function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta = null }) {
+  const isMobile = useIsMobile()
   const modoEdicion = !!consulta
   const [paciente,       setPaciente]       = useState(null)
   const [consultorios,   setConsultorios]   = useState([])
@@ -2111,24 +2286,25 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* ── top bar ── */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 24px', borderBottom: `1px solid ${T.gray1}`, background: T.white }}>
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '10px 14px' : '10px 24px', borderBottom: `1px solid ${T.gray1}`, background: T.white, gap: 8 }}>
         <BackBtn onClick={onVolver} />
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, minWidth: 0, flex: isMobile ? 1 : '0 0 auto' }}>
           <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black, letterSpacing: '-0.01em' }}>{modoEdicion ? 'Editar consulta' : 'Nueva consulta'}</span>
-          {p && <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray5 }}>{p.apellido}, {p.nombre}</span>}
+          {p && <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{p.apellido}, {p.nombre}</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {modoEdicion && (
+          {modoEdicion && !isMobile && (
             <button type="button" onClick={handleEliminar} disabled={guardando} style={{ height: 34, padding: '0 14px', border: `1px solid #f5c6cb`, borderRadius: 6, background: T.white, cursor: 'pointer', fontFamily: T.font, fontSize: 11, color: '#c00', letterSpacing: '0.04em' }}>Eliminar</button>
           )}
-          <Btn onClick={handleGuardar} disabled={guardando}>{guardando ? 'Guardando…' : modoEdicion ? 'Guardar cambios' : 'Guardar consulta'}</Btn>
+          <Btn onClick={handleGuardar} disabled={guardando} size={isMobile ? 'sm' : undefined}>{guardando ? 'Guardando…' : modoEdicion ? 'Guardar' : 'Guardar'}</Btn>
         </div>
       </div>
 
       {/* ── body ── */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-        {/* ── left: todos los datos del paciente (igual a DetallePaciente) ── */}
+        {/* ── left: datos del paciente (oculto en mobile) ── */}
+        {!isMobile && (
         <div style={{ width: 420, flexShrink: 0, overflow: 'hidden', background: T.gray2, padding: '20px 16px 20px 20px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', height: '100%' }}>
 
@@ -2192,9 +2368,10 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
 
           </div>
         </div>
+        )}
 
         {/* ── right: formulario en cards ── */}
-        <form onSubmit={handleGuardar} style={{ flex: 1, overflow: 'hidden', background: T.gray2, padding: '20px 20px 20px 0', display: 'flex', flexDirection: 'column' }}>
+        <form onSubmit={handleGuardar} style={{ flex: 1, overflow: 'hidden', background: T.gray2, padding: isMobile ? '16px' : '20px 20px 20px 0', display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
             {/* Card: Clínica — consultorio arriba, campos en el medio, archivo abajo */}
@@ -2874,6 +3051,7 @@ function desnormalizarTrazos(trazos, w, h, escala) {
 }
 
 function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = null, onVolver = null }) {
+  const isMobile = useIsMobile()
   const [sub,          setSub]          = useState(onVolver ? (estudioIdInicial ? 'cargando' : 'upload') : 'lista')
   const [lista,        setLista]        = useState([])
   const [metaEst,      setMetaEst]      = useState(null)
@@ -3428,6 +3606,24 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   )
 
   // ── EDITOR ──
+  // ── Mobile: read-only, solo imagen + trazos guardados ───────────
+  if (isMobile) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.black }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', height: 44, gap: 8, flexShrink: 0, background: T.white, borderBottom: `1px solid ${T.gray1}` }}>
+          <BackBtn onClick={() => { if (onVolver) { onVolver() } else { setSub('lista'); setImagen(null); setTrazos([]); resetInProgress() } }} />
+          <span style={{ flex: 1, fontFamily: T.font, fontSize: 13, fontWeight: 500, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', letterSpacing: '0.02em' }}>{nombre}</span>
+        </div>
+        <div ref={containerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: T.black }}>
+          <div style={{ position: 'absolute', inset: 0 }}>
+            <img src={imagen} alt={nombre} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
+            <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* Barra superior */}
@@ -3964,6 +4160,7 @@ function TurnosHoyPanel({ turnos, onClickTurno }) {
 }
 
 function VistaTurnos({ apiFetch }) {
+  const isMobile = useIsMobile()
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
 
@@ -4117,6 +4314,45 @@ function VistaTurnos({ apiFetch }) {
     background: T.white, outline: 'none', appearance: 'none',
   }
 
+  // ── Mobile: solo turnos de hoy + FAB ───────────
+  if (isMobile) {
+    const fmtHoy = hoy.toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long' })
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
+        <div style={{ padding: '14px 16px 12px', flexShrink: 0, background: T.white, borderBottom: `1px solid ${T.gray1}` }}>
+          <span style={{ fontFamily: T.font, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: T.black, display: 'block' }}>Turnos</span>
+          <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, marginTop: 2, display: 'block', textTransform: 'capitalize' }}>{fmtHoy}</span>
+        </div>
+
+        {/* Franja estado Google Calendar */}
+        <div style={{ padding: '10px 16px', flexShrink: 0, background: T.white, borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src="/google_calendar_icon.png" alt="" style={{ width: 16, height: 16, flexShrink: 0 }} />
+          <span style={{ flex: 1, fontFamily: T.font, fontSize: 12, color: T.gray4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {calConectado == null ? '…' : calConectado ? 'Calendar conectado' : 'Calendar no conectado'}
+          </span>
+          {calConectado != null && (
+            calConectado
+              ? <Btn size="sm" variant="ghost" onClick={desconectarCalendar}>Desconectar</Btn>
+              : <Btn size="sm" variant="ghost" onClick={conectarCalendar}>Conectar</Btn>
+          )}
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px 96px' }}>
+          {cargando
+            ? <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+            : <TurnosHoyPanel turnos={turnosDelDia(hoy)} onClickTurno={abrirEditar} />
+          }
+        </div>
+
+        <FabAcciones acciones={[
+          { label: 'Nuevo turno', onClick: () => abrirNuevo(new Date()), variant: 'primary' },
+        ]} />
+
+        {turnoModal()}
+      </div>
+    )
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
@@ -4240,113 +4476,117 @@ function VistaTurnos({ apiFetch }) {
         </div> {/* fin wrapper calendario */}
       </div>   {/* fin body (panel + calendario) */}
 
-      {/* create / edit modal */}
-      {modalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          onClick={cerrarModal}>
-          <div style={{ background: T.white, border: `1px solid ${T.gray1}`, width: 520, maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
-            onClick={e => e.stopPropagation()}>
-
-            {/* modal header */}
-            <div style={{ padding: '18px 24px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 500, color: T.black }}>{editId ? 'Editar turno' : 'Nuevo turno'}</span>
-              <button onClick={cerrarModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: T.gray3, lineHeight: 1, padding: 4 }}>×</button>
-            </div>
-
-            {/* modal body */}
-            <form onSubmit={handleGuardar} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-              {/* paciente toggle */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 2 }}>
-                <button type="button" onClick={() => setUsarPacienteLib(false)}
-                  style={{ flex: 1, height: 32, border: `1px solid ${!usarPacienteLib ? T.black : T.gray1}`, background: !usarPacienteLib ? T.black : T.white, color: !usarPacienteLib ? T.white : T.gray4, fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  Paciente registrado
-                </button>
-                <button type="button" onClick={() => setUsarPacienteLib(true)}
-                  style={{ flex: 1, height: 32, border: `1px solid ${usarPacienteLib ? T.black : T.gray1}`, background: usarPacienteLib ? T.black : T.white, color: usarPacienteLib ? T.white : T.gray4, fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                  Nuevo paciente
-                </button>
-              </div>
-
-              {usarPacienteLib ? (
-                <div>
-                  <FieldLabel>Nombre del paciente</FieldLabel>
-                  <Input name="nombrePacienteLibre" value={form.nombrePacienteLibre} onChange={handleChange} placeholder="Nombre y apellido…" />
-                </div>
-              ) : (
-                <div>
-                  <FieldLabel>Paciente</FieldLabel>
-                  <PacientePicker
-                    pacientes={pacientes}
-                    value={form.pacienteId}
-                    onChange={id => setForm(f => ({ ...f, pacienteId: id }))}
-                  />
-                </div>
-              )}
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-                <div>
-                  <FieldLabel>Fecha *</FieldLabel>
-                  <Input type="date" value={(form.fechaHora || '').split('T')[0]} onChange={e => setForm(f => ({ ...f, fechaHora: e.target.value + 'T' + ((f.fechaHora || '').split('T')[1] || '09:00') }))} />
-                </div>
-                <div>
-                  <FieldLabel>Hora *</FieldLabel>
-                  <Input type="time" value={(form.fechaHora || '').split('T')[1] || ''} onChange={e => setForm(f => ({ ...f, fechaHora: ((f.fechaHora || '').split('T')[0] || '') + 'T' + e.target.value }))} />
-                </div>
-                <div>
-                  <FieldLabel>Duración (minutos)</FieldLabel>
-                  <select name="duracionMinutos" value={form.duracionMinutos} onChange={handleChange} style={selectStyle}>
-                    {[15, 20, 30, 45, 60, 90, 120].map(m => <option key={m} value={m}>{m} min</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <FieldLabel>Consultorio</FieldLabel>
-                  <select name="consultorioId" value={form.consultorioId} onChange={handleChange} style={selectStyle}>
-                    <option value="">Sin especificar</option>
-                    {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <FieldLabel>Estado</FieldLabel>
-                  <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden' }}>
-                    {[['PENDIENTE', 'Pendiente'], ['CONFIRMADO', 'Confirmado']].map(([val, label], idx) => (
-                      <button key={val} type="button"
-                        onClick={() => setForm(f => ({ ...f, estado: val }))}
-                        style={{ flex: 1, border: 'none', borderRight: idx === 0 ? `1px solid ${T.gray1}` : 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, fontWeight: 500, background: form.estado === val ? T.black : T.white, color: form.estado === val ? T.white : T.black, transition: 'background 0.15s, color 0.15s' }}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <FieldLabel>Motivo</FieldLabel>
-                <Textarea name="motivo" value={form.motivo} onChange={handleChange} rows={3} placeholder="Descripción del turno…" />
-              </div>
-
-              {formErr && <ErrorMsg>{formErr}</ErrorMsg>}
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 4 }}>
-                <div>
-                  {editId && (
-                    <Btn variant="destructive" type="button" onClick={handleEliminar} disabled={guardando}>Eliminar</Btn>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Btn variant="outline" type="button" onClick={cerrarModal} disabled={guardando}>Cancelar</Btn>
-                  <Btn type="submit" disabled={guardando}>{guardando ? 'Guardando…' : editId ? 'Guardar cambios' : 'Crear turno'}</Btn>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {turnoModal()}
     </div>
   )
+
+  function turnoModal() {
+    if (!modalOpen) return null
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 8 : 0 }}
+        onClick={cerrarModal}>
+        <div style={{ background: T.white, border: `1px solid ${T.gray1}`, width: 'min(520px, 100%)', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
+          onClick={e => e.stopPropagation()}>
+
+          {/* modal header */}
+          <div style={{ padding: '18px 24px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+            <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 500, color: T.black }}>{editId ? 'Editar turno' : 'Nuevo turno'}</span>
+            <button onClick={cerrarModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: T.gray3, lineHeight: 1, padding: 4 }}>×</button>
+          </div>
+
+          {/* modal body */}
+          <form onSubmit={handleGuardar} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+            {/* paciente toggle */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 2 }}>
+              <button type="button" onClick={() => setUsarPacienteLib(false)}
+                style={{ flex: 1, height: 32, border: `1px solid ${!usarPacienteLib ? T.black : T.gray1}`, background: !usarPacienteLib ? T.black : T.white, color: !usarPacienteLib ? T.white : T.gray4, fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                Paciente registrado
+              </button>
+              <button type="button" onClick={() => setUsarPacienteLib(true)}
+                style={{ flex: 1, height: 32, border: `1px solid ${usarPacienteLib ? T.black : T.gray1}`, background: usarPacienteLib ? T.black : T.white, color: usarPacienteLib ? T.white : T.gray4, fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                Nuevo paciente
+              </button>
+            </div>
+
+            {usarPacienteLib ? (
+              <div>
+                <FieldLabel>Nombre del paciente</FieldLabel>
+                <Input name="nombrePacienteLibre" value={form.nombrePacienteLibre} onChange={handleChange} placeholder="Nombre y apellido…" />
+              </div>
+            ) : (
+              <div>
+                <FieldLabel>Paciente</FieldLabel>
+                <PacientePicker
+                  pacientes={pacientes}
+                  value={form.pacienteId}
+                  onChange={id => setForm(f => ({ ...f, pacienteId: id }))}
+                />
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 14 }}>
+              <div>
+                <FieldLabel>Fecha *</FieldLabel>
+                <Input type="date" value={(form.fechaHora || '').split('T')[0]} onChange={e => setForm(f => ({ ...f, fechaHora: e.target.value + 'T' + ((f.fechaHora || '').split('T')[1] || '09:00') }))} />
+              </div>
+              <div>
+                <FieldLabel>Hora *</FieldLabel>
+                <Input type="time" value={(form.fechaHora || '').split('T')[1] || ''} onChange={e => setForm(f => ({ ...f, fechaHora: ((f.fechaHora || '').split('T')[0] || '') + 'T' + e.target.value }))} />
+              </div>
+              <div style={isMobile ? { gridColumn: '1 / -1' } : undefined}>
+                <FieldLabel>Duración (minutos)</FieldLabel>
+                <select name="duracionMinutos" value={form.duracionMinutos} onChange={handleChange} style={selectStyle}>
+                  {[15, 20, 30, 45, 60, 90, 120].map(m => <option key={m} value={m}>{m} min</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+              <div>
+                <FieldLabel>Consultorio</FieldLabel>
+                <select name="consultorioId" value={form.consultorioId} onChange={handleChange} style={selectStyle}>
+                  <option value="">Sin especificar</option>
+                  {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                </select>
+              </div>
+              <div>
+                <FieldLabel>Estado</FieldLabel>
+                <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden' }}>
+                  {[['PENDIENTE', 'Pendiente'], ['CONFIRMADO', 'Confirmado']].map(([val, label], idx) => (
+                    <button key={val} type="button"
+                      onClick={() => setForm(f => ({ ...f, estado: val }))}
+                      style={{ flex: 1, border: 'none', borderRight: idx === 0 ? `1px solid ${T.gray1}` : 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, fontWeight: 500, background: form.estado === val ? T.black : T.white, color: form.estado === val ? T.white : T.black, transition: 'background 0.15s, color 0.15s' }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <FieldLabel>Motivo</FieldLabel>
+              <Textarea name="motivo" value={form.motivo} onChange={handleChange} rows={3} placeholder="Descripción del turno…" />
+            </div>
+
+            {formErr && <ErrorMsg>{formErr}</ErrorMsg>}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 4 }}>
+              <div>
+                {editId && (
+                  <Btn variant="destructive" type="button" onClick={handleEliminar} disabled={guardando}>Eliminar</Btn>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Btn variant="outline" type="button" onClick={cerrarModal} disabled={guardando}>Cancelar</Btn>
+                <Btn type="submit" disabled={guardando}>{guardando ? 'Guardando…' : editId ? 'Guardar' : 'Crear'}</Btn>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    )
+  }
 }
 
 /* ─── helpers ────────────────────────────────────────────────── */
