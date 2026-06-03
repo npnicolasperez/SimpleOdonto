@@ -761,6 +761,44 @@ function useConfirm() {
   return { openConfirm, dialog }
 }
 
+/* ─── AlertDialog + useAlert ─────────────────────────────────── */
+
+function AlertDialog({ message, title, buttonLabel = 'Entendido', onClose }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div style={{ background: T.white, border: `1px solid ${T.gray1}`, padding: '28px 32px', maxWidth: 380, width: '90%', display: 'flex', flexDirection: 'column', gap: 16, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}
+        onClick={e => e.stopPropagation()}>
+        {title && <span style={{ fontFamily: T.font, fontSize: 14, fontWeight: 600, color: T.black, letterSpacing: '-0.01em' }}>{title}</span>}
+        <span style={{ fontFamily: T.font, fontSize: 14, color: T.black, lineHeight: 1.5 }}>{message}</span>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Btn onClick={onClose}>{buttonLabel}</Btn>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function useAlert() {
+  const [cfg, setCfg] = useState(null)
+  const resolveRef = useRef(null)
+
+  function openAlert(message, opts = {}) {
+    return new Promise(resolve => {
+      resolveRef.current = resolve
+      setCfg({ message, ...opts })
+    })
+  }
+
+  function handleClose() { resolveRef.current?.(); setCfg(null) }
+
+  const dialog = cfg
+    ? <AlertDialog message={cfg.message} title={cfg.title} buttonLabel={cfg.buttonLabel} onClose={handleClose} />
+    : null
+
+  return { openAlert, dialog }
+}
+
 /* ─── table components ───────────────────────────────────────── */
 
 function TableHead({ cols, extraCol = true, gap = 0 }) {
@@ -1326,7 +1364,7 @@ function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, addLabel, msg
       </SidePanel>
       {dialog}
 
-      {isMobile && (
+      {isMobile && !panelOpen && (
         <FabAcciones acciones={[
           { label: addLabel.replace(/^[+ ]+/, ''), onClick: () => setPanelOpen(true), variant: 'primary' },
         ]} />
@@ -1868,7 +1906,8 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
   const { openConfirm, dialog }               = useConfirm()
   const [estudiosList,    setEstudiosList]    = useState([])
   const [cargandoAnal,    setCargandoAnal]    = useState(true)
-  const [tab,             setTab]             = useState(isMobile ? 'datos' : 'historia')
+  const [tab,             setTab]             = useState('historia')
+  const [datosOpen,       setDatosOpen]       = useState(false)
 
   const cargar = useCallback(async () => {
     setCargando(true); setError(null)
@@ -1967,6 +2006,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
               {p.obraSocialNombre}
             </div>
           </div>
+          <Btn size="sm" variant="outline" onClick={() => setDatosOpen(true)}>Ver datos</Btn>
         </div>
 
         {/* tabs scrolleables */}
@@ -1974,7 +2014,6 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
           <style>{`div[data-tabs-mobile]::-webkit-scrollbar { display: none; }`}</style>
           <div data-tabs-mobile style={{ display: 'flex' }}>
             {[
-              { key: 'datos',       label: 'Datos' },
               { key: 'historia',    label: 'Historia', count: !cargandoCO ? consultas.length : null },
               esOdontologo && { key: 'odontograma', label: 'Odontograma' },
               { key: 'estudios',    label: 'Estudios', count: !cargandoAnal ? estudiosList.length : null },
@@ -1989,45 +2028,11 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
 
         {/* contenido del tab */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {tab === 'datos' && (
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 96 }}>
-              <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 16 }}>
-                <span style={{ fontSize: 9, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.gray5, display: 'block', marginBottom: 12 }}>Datos personales</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <DatoClinico label="DNI"          value={p.dni} />
-                  <DatoClinico label="Nacimiento"   value={p.fechaNac ? fmtFecha(p.fechaNac) : null} />
-                  <DatoClinico label="Teléfono"     value={p.telefono} />
-                  <DatoClinico label="Email"        value={p.email} truncate />
-                  <DatoClinico label="Dirección"    value={p.direccion} truncate />
-                  <DatoClinico label="Obra social"  value={p.obraSocialNombre} truncate />
-                  <DatoClinico label="Nro afiliado" value={p.nroAfiliado} />
-                  <DatoClinico label="Plan"         value={p.planObraSocial} truncate />
-                  <DatoClinico label="Titular"      value={p.titularObraSocial} truncate />
-                </div>
-              </div>
-              <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 16 }}>
-                <span style={{ fontSize: 9, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.gray5, display: 'block', marginBottom: 12 }}>Datos clínicos</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <DatoClinico label="Grupo sanguíneo" value={p.grupoSanguineo} />
-                  <div style={{ display: 'flex', gap: 24 }}>
-                    <DatoClinico label="Peso"   value={p.peso   != null ? `${p.peso} kg`   : null} />
-                    <DatoClinico label="Altura" value={p.altura != null ? `${p.altura} cm` : null} />
-                  </div>
-                  <DatoClinico label="Alergias"               value={p.alergias}               truncate warning />
-                  <DatoClinico label="Medicaciones"           value={p.medicaciones}           truncate />
-                  <DatoClinico label="Antecedentes personales" value={p.antecedentes}          truncate />
-                  <DatoClinico label="Antecedentes familiares" value={p.antecedentesFamiliares} truncate />
-                </div>
-              </div>
-              <Btn variant="outline" fullWidth onClick={abrirEdit}>Editar paciente</Btn>
-              <span style={{ fontSize: 10, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.gray5, textAlign: 'center', paddingTop: 4 }}>
-                Reg. {fmtFecha(p.dateCreated)}
-              </span>
-            </div>
-          )}
           {tab === 'historia' && (
             <div style={{ padding: '16px', paddingBottom: 96 }}>
-              <HistoriaClinica consultas={consultas} cargando={cargandoCO} apiFetch={apiFetch} onRefresh={cargarConsultas} onEditarConsulta={onEditarConsulta} />
+              <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, overflow: 'hidden', padding: '0 16px' }}>
+                <HistoriaClinica consultas={consultas} cargando={cargandoCO} apiFetch={apiFetch} onRefresh={cargarConsultas} onEditarConsulta={onEditarConsulta} />
+              </div>
             </div>
           )}
           {tab === 'odontograma' && (
@@ -2050,6 +2055,44 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
           )}
         </div>
 
+        <SidePanel open={datosOpen} onClose={() => setDatosOpen(false)} title="Datos del paciente" width={480}
+          footer={<Btn variant="outline" onClick={() => { setDatosOpen(false); abrirEdit(); }}>Editar paciente</Btn>}
+        >
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 16 }}>
+              <span style={{ fontSize: 9, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.gray5, display: 'block', marginBottom: 12 }}>Datos personales</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <DatoClinico label="DNI"          value={p.dni} />
+                <DatoClinico label="Nacimiento"   value={p.fechaNac ? fmtFecha(p.fechaNac) : null} />
+                <DatoClinico label="Teléfono"     value={p.telefono} />
+                <DatoClinico label="Email"        value={p.email} truncate />
+                <DatoClinico label="Dirección"    value={p.direccion} truncate />
+                <DatoClinico label="Obra social"  value={p.obraSocialNombre} truncate />
+                <DatoClinico label="Nro afiliado" value={p.nroAfiliado} />
+                <DatoClinico label="Plan"         value={p.planObraSocial} truncate />
+                <DatoClinico label="Titular"      value={p.titularObraSocial} truncate />
+              </div>
+            </div>
+            <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 16 }}>
+              <span style={{ fontSize: 9, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.12em', color: T.gray5, display: 'block', marginBottom: 12 }}>Datos clínicos</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <DatoClinico label="Grupo sanguíneo" value={p.grupoSanguineo} />
+                <div style={{ display: 'flex', gap: 24 }}>
+                  <DatoClinico label="Peso"   value={p.peso   != null ? `${p.peso} kg`   : null} />
+                  <DatoClinico label="Altura" value={p.altura != null ? `${p.altura} cm` : null} />
+                </div>
+                <DatoClinico label="Alergias"                value={p.alergias}               truncate warning />
+                <DatoClinico label="Medicaciones"            value={p.medicaciones}           truncate />
+                <DatoClinico label="Antecedentes personales" value={p.antecedentes}           truncate />
+                <DatoClinico label="Antecedentes familiares" value={p.antecedentesFamiliares} truncate />
+              </div>
+            </div>
+            <span style={{ fontSize: 10, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.gray5, textAlign: 'center' }}>
+              Reg. {fmtFecha(p.dateCreated)}
+            </span>
+          </div>
+        </SidePanel>
+
         <SidePanel open={panelEdit} onClose={() => setPanelEdit(false)} title="Editar paciente" width={560}
           footer={<>
             <Btn variant="outline" onClick={() => setPanelEdit(false)} disabled={guardando}>Cancelar</Btn>
@@ -2063,10 +2106,12 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
         </SidePanel>
         {dialog}
 
-        <FabAcciones acciones={[
-          { label: 'Iniciar consulta', onClick: onIniciarConsulta, variant: 'primary' },
-          { label: 'Nuevo estudio',    onClick: onNuevoEstudio,    variant: 'outline' },
-        ]} />
+        {!datosOpen && !panelEdit && (
+          <FabAcciones acciones={[
+            { label: 'Iniciar consulta', onClick: onIniciarConsulta, variant: 'primary' },
+            { label: 'Nuevo estudio',    onClick: onNuevoEstudio,    variant: 'outline' },
+          ]} />
+        )}
       </div>
     )
   }
@@ -2257,8 +2302,8 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
   const [archivosExist,  setArchivosExist]  = useState(modoEdicion ? (consulta.archivos || []) : [])
   const [archivos,       setArchivos]       = useState([])
   const { openConfirm, dialog }             = useConfirm()
+  const { openAlert,   dialog: alertDialog } = useAlert()
   const [guardando,      setGuardando]      = useState(false)
-  const [err,            setErr]            = useState(null)
   // pendienteCobro vino del back en el response; si no vino, lo deducimos por el estado del ingreso.
   const [cobrarDespues,  setCobrarDespues]  = useState(modoEdicion
     ? (consulta.estadoIngreso === 'PENDIENTE')
@@ -2302,7 +2347,13 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
 
   async function handleGuardar(e) {
     e.preventDefault()
-    setErr(null); setGuardando(true)
+
+    if (!form.consultorioId) {
+      openAlert('Seleccioná un consultorio antes de guardar la consulta.', { title: 'Campo requerido' })
+      return
+    }
+
+    setGuardando(true)
 
     if (modoEdicion) {
       const body = {
@@ -2325,8 +2376,8 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
         onVolver()
       } else {
         const e = await res.json().catch(() => null)
-        setErr(e?.error || 'Error al guardar')
         setGuardando(false)
+        openAlert(e?.error || 'Error al guardar', { title: 'No se pudo guardar' })
       }
     } else {
       const body = {
@@ -2351,8 +2402,8 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
         onVolver()
       } else {
         const e = await res.json().catch(() => null)
-        setErr(e?.error || 'Error al guardar')
         setGuardando(false)
+        openAlert(e?.error || 'Error al guardar', { title: 'No se pudo guardar' })
       }
     }
   }
@@ -2375,12 +2426,14 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
           <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black, letterSpacing: '-0.01em' }}>{modoEdicion ? 'Editar consulta' : 'Nueva consulta'}</span>
           {p && <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{p.apellido}, {p.nombre}</span>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {modoEdicion && !isMobile && (
-            <button type="button" onClick={handleEliminar} disabled={guardando} style={{ height: 34, padding: '0 14px', border: `1px solid #f5c6cb`, borderRadius: 6, background: T.white, cursor: 'pointer', fontFamily: T.font, fontSize: 11, color: '#c00', letterSpacing: '0.04em' }}>Eliminar</button>
-          )}
-          <Btn onClick={handleGuardar} disabled={guardando} size={isMobile ? 'sm' : undefined}>{guardando ? 'Guardando…' : modoEdicion ? 'Guardar' : 'Guardar'}</Btn>
-        </div>
+        {!isMobile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {modoEdicion && (
+              <button type="button" onClick={handleEliminar} disabled={guardando} style={{ height: 34, padding: '0 14px', border: `1px solid #f5c6cb`, borderRadius: 6, background: T.white, cursor: 'pointer', fontFamily: T.font, fontSize: 11, color: '#c00', letterSpacing: '0.04em' }}>Eliminar</button>
+            )}
+            <Btn onClick={handleGuardar} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar'}</Btn>
+          </div>
+        )}
       </div>
 
       {/* ── body ── */}
@@ -2388,7 +2441,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
 
         {/* ── formulario en cards (centrado, sin sidebar de paciente) ── */}
         <form onSubmit={handleGuardar} style={{ flex: 1, overflow: 'hidden', background: T.gray2, padding: isMobile ? '16px' : '20px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: isMobile ? 'none' : 760, margin: isMobile ? 0 : '0 auto' }}>
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: isMobile ? 'none' : 760, margin: isMobile ? 0 : '0 auto', paddingBottom: isMobile ? 80 : 0 }}>
 
             {/* Card: Clínica — consultorio arriba, campos en el medio, archivo abajo */}
             <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -2399,10 +2452,10 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                   <Input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <FieldLabel>Consultorio</FieldLabel>
+                  <FieldLabel>Consultorio *</FieldLabel>
                   <select value={form.consultorioId} onChange={e => setForm(f => ({ ...f, consultorioId: e.target.value }))}
                     style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
-                    <option value="">Sin consultorio</option>
+                    <option value="">Seleccioná un consultorio…</option>
                     {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   </select>
                 </div>
@@ -2512,11 +2565,19 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
               )}
             </div>
 
-            <ErrorMsg>{err}</ErrorMsg>
           </div>
         </form>
       </div>
+      {isMobile && (
+        <div style={{ flexShrink: 0, padding: '12px 16px', borderTop: `1px solid ${T.gray1}`, background: T.white, display: 'flex', gap: 10 }}>
+          {modoEdicion && (
+            <Btn variant="outline" onClick={handleEliminar} disabled={guardando} fullWidth>Eliminar</Btn>
+          )}
+          <Btn onClick={handleGuardar} disabled={guardando} fullWidth>{guardando ? 'Guardando…' : 'Guardar'}</Btn>
+        </div>
+      )}
       {dialog}
+      {alertDialog}
     </div>
   )
 }
@@ -2560,7 +2621,7 @@ function ConsultaHCItem({ a, last, apiFetch, onEditar }) {
     <div
       onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ padding: '14px 0', borderBottom: last ? 'none' : `1px solid ${T.gray2}`, borderLeft: pendiente ? '3px solid #f59e0b' : 'none', paddingLeft: pendiente ? 12 : 0, display: 'flex', gap: 20, background: hov ? T.gray2 : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
+      style={{ padding: '14px 0', borderBottom: last ? 'none' : `1px solid ${T.gray2}`, display: 'flex', gap: 20, background: hov ? T.gray2 : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
     >
       <div style={{ flexShrink: 0, width: 90 }}>
         <div style={{ fontSize: 11, fontFamily: T.font, color: T.black, letterSpacing: '0.04em' }}>{a.fecha || fmtFecha(a.dateCreated)}</div>
@@ -2568,6 +2629,9 @@ function ConsultaHCItem({ a, last, apiFetch, onEditar }) {
           <div style={{ marginTop: 4, fontSize: 10, fontFamily: T.font, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray5, fontWeight: 500 }}>
             {a.consultorioNombre}
           </div>
+        )}
+        {pendiente && (
+          <div style={{ marginTop: 4, fontSize: 9, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#92400e' }}>Pendiente de cobro</div>
         )}
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -2593,13 +2657,8 @@ function ConsultaHCItem({ a, last, apiFetch, onEditar }) {
                 Total {fmtM(a.montoTotal)} <span style={{ fontSize: 10, color: T.gray5 }}>({a.porcentajeProfesional}%)</span>
               </div>
             )}
-            {pendiente && (
-              <div style={{ marginTop: 3, fontSize: 9, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#92400e' }}>Pendiente de cobro</div>
-            )}
           </>
-        ) : (
-          <div style={{ fontSize: 9, fontFamily: T.mono, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray4, whiteSpace: 'nowrap' }}>Cobro pendiente</div>
-        )}
+        ) : null}
         <div style={{ marginTop: 3, fontSize: 10, fontFamily: T.font, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray4, fontWeight: 500 }}>
           {TIPO_PAGO[a.tipoPago] ?? ''}
         </div>
@@ -4523,9 +4582,11 @@ function VistaTurnos({ apiFetch }) {
           </div>
         )}
 
-        <FabAcciones acciones={[
-          { label: 'Nuevo turno', onClick: () => abrirNuevo(diaActual), variant: 'primary' },
-        ]} />
+        {!modalOpen && (
+          <FabAcciones acciones={[
+            { label: 'Nuevo turno', onClick: () => abrirNuevo(diaActual), variant: 'primary' },
+          ]} />
+        )}
 
         {turnoModal()}
       </div>
