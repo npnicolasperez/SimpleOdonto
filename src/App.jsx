@@ -348,6 +348,7 @@ function MainLayout({ token, usuario, onLogout }) {
   const [vista, setVista] = useState('dashboard')
   const [consultasFiltroInicial, setConsultasFiltroInicial] = useState(false)
   const [finanzasMesInicial,     setFinanzasMesInicial]     = useState(null) // { año, mes } | null
+  const [turnosFechaInicial,     setTurnosFechaInicial]     = useState(null) // Date | null
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -355,7 +356,10 @@ function MainLayout({ token, usuario, onLogout }) {
   useEffect(() => { if (!isMobile) setSidebarOpen(false) }, [isMobile])
   useEffect(() => { setSidebarOpen(false) }, [vista])
 
-  function navegar(key) { setVista(key) }
+  function navegar(key) {
+    if (key === 'turnos') setTurnosFechaInicial(null)
+    setVista(key)
+  }
 
   const apiFetch = useCallback(async (path, opts = {}) => {
     const res = await fetchTracked(`${API_URL}${path}`, {
@@ -440,9 +444,9 @@ function MainLayout({ token, usuario, onLogout }) {
 
         {/* main */}
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
-          {vista === 'dashboard'      && <VistaDashboard apiFetch={apiFetch} usuario={usuario} setVista={setVista} />}
+          {vista === 'dashboard'      && <VistaDashboard apiFetch={apiFetch} usuario={usuario} setVista={setVista} setTurnosFechaInicial={setTurnosFechaInicial} />}
           {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
-          {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} />}
+          {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} fechaInicial={turnosFechaInicial} />}
           {vista === 'estudios'       && (isMobile ? <VistaDesktopOnly titulo="Estudios" onVolver={() => setVista('dashboard')} /> : <VistaEstudios apiFetch={apiFetch} />)}
           {vista === 'consultas'      && (isMobile ? <VistaDesktopOnly titulo="Consultas" onVolver={() => setVista('dashboard')} /> : <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} onVolverAFinanzas={consultasFiltroInicial ? () => { setConsultasFiltroInicial(false); setVista('finanzas') } : undefined} />)}
           {vista === 'finanzas'       && <VistaFinanzas apiFetch={apiFetch} mesInicial={finanzasMesInicial} onIrAConsultas={(año, mes) => { setFinanzasMesInicial({ año, mes }); setConsultasFiltroInicial(true); setVista('consultas') }} />}
@@ -1082,19 +1086,38 @@ function DashBlock({ title, children }) {
   )
 }
 
-function VistaDashboard({ apiFetch, usuario, setVista }) {
+function DashStatCard({ label, value, sub }) {
+  return (
+    <div style={{ flex: 1, background: T.white, borderRadius: 10, border: `1px solid ${T.gray1}`, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', minWidth: 0 }}>
+      <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, display: 'block', marginBottom: 6 }}>{label}</span>
+      <span style={{ fontFamily: T.font, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: T.black, lineHeight: 1, display: 'block' }}>{value ?? '—'}</span>
+      {sub && <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray5, letterSpacing: '0.08em', marginTop: 4, display: 'block' }}>{sub}</span>}
+    </div>
+  )
+}
+
+function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) {
+  const isMobile    = useIsMobile()
   const [dash,      setDash]      = useState(null)
   const [turnosHoy, setTurnosHoy] = useState([])
   const [cargando,  setCargando]  = useState(true)
+  const [mesSel, setMesSel] = useState(() => {
+    const d = new Date()
+    return { año: d.getFullYear(), mes: d.getMonth() + 1 }
+  })
+
+  const pad = n => String(n).padStart(2, '0')
 
   useEffect(() => {
-    const pad = n => String(n).padStart(2, '0')
+    setCargando(true)
+    setDash(null)
     const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T00:00:00`
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
     const manana = new Date(hoy); manana.setDate(manana.getDate() + 1)
+    const mesParam = `${mesSel.año}-${pad(mesSel.mes)}`
 
     Promise.all([
-      apiFetch('/dashboard'),
+      apiFetch(`/dashboard?mes=${mesParam}`),
       apiFetch(`/turnos?desde=${encodeURIComponent(fmt(hoy))}&hasta=${encodeURIComponent(fmt(manana))}`),
     ]).then(async ([resDash, resHoy]) => {
       if (resDash?.ok) setDash(await resDash.json())
@@ -1104,94 +1127,87 @@ function VistaDashboard({ apiFetch, usuario, setVista }) {
       }
       setCargando(false)
     })
-  }, [apiFetch])
+  }, [apiFetch, mesSel])
 
-  const mesActual = new Date().toLocaleDateString('es-AR', { month: 'long' })
+  const mesNombre = new Date(mesSel.año, mesSel.mes - 1, 1)
+    .toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+  const mesShort = new Date(mesSel.año, mesSel.mes - 1, 1)
+    .toLocaleDateString('es-AR', { month: 'short' })
 
-  const fmtPesos = n => n == null ? '—' : new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
-
-  const cobradoPct = dash && Number(dash.facturadoMes) > 0
-    ? Math.round(Number(dash.cobradoMes) / Number(dash.facturadoMes) * 100)
-    : 0
-
-  const proximoTurno = dash?.proximoTurno
-  const fmtProximo = proximoTurno ? (() => {
-    const d = new Date(proximoTurno.fechaHora)
-    const hoy = new Date(); hoy.setHours(0,0,0,0)
-    const esHoy = d >= hoy && d < new Date(hoy.getTime() + 86400000)
-    const hora = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
-    const nombre = [proximoTurno.pacienteApellido, proximoTurno.pacienteNombre].filter(Boolean).join(', ')
-    return { hora, nombre, esHoy, dia: d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }) }
-  })() : null
+  function prevMes() {
+    setMesSel(m => {
+      const d = new Date(m.año, m.mes - 2, 1)
+      return { año: d.getFullYear(), mes: d.getMonth() + 1 }
+    })
+  }
+  function nextMes() {
+    setMesSel(m => {
+      const d = new Date(m.año, m.mes, 1)
+      return { año: d.getFullYear(), mes: d.getMonth() + 1 }
+    })
+  }
+  const esHoy = (() => { const n = new Date(); return mesSel.año === n.getFullYear() && mesSel.mes === n.getMonth() + 1 })()
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
 
-      <div style={{ padding: '20px 24px 14px', flexShrink: 0 }}>
-        <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>
+      <div style={{ padding: isMobile ? '16px 16px 10px' : '20px 24px 14px', flexShrink: 0 }}>
+        <span style={{ fontFamily: T.font, fontSize: isMobile ? 17 : 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>
           Bienvenido/a, {usuario?.nombre}
         </span>
       </div>
 
-      <div style={{ flex: 1, overflow: 'hidden', padding: '0 24px 24px', display: 'flex', gap: 12 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '0 16px 24px' : '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* ── Columna izquierda: Turnos hoy ── */}
-        <div style={{ width: 268, display: 'flex', flexDirection: 'column', gap: 10, overflow: 'hidden' }}>
+        {/* ── Navegador de mes ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={prevMes} style={{ all: 'unset', cursor: 'pointer', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: `1px solid ${T.gray1}`, background: T.white, color: T.gray4, fontFamily: T.mono, fontSize: 13, flexShrink: 0 }}>‹</button>
+          <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4, flex: 1, textAlign: 'center' }}>{mesNombre}</span>
+          <button onClick={nextMes} disabled={esHoy} style={{ all: 'unset', cursor: esHoy ? 'default' : 'pointer', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: `1px solid ${T.gray1}`, background: T.white, color: esHoy ? T.gray1 : T.gray4, fontFamily: T.mono, fontSize: 13, flexShrink: 0 }}>›</button>
+        </div>
+
+        {/* ── Stat cards ── */}
+        <div style={{ display: 'flex', gap: isMobile ? 8 : 12 }}>
+          <DashStatCard
+            label="Pacientes"
+            value={cargando ? '…' : dash?.pacientesTotal}
+          />
+          <DashStatCard
+            label={`Consultas · ${mesShort}`}
+            value={cargando ? '…' : dash?.consultasMes}
+          />
+          <DashStatCard
+            label="Promedio / día"
+            value={cargando ? '…' : (dash?.promedioConsultasPorDia != null ? dash.promedioConsultasPorDia.toFixed(1) : '—')}
+          />
+        </div>
+
+        {/* ── Pendientes mañana ── */}
+        {!cargando && dash != null && (
+          <button onClick={() => {
+            const manana = new Date(); manana.setDate(manana.getDate() + 1); manana.setHours(0,0,0,0)
+            setTurnosFechaInicial?.(manana)
+            setVista?.('turnos')
+          }} style={{ all: 'unset', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, background: dash.turnosPendientesManana > 0 ? T.black : T.white, border: `1px solid ${dash.turnosPendientesManana > 0 ? T.black : T.gray1}`, borderRadius: 10, padding: '14px 18px' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: dash.turnosPendientesManana > 0 ? 'rgba(255,255,255,0.12)' : T.gray2, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontFamily: T.font, fontSize: 18, fontWeight: 700, color: dash.turnosPendientesManana > 0 ? T.white : T.gray4, lineHeight: 1 }}>{dash.turnosPendientesManana}</span>
+            </div>
+            <div>
+              <div style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: dash.turnosPendientesManana > 0 ? T.white : T.black, letterSpacing: '-0.01em' }}>
+                {dash.turnosPendientesManana === 1 ? 'turno sin confirmar' : 'turnos sin confirmar'} para mañana
+              </div>
+              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: dash.turnosPendientesManana > 0 ? 'rgba(255,255,255,0.45)' : T.gray5, marginTop: 3 }}>
+                Ir a turnos →
+              </div>
+            </div>
+          </button>
+        )}
+
+        {/* ── Turnos de hoy ── */}
+        <div style={{ flex: 1, minHeight: isMobile ? 320 : 0 }}>
           <TurnosHoyPanel turnos={turnosHoy} onClickTurno={() => setVista?.('turnos')} />
-
-          {/* Próximo turno */}
-          {fmtProximo && (
-            <div style={{ background: T.black, borderRadius: 10, padding: '12px 16px', flexShrink: 0 }}>
-              <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', display: 'block', marginBottom: 6 }}>Próximo turno</span>
-              <span style={{ fontFamily: T.font, fontSize: 18, fontWeight: 700, color: T.white, letterSpacing: '-0.02em' }}>{fmtProximo.hora}</span>
-              <span style={{ fontFamily: T.font, fontSize: 12, color: 'rgba(255,255,255,0.65)', display: 'block', marginTop: 2 }}>{fmtProximo.nombre}</span>
-              {!fmtProximo.esHoy && <span style={{ fontFamily: T.mono, fontSize: 9, color: 'rgba(255,255,255,0.35)', letterSpacing: '0.08em', display: 'block', marginTop: 4 }}>{fmtProximo.dia}</span>}
-            </div>
-          )}
         </div>
 
-        {/* ── Columna derecha: 3 bloques ── */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10, overflowY: 'auto' }}>
-
-          {/* Pacientes */}
-          <DashBlock title="Pacientes">
-            <DashRow label="Total registrados"      value={cargando ? '…' : dash?.pacientesTotal} />
-            <DashRow label="Nuevos este mes"         value={cargando ? '…' : dash?.pacientesNuevosEsteMes} muted />
-            <DashRow label="Sin volver en 90 días"  value={cargando ? '…' : dash?.pacientesNoVolvieron90Dias} alert={!cargando && dash?.pacientesNoVolvieron90Dias > 0} muted />
-          </DashBlock>
-
-          {/* Turnos */}
-          <DashBlock title="Turnos">
-            <DashRow label="Pendientes de confirmar hoy" value={cargando ? '…' : dash?.turnosPendientesHoy} alert={!cargando && dash?.turnosPendientesHoy > 0} muted />
-          </DashBlock>
-
-          {/* Financiero */}
-          <DashBlock title={`Financiero · ${mesActual}`}>
-            <div style={{ marginBottom: 10 }}>
-              <span style={{ fontFamily: T.font, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: T.black, lineHeight: 1 }}>
-                {cargando ? '…' : fmtPesos(dash?.facturadoMes)}
-              </span>
-              <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.1em', marginLeft: 8 }}>FACTURADO</span>
-            </div>
-            {/* Barra cobrado / pendiente */}
-            <div style={{ height: 6, background: T.gray2, borderRadius: 3, overflow: 'hidden', marginBottom: 8 }}>
-              <div style={{ height: '100%', width: `${cobradoPct}%`, background: T.black, borderRadius: 3, transition: 'width 0.4s ease' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-              <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.08em' }}>Cobrado {cobradoPct}%</span>
-              <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.08em' }}>Pendiente {100 - cobradoPct}%</span>
-            </div>
-            <DashRow label={`Cobros pendientes`} value={cargando ? '…' : `${dash?.cobrosPendientesCantidad ?? 0} paciente${dash?.cobrosPendientesCantidad !== 1 ? 's' : ''}`} alert={!cargando && dash?.cobrosPendientesCantidad > 0} muted />
-          </DashBlock>
-
-          {/* Productividad */}
-          <DashBlock title="Productividad — este mes">
-            <DashRow label="Día más activo"          value={cargando ? '…' : (dash?.diaMasConsultas ?? 'Sin datos')} muted />
-            <DashRow label="Obra social con más pac." value={cargando ? '…' : (dash?.obraSocialMasPacientes ?? 'Sin datos')} muted />
-            <DashRow label="Consultas por día prom." value={cargando ? '…' : (dash?.promedioConsultasPorDia != null ? dash.promedioConsultasPorDia.toFixed(1) : 'Sin datos')} muted />
-          </DashBlock>
-
-        </div>
       </div>
     </div>
   )
@@ -2030,7 +2046,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {tab === 'historia' && (
             <div style={{ padding: '16px', paddingBottom: 96 }}>
-              <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, overflow: 'hidden', padding: '0 16px' }}>
+              <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, overflow: 'hidden' }}>
                 <HistoriaClinica consultas={consultas} cargando={cargandoCO} apiFetch={apiFetch} onRefresh={cargarConsultas} onEditarConsulta={onEditarConsulta} />
               </div>
             </div>
@@ -2468,7 +2484,8 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 <FieldLabel>Archivos adjuntos</FieldLabel>
 
                 {/* archivos ya guardados (solo en modo edición) */}
-                {archivosExist.length > 0 && (
+                {/* todos los archivos juntos */}
+                {(archivosExist.length > 0 || archivos.length > 0) && (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {archivosExist.map(arch => (
                       <span key={arch.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 10px', border: `1px solid ${T.gray1}`, borderRadius: 4, fontSize: 10, fontFamily: T.font, color: T.gray4, background: T.white }}>
@@ -2476,29 +2493,23 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                         <button type="button" onClick={() => handleEliminarArchivoExist(arch.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '0 0 0 2px', color: '#c00', lineHeight: 1, fontSize: 14, display: 'flex', alignItems: 'center' }}>×</button>
                       </span>
                     ))}
+                    {archivos.map((f, i) => (
+                      <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 10px', border: `1px solid #d4edda`, borderRadius: 4, fontSize: 10, fontFamily: T.font, color: T.gray4, background: '#f8fff8' }}>
+                        📎 {f.name}
+                        <button type="button" onClick={() => setArchivos(prev => prev.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '0 0 0 2px', color: T.gray4, lineHeight: 1, fontSize: 14, display: 'flex', alignItems: 'center' }}>×</button>
+                      </span>
+                    ))}
                   </div>
                 )}
 
-                {/* adjuntar nuevos */}
-                <div>
-                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 12px', border: `1px solid ${T.gray1}`, borderRadius: 6, fontSize: 11, fontFamily: T.font, color: T.gray4, background: T.white, userSelect: 'none' }}>
-                      + Adjuntar archivo
-                    </span>
-                    <span style={{ fontSize: 10, fontFamily: T.font, color: T.gray5 }}>imagen o PDF</span>
-                    <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={e => setArchivos(prev => [...prev, ...Array.from(e.target.files)])} />
-                  </label>
-                  {archivos.length > 0 && (
-                    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {archivos.map((f, i) => (
-                        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 10px', border: `1px solid #d4edda`, borderRadius: 4, fontSize: 10, fontFamily: T.font, color: T.gray4, background: '#f8fff8' }}>
-                          📎 {f.name}
-                          <button type="button" onClick={() => setArchivos(prev => prev.filter((_, j) => j !== i))} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: '0 0 0 2px', color: T.gray4, lineHeight: 1, fontSize: 14, display: 'flex', alignItems: 'center' }}>×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* botón adjuntar siempre al final */}
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 12px', border: `1px solid ${T.gray1}`, borderRadius: 6, fontSize: 11, fontFamily: T.font, color: T.gray4, background: T.white, userSelect: 'none' }}>
+                    + Adjuntar archivo
+                  </span>
+                  <span style={{ fontSize: 10, fontFamily: T.font, color: T.gray5 }}>imagen o PDF</span>
+                  <input type="file" accept="image/*,application/pdf" multiple style={{ display: 'none' }} onChange={e => setArchivos(prev => [...prev, ...Array.from(e.target.files)])} />
+                </label>
               </div>
             </div>
 
@@ -2621,7 +2632,7 @@ function ConsultaHCItem({ a, last, apiFetch, onEditar }) {
     <div
       onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ padding: '14px 0', borderBottom: last ? 'none' : `1px solid ${T.gray2}`, display: 'flex', gap: 20, background: hov ? T.gray2 : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
+      style={{ padding: '14px 16px', borderBottom: last ? 'none' : `1px solid ${T.gray2}`, display: 'flex', gap: 20, background: hov ? T.gray2 : 'transparent', transition: 'background 0.1s', cursor: 'pointer' }}
     >
       <div style={{ flexShrink: 0, width: 90 }}>
         <div style={{ fontSize: 11, fontFamily: T.font, color: T.black, letterSpacing: '0.04em' }}>{a.fecha || fmtFecha(a.dateCreated)}</div>
@@ -4276,7 +4287,7 @@ function TurnosHoyPanel({ turnos, onClickTurno }) {
   )
 }
 
-function VistaTurnos({ apiFetch }) {
+function VistaTurnos({ apiFetch, fechaInicial }) {
   const isMobile = useIsMobile()
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
@@ -4287,9 +4298,12 @@ function VistaTurnos({ apiFetch }) {
   })
   const cantDiasRango     = { dia: 1, semana: 7, mes: 7 }[modoVista]
   const [rangoInicio,     setRangoInicio]     = useState(() => {
+    if (fechaInicial) { const d = new Date(fechaInicial); d.setHours(0,0,0,0); return d }
+    const d = new Date(); d.setHours(0,0,0,0)
+    if (window.innerWidth < MOBILE_BREAKPOINT) return d
     const m = localStorage.getItem('turnos-modo') ?? 'semana'
     if (m === 'semana' || m === 'mes') return startOfWeek(new Date())
-    const d = new Date(); d.setHours(0,0,0,0); return d
+    return d
   })
   const [ahora,           setAhora]           = useState(() => new Date())
   const [turnos,          setTurnos]          = useState([])
@@ -4415,6 +4429,7 @@ function VistaTurnos({ apiFetch }) {
       setFormErr('Ingresá un paciente o el nombre del nuevo paciente'); return
     }
     if (!form.fechaHora) { setFormErr('Ingresá fecha y hora'); return }
+    if (!form.consultorioId) { setFormErr('Seleccioná un consultorio'); return }
     setFormErr(null); setGuardando(true)
 
     const body = {
@@ -4459,6 +4474,11 @@ function VistaTurnos({ apiFetch }) {
   }
 
   const diasRango = Array.from({ length: cantDiasRango }, (_, i) => addDays(rangoInicio, i))
+
+  const esHoyEnVista = (() => {
+    if (modoVista === 'mes') return mesAncla.getFullYear() === hoy.getFullYear() && mesAncla.getMonth() === hoy.getMonth()
+    return rangoInicio.getTime() <= hoy.getTime() && hoy.getTime() <= addDays(rangoInicio, cantDiasRango - 1).getTime()
+  })()
   function turnosDelDia(dia) {
     return turnos.filter(t => {
       const td = new Date(t.fechaHora)
@@ -4509,10 +4529,15 @@ function VistaTurnos({ apiFetch }) {
         </div>
 
         {/* franja Google Calendar */}
-        <div style={{ padding: '8px 16px', flexShrink: 0, borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src="/google_calendar_icon.png" alt="" style={{ width: 14, height: 14, flexShrink: 0 }} />
-          <span style={{ flex: 1, fontFamily: T.font, fontSize: 11, color: T.gray4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {calConectado == null ? '…' : calConectado ? 'Calendar conectado' : 'Calendar no conectado'}
+        <div style={{ padding: '8px 16px', flexShrink: 0, borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <img src="/google_calendar_icon.png" alt="" style={{ width: 18, height: 18, display: 'block' }} />
+            {calConectado != null && (
+              <div style={{ position: 'absolute', bottom: -2, right: -2, width: 8, height: 8, borderRadius: '50%', background: calConectado ? '#16a34a' : '#dc2626', border: `1.5px solid ${T.white}` }} />
+            )}
+          </div>
+          <span style={{ flex: 1, fontFamily: T.font, fontSize: 11, color: calConectado ? T.gray4 : '#dc2626', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {calConectado == null ? '…' : calConectado ? 'Google Calendar conectado' : 'Google Calendar no conectado'}
           </span>
           {calConectado != null && (
             calConectado
@@ -4526,7 +4551,8 @@ function VistaTurnos({ apiFetch }) {
           <button onClick={() => setRangoInicio(s => addDays(s, -1))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: T.gray4 }}>‹</button>
           <button onClick={() => { const d = new Date(); d.setHours(0,0,0,0); setRangoInicio(d) }}
-            style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', height: 30, padding: '0 14px', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', color: T.gray4, borderRadius: 6 }}>
+            disabled={esHoyDiaActual}
+            style={{ background: 'none', border: `1px solid ${esHoyDiaActual ? T.gray2 : T.gray1}`, cursor: esHoyDiaActual ? 'default' : 'pointer', height: 30, padding: '0 14px', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', color: esHoyDiaActual ? T.gray2 : T.gray4, borderRadius: 6 }}>
             Hoy
           </button>
           <button onClick={() => setRangoInicio(s => addDays(s, 1))}
@@ -4600,9 +4626,14 @@ function VistaTurnos({ apiFetch }) {
       <PageBar>
         <PageTitle>Turnos</PageTitle>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <img src="/google_calendar_icon.png" alt="Google Calendar" style={{ width: 16, height: 16, flexShrink: 0 }} />
-          <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>
-            {calConectado ? 'Google Calendar conectado. Los turnos se sincronizan automáticamente.' : 'Conectá tu Google Calendar para sincronizar turnos automáticamente.'}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <img src="/google_calendar_icon.png" alt="Google Calendar" style={{ width: 18, height: 18, display: 'block' }} />
+            {calConectado != null && (
+              <div style={{ position: 'absolute', bottom: -2, right: -2, width: 8, height: 8, borderRadius: '50%', background: calConectado ? '#16a34a' : '#dc2626', border: `1.5px solid ${T.white}` }} />
+            )}
+          </div>
+          <span style={{ fontFamily: T.font, fontSize: 13, color: calConectado ? T.gray4 : '#dc2626' }}>
+            {calConectado ? 'Google Calendar conectado — turnos sincronizados automáticamente.' : 'Google Calendar no conectado'}
           </span>
           {calConectado
             ? <Btn size="sm" variant="ghost" onClick={desconectarCalendar}>Desconectar</Btn>
@@ -4623,7 +4654,8 @@ function VistaTurnos({ apiFetch }) {
               else if (modoVista === 'semana') setRangoInicio(startOfWeek(new Date()))
               else { const d = new Date(); d.setHours(0,0,0,0); setRangoInicio(d) }
             }}
-            style={{ background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', height: 30, padding: '0 14px', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', color: T.gray4, borderRadius: 6 }}>
+            disabled={esHoyEnVista}
+            style={{ background: 'none', border: `1px solid ${esHoyEnVista ? T.gray2 : T.gray1}`, cursor: esHoyEnVista ? 'default' : 'pointer', height: 30, padding: '0 14px', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', color: esHoyEnVista ? T.gray2 : T.gray4, borderRadius: 6 }}>
             Hoy
           </button>
           <button onClick={() => {
@@ -4852,16 +4884,18 @@ function VistaTurnos({ apiFetch }) {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 14 }}>
-              <div>
-                <FieldLabel>Fecha *</FieldLabel>
-                <Input type="date" value={(form.fechaHora || '').split('T')[0]} onChange={e => setForm(f => ({ ...f, fechaHora: e.target.value + 'T' + ((f.fechaHora || '').split('T')[1] || '09:00') }))} />
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <FieldLabel>Fecha *</FieldLabel>
+                  <Input type="date" value={(form.fechaHora || '').split('T')[0]} onChange={e => setForm(f => ({ ...f, fechaHora: e.target.value + 'T' + ((f.fechaHora || '').split('T')[1] || '09:00') }))} />
+                </div>
+                <div style={{ flex: '0 0 100px' }}>
+                  <FieldLabel>Hora *</FieldLabel>
+                  <Input type="time" value={(form.fechaHora || '').split('T')[1] || ''} onChange={e => setForm(f => ({ ...f, fechaHora: ((f.fechaHora || '').split('T')[0] || '') + 'T' + e.target.value }))} />
+                </div>
               </div>
               <div>
-                <FieldLabel>Hora *</FieldLabel>
-                <Input type="time" value={(form.fechaHora || '').split('T')[1] || ''} onChange={e => setForm(f => ({ ...f, fechaHora: ((f.fechaHora || '').split('T')[0] || '') + 'T' + e.target.value }))} />
-              </div>
-              <div style={isMobile ? { gridColumn: '1 / -1' } : undefined}>
                 <FieldLabel>Duración (minutos)</FieldLabel>
                 <select name="duracionMinutos" value={form.duracionMinutos} onChange={handleChange} style={selectStyle}>
                   {[15, 20, 30, 45, 60, 90, 120].map(m => <option key={m} value={m}>{m} min</option>)}
@@ -4871,9 +4905,9 @@ function VistaTurnos({ apiFetch }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
               <div>
-                <FieldLabel>Consultorio</FieldLabel>
+                <FieldLabel>Consultorio *</FieldLabel>
                 <select name="consultorioId" value={form.consultorioId} onChange={handleChange} style={selectStyle}>
-                  <option value="">Sin especificar</option>
+                  <option value="">Seleccioná un consultorio…</option>
                   {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>
