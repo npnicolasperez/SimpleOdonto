@@ -312,7 +312,7 @@ export default function App() {
   })
 
   function handleLogin(data) {
-    const u = { nombre: data.nombre, apellido: data.apellido, email: data.email, perfilCompleto: data.perfilCompleto !== false, foto: data.foto || null, especialidadNombre: data.especialidadNombre || null }
+    const u = { nombre: data.nombre, apellido: data.apellido, email: data.email, perfilCompleto: data.perfilCompleto !== false, foto: data.foto || null, especialidadNombre: data.especialidadNombre || null, esAdmin: data.esAdmin === true }
     localStorage.setItem('so_token', data.token)
     localStorage.setItem('so_usuario', JSON.stringify(u))
     setToken(data.token); setUsuario(u)
@@ -342,6 +342,7 @@ const NAV_ITEMS = [
   { key: 'obras-sociales', label: 'Obras sociales'    },
   { key: 'consultorios',   label: 'Consultorios'      },
   { key: 'medios-pago',    label: 'Medios de pago'    },
+  { key: 'especialidades', label: 'Especialidades',   adminOnly: true },
 ]
 
 function MainLayout({ token, usuario, onLogout }) {
@@ -432,7 +433,11 @@ function MainLayout({ token, usuario, onLogout }) {
         >
           <nav style={{ flex: 1, paddingTop: 8, paddingBottom: 8 }}>
             {NAV_ITEMS
-              .filter(({ key }) => !(isMobile && (key === 'estudios' || key === 'consultas')))
+              .filter(({ key, adminOnly }) => {
+                if (adminOnly && !usuario?.esAdmin) return false
+                if (isMobile && (key === 'estudios' || key === 'consultas')) return false
+                return true
+              })
               .map(({ key, label }) => (
                 <NavItem key={key} label={label} active={vista === key} onClick={() => navegar(key)} />
               ))}
@@ -453,6 +458,7 @@ function MainLayout({ token, usuario, onLogout }) {
           {vista === 'obras-sociales' && <VistaObrasSociales apiFetch={apiFetch} />}
           {vista === 'consultorios'   && <VistaConsultorios apiFetch={apiFetch} />}
           {vista === 'medios-pago'    && <VistaMediosPago apiFetch={apiFetch} />}
+          {vista === 'especialidades' && usuario?.esAdmin && <VistaEspecialidades apiFetch={apiFetch} />}
         </main>
       </div>
     </div>
@@ -843,7 +849,24 @@ const FEATURES = [
   { icon: Building2,     label: 'Obras sociales y consultorios'         },
 ]
 
+function LoginLogo({ dark, size = 18 }) {
+  const iS = Math.round(size * 1.9)
+  const rS = Math.round(iS * 0.28)
+  const fS = Math.round(iS * 0.5)
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, userSelect: 'none' }}>
+      <div style={{ width: iS, height: iS, background: dark ? T.white : T.black, borderRadius: rS, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <span style={{ fontFamily: T.font, fontWeight: 700, fontSize: fS, color: dark ? T.black : T.white, letterSpacing: '-0.02em', lineHeight: 1 }}>hD</span>
+      </div>
+      <span style={{ fontFamily: T.font, fontSize: size, letterSpacing: '-0.02em', lineHeight: 1 }}>
+        <span style={{ fontWeight: 300, color: dark ? '#444' : T.gray3 }}>hola</span><span style={{ fontWeight: 700, color: dark ? T.white : T.black }}>Doc</span>
+      </span>
+    </div>
+  )
+}
+
 function VistaLogin({ onLogin }) {
+  const isMobile = useIsMobile()
   const [cargando,        setCargando]        = useState(false)
   const [error,           setError]           = useState(null)
   const [modo,            setModo]            = useState('login') // 'login' | 'registro' | 'exito'
@@ -852,7 +875,6 @@ function VistaLogin({ onLogin }) {
   const turnstileRef      = useRef(null)
   const turnstileWidgetId = useRef(null)
 
-  // Renderiza el widget de Turnstile cuando se entra al modo registro.
   useEffect(() => {
     if (modo !== 'registro') return
     let cancelled = false
@@ -921,79 +943,243 @@ function VistaLogin({ onLogin }) {
     finally { setCargando(false) }
   }
 
-  const inputStyle = { fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 12px', outline: 'none', width: '100%', boxSizing: 'border-box', color: T.black }
-  const labelStyle = { fontFamily: T.font, fontSize: 12, color: T.gray5, display: 'flex', flexDirection: 'column', gap: 5 }
+  // Estilos compartidos
+  const inputStyle = {
+    width: '100%', padding: '11px 14px',
+    border: `1.5px solid ${T.gray1}`, borderRadius: 8,
+    fontFamily: T.font, fontSize: 13, color: T.black,
+    background: T.white, outline: 'none',
+    transition: 'border-color 0.18s',
+    boxSizing: 'border-box',
+  }
+  const labelStyle = {
+    display: 'block', fontFamily: T.mono, fontSize: 9.5,
+    letterSpacing: '0.15em', textTransform: 'uppercase',
+    color: T.gray3, marginBottom: 7,
+  }
 
-  return (
-    <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: T.white }}>
-      <div style={{ marginBottom: 10 }}><Logo size={28} /></div>
-      <span style={{ fontSize: 11, fontFamily: T.mono, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, marginBottom: 52 }}>
-        Gestión odontológica profesional
-      </span>
+  // ── Contenido del panel oscuro izquierdo ────────────────────────
+  const leftClaim = modo === 'registro'
+    ? { light: 'Co-creado', main: ['con quienes', 'lo usan', 'cada día.'], sub: 'No queremos construir una app para profesionales de la salud — queremos construirla con ellos. Cada sugerencia la leemos.' }
+    : { light: 'Vos atendé.', main: ['Del resto nos', 'ocupamos', 'nosotros.'],   sub: 'Gestión clínica para profesionales independientes. Turnos, pacientes, historia clínica y finanzas — todo en un solo lugar.' }
 
-      {modo === 'login' && <>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 48 }}>
-          {FEATURES.map(({ icon: Icon, label }) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Icon size={15} color={T.gray4} strokeWidth={1.5} />
-              <span style={{ fontSize: 12, letterSpacing: '0.06em', color: T.gray4, fontFamily: T.font }}>{label}</span>
+  const leftStats = modo === 'registro'
+    ? [{ v: '3',  l: 'Co-constructores' }, { v: '∞',  l: 'Sugerencias' }, { v: '0',  l: 'Burocracia' }]
+    : [{ v: '1',  l: 'Solo lugar' },       { v: '0',  l: 'Planillas' },   { v: '∞',  l: 'Claridad'   }]
+
+  const leftFeatures = modo === 'registro'
+    ? ['Acceso anticipado a todas las funciones', 'Influencia directa sobre el producto', 'Tu nombre en los créditos de la app', 'Acceso gratuito de por vida para los primeros']
+    : ['Turnos sincronizados con Google Calendar', 'Historia clínica completa de cada paciente', 'Finanzas en tiempo real · Por mes · Por consultorio', 'Estudios radiográficos · Archivos · Co-creado con vos']
+
+  const leftPanel = !isMobile && (
+    <div style={{
+      background: T.black,
+      padding: '3rem',
+      display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+      position: 'relative', overflow: 'hidden',
+      minHeight: '100vh',
+    }}>
+      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.022) 1px, transparent 1px)', backgroundSize: '32px 32px', pointerEvents: 'none' }} />
+
+      <div style={{ position: 'relative', zIndex: 1 }}><LoginLogo dark size={17} /></div>
+
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{ fontWeight: 800, fontSize: 'clamp(2rem, 3.5vw, 3.2rem)', letterSpacing: '-0.03em', lineHeight: 0.95, color: T.white, marginBottom: '1.25rem' }}>
+          <span style={{ display: 'block', fontWeight: 300, color: '#444' }}>{leftClaim.light}</span>
+          {leftClaim.main.map((line, i) => <span key={i} style={{ display: 'block' }}>{line}</span>)}
+        </div>
+        <div style={{ fontSize: 13.5, fontWeight: 300, color: '#666', lineHeight: 1.65, maxWidth: 380 }}>{leftClaim.sub}</div>
+
+        <div style={{ display: 'flex', marginTop: '2.5rem', border: '1px solid #1e1e1e' }}>
+          {leftStats.map((s, i) => (
+            <div key={i} style={{ flex: 1, padding: '1rem 1.25rem', borderRight: i < leftStats.length - 1 ? '1px solid #1e1e1e' : 'none' }}>
+              <div style={{ fontFamily: T.font, fontWeight: 800, fontSize: 26, letterSpacing: '-0.03em', color: T.white, lineHeight: 1 }}>{s.v}</div>
+              <div style={{ fontFamily: T.mono, fontSize: 8.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: '#444', marginTop: 6 }}>{s.l}</div>
             </div>
           ))}
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-          {cargando
-            ? <span style={{ fontSize: 12, color: T.gray5, fontFamily: T.font, letterSpacing: '0.08em' }}>Cargando…</span>
-            : <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError('Error al iniciar sesión con Google')} locale="es" text="signin_with" />
-          }
-          <ErrorMsg>{error}</ErrorMsg>
-          <button onClick={() => { setModo('registro'); setError(null) }} style={{ marginTop: 8, background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textDecoration: 'underline' }}>
-            Crear mi cuenta
-          </button>
-        </div>
-      </>}
 
-      {modo === 'registro' && (
-        <form onSubmit={handleRegistro} style={{ display: 'flex', flexDirection: 'column', gap: 14, width: 300 }}>
-          <label style={labelStyle}>Nombre
-            <input style={inputStyle} value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} required />
-          </label>
-          <label style={labelStyle}>Apellido
-            <input style={inputStyle} value={form.apellido} onChange={e => setForm(f => ({ ...f, apellido: e.target.value }))} required />
-          </label>
-          <label style={labelStyle}>Email
-            <input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} required />
-          </label>
-          <label style={labelStyle}>Confirmar email
-            <input
-              style={{ ...inputStyle, borderColor: (form.confirmarEmail && form.email.trim().toLowerCase() !== form.confirmarEmail.trim().toLowerCase()) ? T.red : T.gray1 }}
-              type="email"
-              value={form.confirmarEmail}
-              onChange={e => setForm(f => ({ ...f, confirmarEmail: e.target.value }))}
-              onPaste={e => e.preventDefault()}
-              required
-            />
-          </label>
-          <div ref={turnstileRef} style={{ display: 'flex', justifyContent: 'center' }} />
-          <ErrorMsg>{error}</ErrorMsg>
-          <button type="submit" disabled={cargando || !turnstileToken} style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, background: T.black, color: T.white, border: 'none', borderRadius: 6, padding: '10px 0', cursor: (cargando || !turnstileToken) ? 'not-allowed' : 'pointer', opacity: (cargando || !turnstileToken) ? 0.5 : 1 }}>
-            {cargando ? 'Enviando…' : 'Solicitar acceso'}
-          </button>
-          <button type="button" onClick={() => { setModo('login'); setError(null) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textDecoration: 'underline' }}>
-            Volver al inicio
-          </button>
-        </form>
-      )}
-
-      {modo === 'exito' && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, textAlign: 'center', maxWidth: 300 }}>
-          <span style={{ fontSize: 13, fontFamily: T.font, color: T.black, lineHeight: 1.6 }}>
-            Tu solicitud fue enviada. Un administrador revisará tu cuenta y te habilitará el acceso.
-          </span>
-          <button onClick={() => { setModo('login'); setForm({ nombre: '', apellido: '', email: '' }) }} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textDecoration: 'underline' }}>
-            Volver al inicio
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 9, marginTop: '2rem' }}>
+          {leftFeatures.map((f, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: '#777' }}>
+              <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#444', flexShrink: 0 }} />
+              {f}
+            </div>
+          ))}
         </div>
-      )}
+      </div>
+
+      <div style={{ position: 'relative', zIndex: 1, borderTop: '1px solid #1a1a1a', paddingTop: '1.5rem' }}>
+        <div style={{ fontSize: 12.5, fontStyle: 'italic', color: '#555', lineHeight: 1.65 }}>
+          {modo === 'registro'
+            ? '"Estamos buscando a los profesionales que quieran ayudarnos a construir el mejor sistema de gestión clínica de Argentina."'
+            : '"Antes tardaba 20 minutos preparando cada consulta. Ahora entro, abro holaDoc y ya está todo."'}
+        </div>
+        <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#333', marginTop: 10 }}>
+          {modo === 'registro' ? 'holaDoc · Beta · 2026' : 'Dra. López · Odontóloga · CABA'}
+        </div>
+      </div>
+    </div>
+  )
+
+  // ── Card derecho ────────────────────────────────────────────────
+  const cardStyle = {
+    width: '100%',
+    background: T.white,
+    border: `1px solid ${T.gray1}`,
+    borderRadius: 18,
+    padding: isMobile ? '2rem 1.5rem' : '2.5rem',
+    boxShadow: '0 4px 40px rgba(17,17,17,0.07)',
+  }
+
+  const Badge = ({ children }) => (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: T.gray2, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: '4px 11px', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, marginBottom: 14 }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: T.black, display: 'inline-block', animation: 'soPulse 2s ease infinite' }} />
+      {children}
+    </div>
+  )
+
+  const Divider = ({ children }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '24px 0' }}>
+      <div style={{ flex: 1, height: 1, background: T.gray1 }} />
+      <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray6 }}>{children}</span>
+      <div style={{ flex: 1, height: 1, background: T.gray1 }} />
+    </div>
+  )
+
+  return (
+    <div style={{ minHeight: '100vh', width: '100%', position: 'relative', background: T.gray2, fontFamily: T.font }}>
+      {/* Animación del pulse del badge */}
+      <style>{`@keyframes soPulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }`}</style>
+
+      {/* Patrón de puntos de fondo */}
+      <div style={{ position: 'fixed', inset: 0, backgroundImage: 'radial-gradient(circle, #c8c8c2 1px, transparent 1px)', backgroundSize: '32px 32px', pointerEvents: 'none', zIndex: 0 }} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', minHeight: '100vh', position: 'relative', zIndex: 1 }}>
+        {leftPanel}
+
+        {/* RIGHT — card */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', padding: isMobile ? '2rem 1.25rem' : '3rem', minHeight: '100vh' }}>
+          <div style={cardStyle}>
+
+            {/* Header del card */}
+            <div style={{ textAlign: 'center', marginBottom: modo === 'registro' ? 18 : 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                <LoginLogo size={20} />
+              </div>
+              {modo === 'login' && <Badge>Beta · Acceso anticipado</Badge>}
+              {modo === 'registro' && <Badge>Solo 3 lugares disponibles</Badge>}
+              {modo === 'exito' && <Badge>Solicitud enviada</Badge>}
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
+                {modo === 'login'    && 'Bienvenido/a'}
+                {modo === 'registro' && 'Solicitá acceso'}
+                {modo === 'exito'    && '¡Listo!'}
+              </div>
+              <div style={{ fontSize: 12.5, color: T.gray3, marginTop: 5, lineHeight: 1.55 }}>
+                {modo === 'login'    && 'Ingresá con tu cuenta de Google para acceder a tu consultorio.'}
+                {modo === 'registro' && 'Completá el formulario y te contactamos para darte acceso anticipado.'}
+                {modo === 'exito'    && 'Un administrador revisará tu cuenta y te habilitará el acceso por email.'}
+              </div>
+            </div>
+
+            {/* Contenido por modo */}
+            {modo === 'login' && (
+              <>
+                <Divider>Acceso seguro</Divider>
+                <div style={{ display: 'flex', justifyContent: 'center', minHeight: 44 }}>
+                  {cargando
+                    ? <span style={{ fontSize: 12, color: T.gray5, fontFamily: T.mono, letterSpacing: '0.1em', alignSelf: 'center' }}>Conectando…</span>
+                    : <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError('Error al iniciar sesión con Google')} locale="es" text="signin_with" size="large" width="320" />
+                  }
+                </div>
+                {error && <div style={{ marginTop: 12, textAlign: 'center' }}><ErrorMsg>{error}</ErrorMsg></div>}
+
+                <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {['Turnos sincronizados con Google Calendar', 'Historia clínica completa de cada paciente', 'Finanzas en tiempo real · Por consultorio'].map(t => (
+                    <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: T.gray3 }}>
+                      <div style={{ width: 4, height: 4, borderRadius: '50%', background: T.gray1, flexShrink: 0 }} />
+                      {t}
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, fontFamily: T.mono, fontSize: 9, letterSpacing: '0.08em', color: T.gray6 }}>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1L1.5 3v3c0 2.76 1.96 5.34 4.5 6 2.54-.66 4.5-3.24 4.5-6V3L6 1z" stroke="#bbb" strokeWidth="1" fill="none"/></svg>
+                  Acceso seguro · Sin contraseñas
+                </div>
+
+                <button type="button" onClick={() => { setModo('registro'); setError(null) }} style={{ display: 'block', width: '100%', textAlign: 'center', marginTop: 18, background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12.5, color: T.gray3 }}>
+                  ¿No tenés acceso todavía? <u style={{ textUnderlineOffset: 3 }}>Solicitá uno acá</u>
+                </button>
+              </>
+            )}
+
+            {modo === 'registro' && (
+              <form onSubmit={handleRegistro}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <label style={labelStyle}>Nombre</label>
+                    <input style={inputStyle} value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="María" required onFocus={e => e.target.style.borderColor = T.black} onBlur={e => e.target.style.borderColor = T.gray1} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Apellido</label>
+                    <input style={inputStyle} value={form.apellido} onChange={e => setForm(f => ({ ...f, apellido: e.target.value }))} placeholder="López" required onFocus={e => e.target.style.borderColor = T.black} onBlur={e => e.target.style.borderColor = T.gray1} />
+                  </div>
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={labelStyle}>Email</label>
+                  <input style={inputStyle} type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="maria@consultorio.com" required onFocus={e => e.target.style.borderColor = T.black} onBlur={e => e.target.style.borderColor = T.gray1} />
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={labelStyle}>Confirmar email</label>
+                  <input
+                    style={{ ...inputStyle, borderColor: (form.confirmarEmail && form.email.trim().toLowerCase() !== form.confirmarEmail.trim().toLowerCase()) ? T.red : T.gray1 }}
+                    type="email"
+                    value={form.confirmarEmail}
+                    onChange={e => setForm(f => ({ ...f, confirmarEmail: e.target.value }))}
+                    onPaste={e => e.preventDefault()}
+                    placeholder="maria@consultorio.com"
+                    required
+                  />
+                </div>
+
+                <div ref={turnstileRef} style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, minHeight: 65 }} />
+
+                {error && <div style={{ marginBottom: 10 }}><ErrorMsg>{error}</ErrorMsg></div>}
+
+                <button type="submit" disabled={cargando || !turnstileToken} style={{ width: '100%', padding: '13px', background: T.black, color: T.white, border: 'none', borderRadius: 10, fontFamily: T.font, fontWeight: 700, fontSize: 13.5, cursor: (cargando || !turnstileToken) ? 'not-allowed' : 'pointer', opacity: (cargando || !turnstileToken) ? 0.5 : 1, transition: 'opacity 0.15s' }}>
+                  {cargando ? 'Enviando…' : 'Solicitar acceso'}
+                </button>
+
+                <button type="button" onClick={() => { setModo('login'); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', margin: '14px 0 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
+                  ← Volver al inicio
+                </button>
+              </form>
+            )}
+
+            {modo === 'exito' && (
+              <div style={{ marginTop: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: T.black, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                </div>
+                <button type="button" onClick={() => { setModo('login'); setForm({ nombre: '', apellido: '', email: '', confirmarEmail: '' }); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
+                  ← Volver al inicio
+                </button>
+              </div>
+            )}
+
+            <div style={{ marginTop: 24, paddingTop: 18, borderTop: `1px solid ${T.gray7}`, textAlign: 'center', fontFamily: T.mono, fontSize: 8.5, letterSpacing: '0.06em', color: T.gray6, lineHeight: 1.7 }}>
+              Al {modo === 'registro' ? 'solicitar acceso' : 'ingresar'} aceptás los términos de uso y la política de privacidad de holaDoc.
+            </div>
+          </div>
+
+          <div style={{ marginTop: 18, fontFamily: T.mono, fontSize: 9, color: T.gray6, letterSpacing: '0.08em', textAlign: 'center' }}>
+            holadocapp.com · para profesionales de la salud
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1086,12 +1272,61 @@ function DashBlock({ title, children }) {
   )
 }
 
-function DashStatCard({ label, value, sub }) {
+function DashStatCard({ label, value, sub, dark }) {
   return (
-    <div style={{ flex: 1, background: T.white, borderRadius: 10, border: `1px solid ${T.gray1}`, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', minWidth: 0 }}>
-      <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, display: 'block', marginBottom: 6 }}>{label}</span>
-      <span style={{ fontFamily: T.font, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: T.black, lineHeight: 1, display: 'block' }}>{value ?? '—'}</span>
-      {sub && <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray5, letterSpacing: '0.08em', marginTop: 4, display: 'block' }}>{sub}</span>}
+    <div style={{ flex: 1, background: dark ? T.black : T.white, borderRadius: 10, border: `1px solid ${dark ? T.black : T.gray1}`, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', minWidth: 0 }}>
+      <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: dark ? 'rgba(255,255,255,0.55)' : T.gray4, display: 'block', marginBottom: 6 }}>{label}</span>
+      <span style={{ fontFamily: T.font, fontSize: 28, fontWeight: 700, letterSpacing: '-0.03em', color: dark ? T.white : T.black, lineHeight: 1, display: 'block' }}>{value ?? '—'}</span>
+      {sub && <span style={{ fontFamily: T.mono, fontSize: 9, color: dark ? 'rgba(255,255,255,0.45)' : T.gray5, letterSpacing: '0.08em', marginTop: 4, display: 'block' }}>{sub}</span>}
+    </div>
+  )
+}
+
+function DashBarChart({ datos, isMobile }) {
+  if (!datos || datos.length === 0) {
+    return (
+      <div style={{ background: T.white, borderRadius: 10, border: `1px solid ${T.gray1}`, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+        <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, display: 'block', marginBottom: 12 }}>Ingresos últimos 12 meses</span>
+        <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: T.gray4, fontFamily: T.font }}>Sin datos</div>
+      </div>
+    )
+  }
+  const MESES_LETRA = ['E','F','M','A','M','J','J','A','S','O','N','D']
+  const max = Math.max(...datos.map(d => Number(d.total) || 0), 1)
+  const fmtCorto = n => {
+    const v = Number(n) || 0
+    if (v === 0) return '$0'
+    if (v >= 1_000_000) return `$${(v/1_000_000).toFixed(1)}M`
+    if (v >= 1_000)     return `$${Math.round(v/1_000)}K`
+    return `$${Math.round(v)}`
+  }
+  const fmtFull = n => `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const total12 = datos.reduce((s, d) => s + (Number(d.total) || 0), 0)
+
+  return (
+    <div style={{ background: T.white, borderRadius: 10, border: `1px solid ${T.gray1}`, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
+        <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4 }}>Ingresos últimos 12 meses</span>
+        <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray5 }}>Total: <span style={{ color: T.black, fontWeight: 600 }}>{fmtFull(total12)}</span></span>
+      </div>
+      <div style={{ display: 'flex', height: 140, gap: isMobile ? 4 : 8 }}>
+        {datos.map((d, i) => {
+          const v = Number(d.total) || 0
+          const h = max > 0 ? (v / max) * 100 : 0
+          return (
+            <div key={`${d.año}-${d.mes}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', width: '100%' }}>
+                <div title={`${MESES_LETRA[d.mes-1]} ${String(d.año).slice(2)} — ${fmtFull(v)}`}
+                     style={{ width: '100%', height: `${Math.max(h, v > 0 ? 2 : 0)}%`, background: T.black, borderRadius: '3px 3px 0 0', transition: 'height 0.3s' }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, marginTop: 6 }}>
+                <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, lineHeight: 1 }}>{MESES_LETRA[d.mes-1]}</span>
+                {!isMobile && <span style={{ fontFamily: T.mono, fontSize: 8, color: T.gray3, lineHeight: 1 }}>{fmtCorto(v)}</span>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -1101,6 +1336,7 @@ function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) 
   const [dash,      setDash]      = useState(null)
   const [turnosHoy, setTurnosHoy] = useState([])
   const [cargando,  setCargando]  = useState(true)
+  const [ingresosAnuales, setIngresosAnuales] = useState(null)
   const [mesSel, setMesSel] = useState(() => {
     const d = new Date()
     return { año: d.getFullYear(), mes: d.getMonth() + 1 }
@@ -1108,23 +1344,30 @@ function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) 
 
   const pad = n => String(n).padStart(2, '0')
 
+  // Fetch que NO depende de mesSel (se hace una sola vez al montar)
   useEffect(() => {
-    setCargando(true)
-    setDash(null)
     const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T00:00:00`
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
     const manana = new Date(hoy); manana.setDate(manana.getDate() + 1)
-    const mesParam = `${mesSel.año}-${pad(mesSel.mes)}`
 
     Promise.all([
-      apiFetch(`/dashboard?mes=${mesParam}`),
       apiFetch(`/turnos?desde=${encodeURIComponent(fmt(hoy))}&hasta=${encodeURIComponent(fmt(manana))}`),
-    ]).then(async ([resDash, resHoy]) => {
-      if (resDash?.ok) setDash(await resDash.json())
+      apiFetch('/dashboard/ingresos-anuales'),
+    ]).then(async ([resHoy, resIng]) => {
       if (resHoy?.ok) {
         const data = await resHoy.json()
         setTurnosHoy(data.sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora)))
       }
+      if (resIng?.ok) setIngresosAnuales(await resIng.json())
+    })
+  }, [apiFetch])
+
+  // Fetch que sí depende de mesSel (consultas del mes + promedio + resto del dashboard)
+  useEffect(() => {
+    setCargando(true)
+    const mesParam = `${mesSel.año}-${pad(mesSel.mes)}`
+    apiFetch(`/dashboard?mes=${mesParam}`).then(async (res) => {
+      if (res?.ok) setDash(await res.json())
       setCargando(false)
     })
   }, [apiFetch, mesSel])
@@ -1159,28 +1402,34 @@ function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) 
 
       <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '0 16px 24px' : '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* ── Navegador de mes ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={prevMes} style={{ all: 'unset', cursor: 'pointer', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: `1px solid ${T.gray1}`, background: T.white, color: T.gray4, fontFamily: T.mono, fontSize: 13, flexShrink: 0 }}>‹</button>
-          <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4, flex: 1, textAlign: 'center' }}>{mesNombre}</span>
-          <button onClick={nextMes} disabled={esHoy} style={{ all: 'unset', cursor: esHoy ? 'default' : 'pointer', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: `1px solid ${T.gray1}`, background: T.white, color: esHoy ? T.gray1 : T.gray4, fontFamily: T.mono, fontSize: 13, flexShrink: 0 }}>›</button>
+        {/* ── Total pacientes (independiente del mes) ── */}
+        <DashStatCard
+          label="Total pacientes"
+          value={cargando && dash == null ? '…' : dash?.pacientesTotal}
+          dark
+        />
+
+        {/* ── Sección scopeada al mes seleccionado ── */}
+        <div style={{ background: T.white, borderRadius: 10, border: `1px solid ${T.gray1}`, padding: '12px 14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <button onClick={prevMes} style={{ all: 'unset', cursor: 'pointer', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: `1px solid ${T.gray1}`, background: T.white, color: T.gray4, fontFamily: T.mono, fontSize: 13, flexShrink: 0 }}>‹</button>
+            <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4, flex: 1, textAlign: 'center' }}>{mesNombre}</span>
+            <button onClick={nextMes} disabled={esHoy} style={{ all: 'unset', cursor: esHoy ? 'default' : 'pointer', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, border: `1px solid ${T.gray1}`, background: T.white, color: esHoy ? T.gray1 : T.gray4, fontFamily: T.mono, fontSize: 13, flexShrink: 0 }}>›</button>
+          </div>
+          <div style={{ display: 'flex', gap: isMobile ? 8 : 12 }}>
+            <DashStatCard
+              label="Cantidad consultas"
+              value={cargando ? '…' : dash?.consultasMes}
+            />
+            <DashStatCard
+              label="Promedio consultas por día"
+              value={cargando ? '…' : (dash?.promedioConsultasPorDia != null ? dash.promedioConsultasPorDia.toFixed(1) : '—')}
+            />
+          </div>
         </div>
 
-        {/* ── Stat cards ── */}
-        <div style={{ display: 'flex', gap: isMobile ? 8 : 12 }}>
-          <DashStatCard
-            label="Pacientes"
-            value={cargando ? '…' : dash?.pacientesTotal}
-          />
-          <DashStatCard
-            label={`Consultas · ${mesShort}`}
-            value={cargando ? '…' : dash?.consultasMes}
-          />
-          <DashStatCard
-            label="Promedio / día"
-            value={cargando ? '…' : (dash?.promedioConsultasPorDia != null ? dash.promedioConsultasPorDia.toFixed(1) : '—')}
-          />
-        </div>
+        {/* ── Gráfico de ingresos últimos 12 meses ── */}
+        <DashBarChart datos={ingresosAnuales} isMobile={isMobile} />
 
         {/* ── Pendientes mañana ── */}
         {!cargando && dash != null && (
@@ -1395,6 +1644,10 @@ function VistaConsultorios({ apiFetch }) {
 
 function VistaObrasSociales({ apiFetch }) {
   return <VistaABMSimple apiFetch={apiFetch} endpoint="/obras-sociales" titulo="Obras sociales" panelTitulo="Nueva obra social" addLabel="+ Nueva obra social" msgVacio="No hay obras sociales registradas" msgConfirmar="¿Eliminar esta obra social?" storageKey="obras-sociales-vista" placeholder="Ej: OSDE, Swiss Medical, IOMA…" />
+}
+
+function VistaEspecialidades({ apiFetch }) {
+  return <VistaABMSimple apiFetch={apiFetch} endpoint="/especialidades" titulo="Especialidades" panelTitulo="Nueva especialidad" addLabel="+ Agregar" msgVacio="No hay especialidades registradas" msgConfirmar="¿Eliminar esta especialidad?" storageKey="especialidades-vista" placeholder="Ej: Ortodoncia, Endodoncia, Periodoncia…" />
 }
 
 function FilaSimple({ cols, gridCols, onEliminar, compact = false }) {
