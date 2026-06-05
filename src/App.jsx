@@ -127,6 +127,22 @@ function useIsMobile() {
 }
 
 /**
+ * Devuelve true si el device es mobile (pantalla chica) o tiene touch capability.
+ * Sirve para decidir si mostrar el canvas de firma directo en este device o disparar
+ * el flujo "esperando firma desde otro device".
+ */
+function useIsMobileOrTouch() {
+  const isMobile = useIsMobile()
+  const [hasTouch] = useState(() =>
+    typeof window !== 'undefined' && (
+      'ontouchstart' in window ||
+      (navigator.maxTouchPoints != null && navigator.maxTouchPoints > 0)
+    )
+  )
+  return isMobile || hasTouch
+}
+
+/**
  * FAB (Floating Action Button) con speed dial. Pensado para mobile.
  * Recibe un array de acciones; si hay 1, click directo dispara el onClick.
  * Si hay >1, click expande un menú vertical sobre el FAB con cada acción.
@@ -461,6 +477,7 @@ function MainLayout({ token, usuario, onLogout }) {
           {vista === 'especialidades' && usuario?.esAdmin && <VistaEspecialidades apiFetch={apiFetch} />}
         </main>
       </div>
+      <FirmaPendienteOverlay apiFetch={apiFetch} />
     </div>
   )
 }
@@ -807,6 +824,303 @@ function useAlert() {
     : null
 
   return { openAlert, dialog }
+}
+
+/* ─── Firma del paciente ─────────────────────────────────────── */
+
+const fmtMontoFirma = m => m != null && !isNaN(Number(m))
+  ? `$${Number(m).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  : null
+
+/** Canvas para que el paciente firme con dedo o mouse. Devuelve PNG base64 al guardar. */
+function CanvasFirma({ pendiente, onGuardar, onCancelar, guardando, error }) {
+  const wrapRef    = useRef(null)
+  const canvasRef  = useRef(null)
+  const [vacio, setVacio] = useState(true)
+  const dibujando  = useRef(false)
+  const ultimaPos  = useRef({ x: 0, y: 0 })
+
+  // Setup canvas con DPR para que no se vea borroso en retina/mobile.
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const wrap   = wrapRef.current
+    if (!canvas || !wrap) return
+    const dpr  = Math.max(window.devicePixelRatio || 1, 1)
+    const rect = wrap.getBoundingClientRect()
+    canvas.width  = Math.round(rect.width  * dpr)
+    canvas.height = Math.round(rect.height * dpr)
+    canvas.style.width  = rect.width  + 'px'
+    canvas.style.height = rect.height + 'px'
+    const ctx = canvas.getContext('2d')
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, rect.width, rect.height)
+    ctx.strokeStyle = '#111'
+    ctx.lineWidth = 2.3
+    ctx.lineCap  = 'round'
+    ctx.lineJoin = 'round'
+  }, [])
+
+  function getPos(e) {
+    const rect = canvasRef.current.getBoundingClientRect()
+    const touch = e.touches && e.touches[0]
+    const cx = touch ? touch.clientX : e.clientX
+    const cy = touch ? touch.clientY : e.clientY
+    return { x: cx - rect.left, y: cy - rect.top }
+  }
+
+  function start(e) {
+    e.preventDefault()
+    const pos = getPos(e)
+    ultimaPos.current = pos
+    dibujando.current = true
+    const ctx = canvasRef.current.getContext('2d')
+    ctx.beginPath()
+    ctx.moveTo(pos.x, pos.y)
+    ctx.lineTo(pos.x + 0.01, pos.y + 0.01) // micro-trazo para un punto si solo tocan
+    ctx.stroke()
+    if (vacio) setVacio(false)
+  }
+
+  function move(e) {
+    if (!dibujando.current) return
+    e.preventDefault()
+    const pos = getPos(e)
+    const ctx = canvasRef.current.getContext('2d')
+    ctx.beginPath()
+    ctx.moveTo(ultimaPos.current.x, ultimaPos.current.y)
+    ctx.lineTo(pos.x, pos.y)
+    ctx.stroke()
+    ultimaPos.current = pos
+  }
+
+  function end(e) {
+    if (!dibujando.current) return
+    if (e) e.preventDefault()
+    dibujando.current = false
+  }
+
+  function limpiar() {
+    const canvas = canvasRef.current
+    const dpr = Math.max(window.devicePixelRatio || 1, 1)
+    const ctx = canvas.getContext('2d')
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.fillStyle = '#fff'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.strokeStyle = '#111'
+    ctx.lineWidth = 2.3
+    ctx.lineCap  = 'round'
+    ctx.lineJoin = 'round'
+    setVacio(true)
+  }
+
+  function guardar() {
+    if (vacio || guardando) return
+    const png = canvasRef.current.toDataURL('image/png')
+    onGuardar(png)
+  }
+
+  const montoFmt = fmtMontoFirma(pendiente?.montoTotal)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 18, background: T.gray2, minHeight: '100%' }}>
+
+      <div style={{ background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 10, padding: '14px 16px' }}>
+        <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>Confirmás la atención de</div>
+        <div style={{ fontFamily: T.font, fontSize: 17, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
+          {(pendiente?.pacienteNombre || '') + ' ' + (pendiente?.pacienteApellido || '')}
+        </div>
+        <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
+          {pendiente?.fecha && (
+            <div>
+              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4 }}>Fecha</div>
+              <div style={{ fontFamily: T.font, fontSize: 13, color: T.black }}>{pendiente.fecha}</div>
+            </div>
+          )}
+          {montoFmt && (
+            <div>
+              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4 }}>Monto</div>
+              <div style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>{montoFmt}</div>
+            </div>
+          )}
+        </div>
+        {pendiente?.descripcion && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4, marginBottom: 4 }}>Descripción</div>
+            <div style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, lineHeight: 1.5 }}>{pendiente.descripcion}</div>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>Firmá acá abajo</div>
+        <div ref={wrapRef} style={{ width: '100%', height: 240, background: T.white, border: `1.5px solid ${T.gray1}`, borderRadius: 10, overflow: 'hidden', touchAction: 'none', position: 'relative' }}>
+          <canvas
+            ref={canvasRef}
+            onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+            onTouchStart={start} onTouchMove={move} onTouchEnd={end} onTouchCancel={end}
+            style={{ display: 'block', cursor: 'crosshair', touchAction: 'none' }}
+          />
+          {vacio && (
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5 }}>
+              Trazá tu firma con el dedo
+            </div>
+          )}
+        </div>
+        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={limpiar} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.mono, fontSize: 10, letterSpacing: '0.1em', color: T.gray4, padding: 4 }}>
+            Borrar y volver a firmar
+          </button>
+        </div>
+      </div>
+
+      {error && <ErrorMsg>{error}</ErrorMsg>}
+
+      <div style={{ display: 'flex', gap: 10, marginTop: 'auto' }}>
+        <Btn variant="outline" onClick={onCancelar} disabled={guardando} fullWidth>Cancelar</Btn>
+        <Btn onClick={guardar} disabled={vacio || guardando} fullWidth>{guardando ? 'Guardando…' : 'Guardar firma'}</Btn>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Overlay full-screen que aparece cuando hay una firma pendiente para el profesional logueado.
+ * Polea /firmas/pendiente al ganar foco la app (no en intervalo) — basta con un check al levantar el celu.
+ */
+function FirmaPendienteOverlay({ apiFetch }) {
+  const [pendiente, setPendiente] = useState(null)
+  const [guardando, setGuardando] = useState(false)
+  const [error,     setError]     = useState(null)
+
+  const chequear = useCallback(async () => {
+    if (document.visibilityState !== 'visible') return
+    try {
+      const res = await apiFetch('/firmas/pendiente')
+      if (!res) return
+      if (res.status === 204) { setPendiente(null); return }
+      if (res.ok) {
+        const data = await res.json()
+        setPendiente(prev => prev?.consultaId === data.consultaId ? prev : data)
+      }
+    } catch {}
+  }, [apiFetch])
+
+  useEffect(() => {
+    chequear()
+    const onVis = () => { if (document.visibilityState === 'visible') chequear() }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('focus', chequear)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('focus', chequear)
+    }
+  }, [chequear])
+
+  async function handleGuardar(png) {
+    if (!pendiente) return
+    setError(null); setGuardando(true)
+    const res = await apiFetch('/firmas/firmar', { method: 'PUT', body: JSON.stringify({ consultaId: pendiente.consultaId, pngBase64: png }) })
+    if (!res) { setGuardando(false); return }
+    if (res.ok || res.status === 204) {
+      setPendiente(null)
+    } else {
+      const err = await res.json().catch(() => null)
+      setError(err?.error || 'Error al guardar la firma')
+    }
+    setGuardando(false)
+  }
+
+  function handleCancelar() {
+    setPendiente(null) // el slot sigue en el backend hasta que el desktop lo cancele o el paciente vuelva
+  }
+
+  if (!pendiente) return null
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: T.gray2, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+      <div style={{ padding: '14px 18px', background: T.black, color: T.white, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div>
+          <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>Firma del paciente</div>
+          <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, marginTop: 2 }}>holaDoc</div>
+        </div>
+      </div>
+      <CanvasFirma pendiente={pendiente} onGuardar={handleGuardar} onCancelar={handleCancelar} guardando={guardando} error={error} />
+    </div>
+  )
+}
+
+/** Muestra el PNG de una firma. Fetch con Authorization → blob URL (el <img> nativo no manda headers). */
+function FirmaImg({ apiFetch, consultaId, refreshKey, style }) {
+  const [src, setSrc] = useState(null)
+  useEffect(() => {
+    let cancelado = false
+    let url = null
+    apiFetch(`/firmas/consulta/${consultaId}/png`).then(async res => {
+      if (!res || !res.ok || cancelado) return
+      const blob = await res.blob()
+      if (cancelado) return
+      url = URL.createObjectURL(blob)
+      setSrc(url)
+    })
+    return () => { cancelado = true; if (url) URL.revokeObjectURL(url) }
+  }, [apiFetch, consultaId, refreshKey])
+  if (!src) return <div style={{ ...style, background: T.gray2, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.mono, fontSize: 9, color: T.gray5 }}>…</div>
+  return <img src={src} alt="firma" style={style} />
+}
+
+/** Modal de desktop que muestra "Esperando firma…" y polea cada 3 seg para detectar cuando se firmó. */
+function EsperandoFirmaModal({ apiFetch, consultaId, onCerrar, onFirmada }) {
+  const [estado, setEstado] = useState(null)
+
+  useEffect(() => {
+    if (!consultaId) return
+    let cancelado = false
+    let timer = null
+    const tick = async () => {
+      if (cancelado) return
+      const res = await apiFetch(`/firmas/consulta/${consultaId}/estado`)
+      if (cancelado) return
+      if (res?.ok) {
+        const data = await res.json()
+        setEstado(data)
+        if (data.firmada) { onFirmada?.(data); return }
+      }
+      timer = setTimeout(tick, 3000)
+    }
+    tick()
+    return () => { cancelado = true; if (timer) clearTimeout(timer) }
+  }, [apiFetch, consultaId, onFirmada])
+
+  async function cancelar() {
+    await apiFetch(`/firmas/consulta/${consultaId}/solicitud`, { method: 'DELETE' })
+    onCerrar?.()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(17,17,17,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ background: T.white, borderRadius: 14, padding: '28px 32px', maxWidth: 380, width: '100%', boxShadow: '0 8px 40px rgba(0,0,0,0.2)', textAlign: 'center' }}>
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: T.gray2, margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 24, height: 24, border: `3px solid ${T.gray1}`, borderTopColor: T.black, borderRadius: '50%', animation: 'soSpin 0.8s linear infinite' }} />
+        </div>
+        <style>{`@keyframes soSpin { to { transform: rotate(360deg) } }`}</style>
+        <div style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>Esperando firma del paciente</div>
+        <div style={{ fontFamily: T.font, fontSize: 12.5, color: T.gray3, marginTop: 6, lineHeight: 1.5 }}>
+          Pasale el celular al paciente. Cuando abra holaDoc en su pantalla va a aparecer el espacio para firmar.
+        </div>
+        {estado?.solicitada === false && !estado?.firmada && (
+          <div style={{ marginTop: 14, fontFamily: T.mono, fontSize: 10, letterSpacing: '0.1em', color: T.red }}>
+            La solicitud ya no está activa
+          </div>
+        )}
+        <div style={{ marginTop: 22 }}>
+          <Btn variant="outline" onClick={cancelar} fullWidth>Cancelar</Btn>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 /* ─── table components ───────────────────────────────────────── */
@@ -2579,6 +2893,76 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
     : false
   )
 
+  // ── Firma del paciente ─────────────────────────────────────────
+  const isMobileOrTouch = useIsMobileOrTouch()
+  const [firmaInfo,       setFirmaInfo]      = useState({
+    firmada:    modoEdicion ? !!consulta.firmada     : false,
+    firmaFecha: modoEdicion ? consulta.firmaFecha    : null,
+  })
+  const [firmaSolicitando, setFirmaSolicitando] = useState(false)
+  const [firmaCanvasLocal, setFirmaCanvasLocal] = useState(null) // datos para el canvas local
+  const [firmaModalEsperar, setFirmaModalEsperar] = useState(false)
+  const [firmaError,        setFirmaError]      = useState(null)
+  const [firmaGuardando,    setFirmaGuardando]  = useState(false)
+
+  async function handleSolicitarFirma() {
+    if (firmaInfo.firmada || firmaSolicitando) return
+    setFirmaSolicitando(true); setFirmaError(null)
+
+    // Siempre guardar primero (creando si es nueva, actualizando si es edición)
+    // para que la firma se asocie al estado actual de la consulta.
+    const id = await guardarYRetornarId()
+    if (!id) { setFirmaSolicitando(false); return }
+
+    if (isMobileOrTouch) {
+      setFirmaCanvasLocal({
+        consultaId:       id,
+        pacienteNombre:   paciente?.nombre,
+        pacienteApellido: paciente?.apellido,
+        fecha:            form.fecha,
+        descripcion:      form.descripcion,
+        montoTotal:       form.montoTotal ? Number(form.montoTotal) : null,
+      })
+      setFirmaSolicitando(false)
+      return
+    }
+
+    // Flow desktop: crear slot en backend, esperar que otro device firme.
+    const res = await apiFetch('/firmas/solicitar', { method: 'POST', body: JSON.stringify({ consultaId: id }) })
+    setFirmaSolicitando(false)
+    if (!res) return
+    if (!res.ok && res.status !== 204) {
+      const err = await res.json().catch(() => null)
+      openAlert(err?.error || 'No se pudo solicitar la firma', { title: 'Error' })
+      return
+    }
+    setFirmaModalEsperar(true)
+  }
+
+  async function handleFirmarLocal(png) {
+    if (!firmaCanvasLocal) return
+    setFirmaGuardando(true); setFirmaError(null)
+    const res = await apiFetch('/firmas/firmar', { method: 'PUT', body: JSON.stringify({ consultaId: firmaCanvasLocal.consultaId, pngBase64: png }) })
+    setFirmaGuardando(false)
+    if (!res) return
+    if (res.ok || res.status === 204) {
+      setFirmaInfo({ firmada: true, firmaFecha: new Date().toISOString() })
+      setFirmaCanvasLocal(null)
+    } else {
+      const err = await res.json().catch(() => null)
+      setFirmaError(err?.error || 'Error al guardar la firma')
+    }
+  }
+
+  function handleCancelarFirmaLocal() {
+    setFirmaCanvasLocal(null); setFirmaError(null)
+  }
+
+  function handleFirmadaDesdeOtroDevice(estado) {
+    setFirmaInfo({ firmada: true, firmaFecha: estado.fechaFirma })
+    setFirmaModalEsperar(false)
+  }
+
   // Cálculo en vivo del monto que cobra el profesional.
   const montoProfesional = (() => {
     const total = parseFloat(form.montoTotal)
@@ -2614,67 +2998,65 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
     onVolver()
   }
 
-  async function handleGuardar(e) {
-    e.preventDefault()
+  // ID de la consulta "actual": en edición arranca con el de la prop, en nueva
+  // se setea al guardar (útil cuando se guarda implícitamente desde "Solicitar firma").
+  const [idActual, setIdActual] = useState(modoEdicion ? consulta.id : null)
 
+  /**
+   * Guarda la consulta (POST si es nueva, PUT si ya existe). Devuelve el ID
+   * resultante o null si hubo error. NO navega — eso lo decide el caller.
+   */
+  async function guardarYRetornarId() {
     if (!form.consultorioId) {
       openAlert('Seleccioná un consultorio antes de guardar la consulta.', { title: 'Campo requerido' })
-      return
+      return null
     }
 
+    const body = {
+      ...(modoEdicion || idActual ? {} : { pacienteId: Number(pacienteId) }),
+      consultorioId:         form.consultorioId ? Number(form.consultorioId) : null,
+      fecha:                 form.fecha || null,
+      descripcion:           form.descripcion   || null,
+      montoTotal:            form.montoTotal            ? Number(form.montoTotal)            : null,
+      porcentajeProfesional: form.porcentajeProfesional ? Number(form.porcentajeProfesional) : null,
+      tipoPago:              form.montoTotal            ? form.tipoPago                       : null,
+      medioPagoId:           form.medioPagoId ? Number(form.medioPagoId) : null,
+      pendienteCobro:        cobrarDespues,
+    }
+
+    const url    = idActual ? `/consultas/${idActual}` : '/consultas'
+    const method = idActual ? 'PUT' : 'POST'
+
+    const res = await apiFetch(url, { method, body: JSON.stringify(body) })
+    if (!res) return null
+    if (!res.ok) {
+      const err = await res.json().catch(() => null)
+      openAlert(err?.error || 'Error al guardar', { title: 'No se pudo guardar' })
+      return null
+    }
+
+    let id = idActual
+    if (!id) {
+      const data = await res.json()
+      id = data.id
+      setIdActual(id)
+    }
+
+    // Subir archivos nuevos
+    for (const f of archivos) {
+      const fd = new FormData(); fd.append('archivo', f)
+      await apiFetch(`/consultas/${id}/archivos`, { method: 'POST', body: fd })
+    }
+    setArchivos([])
+    return id
+  }
+
+  async function handleGuardar(e) {
+    e.preventDefault()
     setGuardando(true)
-
-    if (modoEdicion) {
-      const body = {
-        consultorioId:         form.consultorioId ? Number(form.consultorioId) : null,
-        fecha:                 form.fecha || null,
-        descripcion:           form.descripcion   || null,
-        montoTotal:            form.montoTotal            ? Number(form.montoTotal)            : null,
-        porcentajeProfesional: form.porcentajeProfesional ? Number(form.porcentajeProfesional) : null,
-        tipoPago:              form.montoTotal            ? form.tipoPago                       : null,
-        medioPagoId:           form.medioPagoId ? Number(form.medioPagoId) : null,
-        pendienteCobro:        cobrarDespues,
-      }
-      const res = await apiFetch(`/consultas/${consulta.id}`, { method: 'PUT', body: JSON.stringify(body) })
-      if (!res) { setGuardando(false); return }
-      if (res.ok) {
-        for (const f of archivos) {
-          const fd = new FormData(); fd.append('archivo', f)
-          await apiFetch(`/consultas/${consulta.id}/archivos`, { method: 'POST', body: fd })
-        }
-        onVolver()
-      } else {
-        const e = await res.json().catch(() => null)
-        setGuardando(false)
-        openAlert(e?.error || 'Error al guardar', { title: 'No se pudo guardar' })
-      }
-    } else {
-      const body = {
-        pacienteId:            Number(pacienteId),
-        consultorioId:         form.consultorioId ? Number(form.consultorioId) : null,
-        fecha:                 form.fecha || null,
-        descripcion:           form.descripcion   || null,
-        montoTotal:            form.montoTotal            ? Number(form.montoTotal)            : null,
-        porcentajeProfesional: form.porcentajeProfesional ? Number(form.porcentajeProfesional) : null,
-        tipoPago:              form.montoTotal            ? form.tipoPago                       : null,
-        medioPagoId:           form.medioPagoId ? Number(form.medioPagoId) : null,
-        pendienteCobro:        cobrarDespues,
-      }
-      const res = await apiFetch('/consultas', { method: 'POST', body: JSON.stringify(body) })
-      if (!res) { setGuardando(false); return }
-      if (res.ok) {
-        const data = await res.json()
-        for (const f of archivos) {
-          const fd = new FormData(); fd.append('archivo', f)
-          await apiFetch(`/consultas/${data.id}/archivos`, { method: 'POST', body: fd })
-        }
-        onVolver()
-      } else {
-        const e = await res.json().catch(() => null)
-        setGuardando(false)
-        openAlert(e?.error || 'Error al guardar', { title: 'No se pudo guardar' })
-      }
-    }
+    const id = await guardarYRetornarId()
+    setGuardando(false)
+    if (id) onVolver()
   }
 
   if (cargando) return <Cargando />
@@ -2829,6 +3211,43 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
               )}
             </div>
 
+            {/* Card: Firma del paciente — opcional, disponible tanto en nueva como en edición */}
+            <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={secLabel}>Firma del paciente (opcional)</div>
+              {firmaInfo.firmada && idActual ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+                  <div style={{ width: 36, height: 36, borderRadius: '50%', background: T.black, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>Firmada por el paciente</div>
+                    {firmaInfo.firmaFecha && (
+                      <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.08em', color: T.gray4, marginTop: 2 }}>
+                        {new Date(firmaInfo.firmaFecha).toLocaleString('es-AR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
+                  </div>
+                  <FirmaImg apiFetch={apiFetch} consultaId={idActual} refreshKey={firmaInfo.firmaFecha} style={{ height: 48, maxWidth: 140, border: `1px solid ${T.gray1}`, borderRadius: 4, background: T.white, objectFit: 'contain' }} />
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, lineHeight: 1.5 }}>
+                    {isMobileOrTouch
+                      ? 'Tocá el botón y pasale el dispositivo al paciente para que firme.'
+                      : 'Al solicitar la firma, pasale el celular al paciente. Cuando abra holaDoc en su celular, aparecerá el espacio para firmar.'}
+                    {!idActual && ' La consulta se guarda automáticamente al solicitar la firma.'}
+                  </div>
+                  <div>
+                    <Btn onClick={handleSolicitarFirma} disabled={firmaSolicitando}>
+                      {firmaSolicitando
+                        ? 'Guardando…'
+                        : (idActual ? 'Solicitar firma del paciente' : 'Guardar y solicitar firma')}
+                    </Btn>
+                  </div>
+                </>
+              )}
+            </div>
+
           </div>
         </form>
       </div>
@@ -2840,6 +3259,28 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
           <Btn onClick={handleGuardar} disabled={guardando} fullWidth>{guardando ? 'Guardando…' : 'Guardar'}</Btn>
         </div>
       )}
+
+      {/* Canvas local (mobile/touch) — abre directo cuando se solicita firma desde el mismo device */}
+      {firmaCanvasLocal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: T.gray2, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+          <div style={{ padding: '14px 18px', background: T.black, color: T.white, flexShrink: 0 }}>
+            <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>Firma del paciente</div>
+            <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, marginTop: 2 }}>holaDoc</div>
+          </div>
+          <CanvasFirma pendiente={firmaCanvasLocal} onGuardar={handleFirmarLocal} onCancelar={handleCancelarFirmaLocal} guardando={firmaGuardando} error={firmaError} />
+        </div>
+      )}
+
+      {/* Modal "Esperando firma…" (desktop) — polea cada 3 seg al backend */}
+      {firmaModalEsperar && idActual && (
+        <EsperandoFirmaModal
+          apiFetch={apiFetch}
+          consultaId={idActual}
+          onCerrar={() => setFirmaModalEsperar(false)}
+          onFirmada={handleFirmadaDesdeOtroDevice}
+        />
+      )}
+
       {dialog}
       {alertDialog}
     </div>
