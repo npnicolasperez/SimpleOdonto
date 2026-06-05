@@ -925,62 +925,67 @@ function CanvasFirma({ pendiente, onGuardar, onCancelar, guardando, error }) {
   const montoFmt = fmtMontoFirma(pendiente?.montoTotal)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 18, background: T.gray2, minHeight: '100%' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, background: T.gray2 }}>
 
-      <div style={{ background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 10, padding: '14px 16px' }}>
-        <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>Confirmás la atención de</div>
-        <div style={{ fontFamily: T.font, fontSize: 17, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
-          {(pendiente?.pacienteNombre || '') + ' ' + (pendiente?.pacienteApellido || '')}
-        </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-          {pendiente?.fecha && (
-            <div>
-              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4 }}>Fecha</div>
-              <div style={{ fontFamily: T.font, fontSize: 13, color: T.black }}>{pendiente.fecha}</div>
-            </div>
-          )}
-          {montoFmt && (
-            <div>
-              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4 }}>Monto</div>
-              <div style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>{montoFmt}</div>
-            </div>
-          )}
-        </div>
-        {pendiente?.descripcion && (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4, marginBottom: 4 }}>Descripción</div>
-            <div style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, lineHeight: 1.5 }}>{pendiente.descripcion}</div>
+      {/* Contenido scrolleable: snapshot + canvas */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        <div style={{ background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 10, padding: '14px 16px' }}>
+          <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>Confirmás la atención de</div>
+          <div style={{ fontFamily: T.font, fontSize: 17, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
+            {(pendiente?.pacienteNombre || '') + ' ' + (pendiente?.pacienteApellido || '')}
           </div>
-        )}
-      </div>
-
-      <div>
-        <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>Firmá acá abajo</div>
-        <div ref={wrapRef} style={{ width: '100%', height: 240, background: T.white, border: `1.5px solid ${T.gray1}`, borderRadius: 10, overflow: 'hidden', touchAction: 'none', position: 'relative' }}>
-          <canvas
-            ref={canvasRef}
-            onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
-            onTouchStart={start} onTouchMove={move} onTouchEnd={end} onTouchCancel={end}
-            style={{ display: 'block', cursor: 'crosshair', touchAction: 'none' }}
-          />
-          {vacio && (
-            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5 }}>
-              Trazá tu firma con el dedo
+          <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
+            {pendiente?.fecha && (
+              <div>
+                <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4 }}>Fecha</div>
+                <div style={{ fontFamily: T.font, fontSize: 13, color: T.black }}>{pendiente.fecha}</div>
+              </div>
+            )}
+            {montoFmt && (
+              <div>
+                <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4 }}>Monto</div>
+                <div style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, color: T.black }}>{montoFmt}</div>
+              </div>
+            )}
+          </div>
+          {pendiente?.descripcion && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4, marginBottom: 4 }}>Descripción</div>
+              <div style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, lineHeight: 1.5 }}>{pendiente.descripcion}</div>
             </div>
           )}
         </div>
-        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
-          <button type="button" onClick={limpiar} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.mono, fontSize: 10, letterSpacing: '0.1em', color: T.gray4, padding: 4 }}>
-            Borrar y volver a firmar
-          </button>
+
+        <div>
+          <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>Firmá acá abajo</div>
+          <div ref={wrapRef} style={{ width: '100%', height: 240, background: T.white, border: `1.5px solid ${T.gray1}`, borderRadius: 10, overflow: 'hidden', touchAction: 'none', position: 'relative' }}>
+            <canvas
+              ref={canvasRef}
+              onMouseDown={start} onMouseMove={move} onMouseUp={end} onMouseLeave={end}
+              onTouchStart={start} onTouchMove={move} onTouchEnd={end} onTouchCancel={end}
+              style={{ display: 'block', cursor: 'crosshair', touchAction: 'none' }}
+            />
+            {vacio && (
+              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5 }}>
+                Trazá tu firma con el dedo
+              </div>
+            )}
+          </div>
+          <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+            <button type="button" onClick={limpiar} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.mono, fontSize: 10, letterSpacing: '0.1em', color: T.gray4, padding: 4 }}>
+              Borrar y volver a firmar
+            </button>
+          </div>
         </div>
+
+        {error && <ErrorMsg>{error}</ErrorMsg>}
       </div>
 
-      {error && <ErrorMsg>{error}</ErrorMsg>}
-
-      <div style={{ display: 'flex', gap: 10, marginTop: 'auto' }}>
+      {/* Footer fijo abajo — siempre visible aunque el contenido haga scroll */}
+      <div style={{ flexShrink: 0, padding: '14px 16px', borderTop: `1px solid ${T.gray1}`, background: T.white, display: 'flex', gap: 10 }}>
         <Btn variant="outline" onClick={onCancelar} disabled={guardando} fullWidth>Cancelar</Btn>
-        <Btn onClick={guardar} disabled={vacio || guardando} fullWidth>{guardando ? 'Guardando…' : 'Guardar firma'}</Btn>
+        <Btn onClick={guardar} disabled={vacio || guardando} fullWidth>{guardando ? 'Guardando…' : 'Confirmar firma'}</Btn>
       </div>
     </div>
   )
@@ -1040,7 +1045,7 @@ function FirmaPendienteOverlay({ apiFetch }) {
   if (!pendiente) return null
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: T.gray2, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: T.gray2, display: 'flex', flexDirection: 'column' }}>
       <div style={{ padding: '14px 18px', background: T.black, color: T.white, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
           <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>Firma del paciente</div>
@@ -3262,7 +3267,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
 
       {/* Canvas local (mobile/touch) — abre directo cuando se solicita firma desde el mismo device */}
       {firmaCanvasLocal && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: T.gray2, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: T.gray2, display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '14px 18px', background: T.black, color: T.white, flexShrink: 0 }}>
             <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)' }}>Firma del paciente</div>
             <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, marginTop: 2 }}>holaDoc</div>
