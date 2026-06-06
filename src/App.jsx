@@ -3167,7 +3167,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 <div style={secLabel}>Pago</div>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                   <span style={{ fontFamily: T.font, fontSize: 12, color: cobrarDespues ? T.black : T.gray4, fontWeight: cobrarDespues ? 600 : 400 }}>
-                    Registrar cobro después
+                    Dejar cobro pendiente
                   </span>
                   <div onClick={() => setCobrarDespues(v => !v)} style={{ width: 36, height: 20, borderRadius: 10, background: cobrarDespues ? T.black : T.gray1, position: 'relative', transition: 'background 0.2s', cursor: 'pointer', flexShrink: 0 }}>
                     <div style={{ position: 'absolute', top: 3, left: cobrarDespues ? 19 : 3, width: 14, height: 14, borderRadius: '50%', background: T.white, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
@@ -3210,8 +3210,8 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 </select>
               </div>
               {cobrarDespues && (
-                <div style={{ fontSize: 11, fontFamily: T.font, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 12px' }}>
-                  El ingreso quedará como <strong>pendiente</strong> hasta que se registre el cobro{form.montoTotal ? ', pero el monto ya queda registrado.' : '.'}
+                <div style={{ fontSize: 11, fontFamily: T.font, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
+                  El ingreso queda como <strong>pendiente</strong>. Podés cargar el monto ahora (queda registrado pero igual pendiente hasta que cobres) o dejarlo vacío y completarlo cuando se efectúe el cobro.
                 </div>
               )}
             </div>
@@ -3915,6 +3915,11 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   const debounceRef     = useRef(null)
   const descDebounceRef = useRef(null)
   const latestRef       = useRef({})
+
+  // Zoom de la imagen del estudio (1 = fit, escala visual sólo — los trazos siguen anclados a la imagen).
+  const [zoom,          setZoom]          = useState(1)
+  const zoomRef         = useRef(1)
+  useEffect(() => { zoomRef.current = zoom }, [zoom])
   const { openConfirm, dialog: confirmDialog } = useConfirm()
 
   const cargarLista = useCallback(async (q, page = 0) => {
@@ -4152,7 +4157,11 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     const container = containerRef.current; if (!container) return
     const observer = new ResizeObserver(() => {
       const canvas = canvasRef.current; if (!canvas) return
-      canvas.width = container.clientWidth; canvas.height = container.clientHeight
+      // Sólo redimensionar el buffer interno del canvas cuando estamos en zoom 1 (fit-to-container).
+      // Si estamos zoomeados, el container cambia de tamaño por el scrollbar y no queremos perder los trazos.
+      if (zoomRef.current === 1) {
+        canvas.width = container.clientWidth; canvas.height = container.clientHeight
+      }
       if (pendingNormRef.current) {
         skipSaveRef.current = true
         setTrazos(desnormalizarTrazos(pendingNormRef.current, canvas.width, canvas.height, escala))
@@ -4197,7 +4206,14 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     }, 800)
   }, [descripcion]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function getCoordsFromEvent(e) { const r = canvasRef.current.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top } }
+  function getCoordsFromEvent(e) {
+    const canvas = canvasRef.current
+    const r = canvas.getBoundingClientRect()
+    // Mapear coords del mouse del espacio visual (que incluye el zoom CSS) al espacio interno del canvas.
+    const scaleX = canvas.width  / r.width
+    const scaleY = canvas.height / r.height
+    return { x: (e.clientX - r.left) * scaleX, y: (e.clientY - r.top) * scaleY }
+  }
   function lineaCercana(x, y, excluir = []) {
     let best = -1, bestDist = 10
     trazos.forEach((t, i) => { if (t.tipo !== 'linea' || excluir.some(s => (typeof s === 'object' ? s.idx : s) === i)) return; const d = distPuntoSegmento(x, y, t.x1, t.y1, t.x2, t.y2); if (d < bestDist) { bestDist = d; best = i } })
@@ -4550,15 +4566,30 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
           )}
         </div>
 
-        {/* Card imagen / canvas */}
-        <div
-          ref={containerRef}
-          style={{ flex: 1, position: 'relative', overflow: 'hidden', background: T.black, borderRadius: 12 }}
-        >
-          <div style={{ position: 'absolute', inset: 0 }}>
-            <img src={imagen} alt={nombre} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
-            <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, cursor: canvasCursor }} onClick={handleCanvasClick} onMouseMove={handleMouseMove} onMouseLeave={() => { setMouse(null); setLineaHover(-1); setBorrarHover(-1) }} />
+        {/* Card imagen / canvas — wrapper externo para overlays no-scrolleables */}
+        <div style={{ flex: 1, position: 'relative', background: T.black, borderRadius: 12, overflow: 'hidden' }}>
+          {/* Scroll container — se hace scrolleable cuando zoom > 1 */}
+          <div
+            ref={containerRef}
+            style={{ width: '100%', height: '100%', overflow: zoom === 1 ? 'hidden' : 'auto', scrollbarGutter: 'stable' }}
+          >
+            {/* Wrapper escalable: a zoom 1 ocupa 100% (fit); a zoom > 1 crece y dispara scroll */}
+            <div style={{ width: `${100 * zoom}%`, height: `${100 * zoom}%`, position: 'relative', minWidth: '100%', minHeight: '100%' }}>
+              <img src={imagen} alt={nombre} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', pointerEvents: 'none', userSelect: 'none' }} />
+              <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: canvasCursor }} onClick={handleCanvasClick} onMouseMove={handleMouseMove} onMouseLeave={() => { setMouse(null); setLineaHover(-1); setBorrarHover(-1) }} />
+            </div>
           </div>
+
+          {/* Overlays absolutos al wrapper externo — no se mueven con el scroll del contenido */}
+          <div style={{ position: 'absolute', left: 12, bottom: 12, display: 'inline-flex', alignItems: 'center', gap: 0, background: 'rgba(17,17,17,0.85)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: 2, zIndex: 5 }}>
+            <button onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} disabled={zoom <= 0.5}
+              style={{ width: 28, height: 26, background: 'none', border: 'none', color: zoom <= 0.5 ? 'rgba(255,255,255,0.3)' : T.white, cursor: zoom <= 0.5 ? 'default' : 'pointer', fontSize: 16, fontFamily: T.font, lineHeight: 1 }}>−</button>
+            <button onClick={() => setZoom(1)}
+              style={{ minWidth: 44, height: 26, padding: '0 8px', background: 'none', border: 'none', color: T.white, cursor: 'pointer', fontSize: 10, fontFamily: T.mono, letterSpacing: '0.05em' }}>{Math.round(zoom * 100)}%</button>
+            <button onClick={() => setZoom(z => Math.min(5, +(z + 0.25).toFixed(2)))} disabled={zoom >= 5}
+              style={{ width: 28, height: 26, background: 'none', border: 'none', color: zoom >= 5 ? 'rgba(255,255,255,0.3)' : T.white, cursor: zoom >= 5 ? 'default' : 'pointer', fontSize: 16, fontFamily: T.font, lineHeight: 1 }}>+</button>
+          </div>
+
           <RatioPanel trazos={trazos} />
           <span style={{ position: 'absolute', bottom: 12, right: 16, fontSize: 10, color: 'rgba(255,255,255,0.4)', fontFamily: T.font, pointerEvents: 'none' }}>{nombre}</span>
         </div>
@@ -4944,6 +4975,57 @@ function formatHora(fechaHora) {
   return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
+/**
+ * Para una lista de turnos del mismo día, devuelve un Map { id -> { col, totalCols } }
+ * que indica la columna horizontal y cuántas columnas totales usar. Turnos que se solapan
+ * en el tiempo se dividen el ancho de la grilla. Usa union-find para agrupar clusters de
+ * solapamiento transitivo y asigna columnas greedy dentro de cada cluster.
+ */
+function calcularColumnasTurnos(turnos) {
+  const n = turnos.length
+  if (n === 0) return new Map()
+  const data = turnos.map(t => {
+    const start = new Date(t.fechaHora).getTime()
+    return { id: t.id, start, end: start + (t.duracionMinutos || 30) * 60_000 }
+  })
+  data.sort((a, b) => a.start - b.start)
+
+  const parent = data.map((_, i) => i)
+  const find = x => parent[x] === x ? x : (parent[x] = find(parent[x]))
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb }
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      if (data[j].start >= data[i].end) break
+      if (data[i].end > data[j].start && data[j].end > data[i].start) union(i, j)
+    }
+  }
+
+  const clusters = new Map()
+  for (let i = 0; i < n; i++) {
+    const r = find(i)
+    if (!clusters.has(r)) clusters.set(r, [])
+    clusters.get(r).push(i)
+  }
+
+  const out = new Map()
+  for (const cluster of clusters.values()) {
+    cluster.sort((a, b) => data[a].start - data[b].start)
+    const colEnds = []
+    const cols = new Map()
+    for (const i of cluster) {
+      let col = 0
+      while (col < colEnds.length && colEnds[col] > data[i].start) col++
+      cols.set(i, col)
+      colEnds[col] = data[i].end
+    }
+    const total = colEnds.length
+    for (const i of cluster) {
+      out.set(data[i].id, { col: cols.get(i), totalCols: total })
+    }
+  }
+  return out
+}
+
 function TurnosHoyPanel({ turnos, onClickTurno }) {
   const hoy = new Date()
   return (
@@ -4991,6 +5073,18 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
 
+  // Grilla 24h scrolleable. Mobile y desktop tienen distinto alto por hora pero mismo rango.
+  const HORA_INICIO_GRILLA = 0
+  const HORA_FIN_GRILLA    = 24
+  const ALTO_HORA_MOBILE   = 64
+  const ALTO_HORA_DESKTOP  = 80
+
+  // Ref al contenedor scrolleable de la grilla — usado para centrar la línea "ahora" al abrir.
+  const scrollGridRef = useRef(null)
+
+  // Centra la grilla en la hora actual al terminar de cargar, cambiar de día o cambiar de modo.
+  // Deps explícitas para NO re-scrollear cada vez que se actualiza `ahora`.
+
   const [modoVista,       setModoVista]       = useState(() => {
     const m = localStorage.getItem('turnos-modo')
     return ['dia', 'semana', 'mes'].includes(m) ? m : 'semana'
@@ -5016,6 +5110,18 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
   const [pacientes,       setPacientes]       = useState([])
   const [consultorios,    setConsultorios]    = useState([])
   const [usarPacienteLib, setUsarPacienteLib] = useState(false)
+
+  // Centra la grilla en la hora actual al terminar de cargar, al cambiar de día o cambiar de modo.
+  useEffect(() => {
+    if (cargando) return
+    const el = scrollGridRef.current
+    if (!el) return
+    const now = new Date()
+    const horaActual = now.getHours() + now.getMinutes() / 60
+    const alto = isMobile ? ALTO_HORA_MOBILE : ALTO_HORA_DESKTOP
+    const top  = (horaActual - HORA_INICIO_GRILLA) * alto
+    el.scrollTop = Math.max(0, top - el.clientHeight / 2)
+  }, [cargando, isMobile, modoVista, rangoInicio.getTime()])
 
   const rangoFin = addDays(rangoInicio, cantDiasRango - 1)
 
@@ -5210,7 +5316,7 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
     const diaActual = diasRango[0]
     const esHoyDiaActual = diaActual.getFullYear() === hoy.getFullYear() && diaActual.getMonth() === hoy.getMonth() && diaActual.getDate() === hoy.getDate()
     const fmtFechaDia = diaActual.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
-    const HORA_INICIO_M = 7, HORA_FIN_M = 21, ALTO_HORA_M = 64
+    const HORA_INICIO_M = HORA_INICIO_GRILLA, HORA_FIN_M = HORA_FIN_GRILLA, ALTO_HORA_M = ALTO_HORA_MOBILE
     const horasM = Array.from({ length: HORA_FIN_M - HORA_INICIO_M }, (_, i) => HORA_INICIO_M + i)
     const nowTopM = esHoyDiaActual ? (ahora.getHours() - HORA_INICIO_M + ahora.getMinutes() / 60) * ALTO_HORA_M : null
     const mostrarLineaAhoraM = esHoyDiaActual && nowTopM != null && nowTopM >= 0 && nowTopM <= (HORA_FIN_M - HORA_INICIO_M) * ALTO_HORA_M
@@ -5262,7 +5368,7 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
         {cargando ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
         ) : (
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div ref={scrollGridRef} style={{ flex: 1, overflowY: 'auto' }}>
             <div style={{ display: 'flex', height: (HORA_FIN_M - HORA_INICIO_M) * ALTO_HORA_M, paddingBottom: 80 }}>
               {/* eje horas */}
               <div style={{ width: 48, flexShrink: 0 }}>
@@ -5287,21 +5393,28 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
                   </div>
                 )}
                 {/* turnos */}
-                {turnosDelDiaActual.map(t => {
-                  const d = new Date(t.fechaHora)
-                  const top = (d.getHours() - HORA_INICIO_M + d.getMinutes() / 60) * ALTO_HORA_M
-                  const realHeight = (t.duracionMinutos / 60) * ALTO_HORA_M
-                  const height = Math.max(realHeight, 46)
-                  const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
-                  return (
-                    <div key={t.id}
-                      onClick={e => { e.stopPropagation(); abrirEditar(t) }}
-                      style={{ position: 'absolute', top, left: 6, right: 6, height, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', overflow: 'hidden', zIndex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1, boxSizing: 'border-box' }}>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: col.text, fontFamily: T.font, lineHeight: 1.2 }}>{formatHora(t.fechaHora)}</span>
-                      <span style={{ fontSize: 12, color: col.text, fontFamily: T.font, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombrePaciente(t)}</span>
-                    </div>
-                  )
-                })}
+                {(() => {
+                  const layoutM = calcularColumnasTurnos(turnosDelDiaActual)
+                  return turnosDelDiaActual.map(t => {
+                    const d = new Date(t.fechaHora)
+                    const top = (d.getHours() - HORA_INICIO_M + d.getMinutes() / 60) * ALTO_HORA_M
+                    const realHeight = (t.duracionMinutos / 60) * ALTO_HORA_M
+                    const height = Math.max(realHeight, 16)
+                    const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
+                    const info = layoutM.get(t.id) ?? { col: 0, totalCols: 1 }
+                    const positioning = info.totalCols === 1
+                      ? { left: 6, right: 6 }
+                      : { left: `calc(${info.col * (100 / info.totalCols)}% + 4px)`, width: `calc(${100 / info.totalCols}% - 6px)` }
+                    return (
+                      <div key={t.id}
+                        onClick={e => { e.stopPropagation(); abrirEditar(t) }}
+                        style={{ position: 'absolute', top, height, ...positioning, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 6, padding: '2px 8px', cursor: 'pointer', overflow: 'hidden', zIndex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, boxSizing: 'border-box' }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: col.text, fontFamily: T.font, lineHeight: 1.1, flexShrink: 0 }}>{formatHora(t.fechaHora)}</span>
+                        <span style={{ fontSize: 11, color: col.text, fontFamily: T.font, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{nombrePaciente(t)}</span>
+                      </div>
+                    )
+                  })
+                })()}
               </div>
             </div>
           </div>
@@ -5446,7 +5559,7 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
 
       {/* calendar grid (día / semana) */}
       {modoVista !== 'mes' && (() => {
-        const HORA_INICIO = 7, HORA_FIN = 21, ALTO_HORA = 80
+        const HORA_INICIO = HORA_INICIO_GRILLA, HORA_FIN = HORA_FIN_GRILLA, ALTO_HORA = ALTO_HORA_DESKTOP
         const horas = Array.from({ length: HORA_FIN - HORA_INICIO }, (_, i) => HORA_INICIO + i)
         return (
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -5472,7 +5585,7 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
             {cargando ? (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
             ) : (
-              <div style={{ flex: 1, overflowY: 'auto' }}>
+              <div ref={scrollGridRef} style={{ flex: 1, overflowY: 'auto' }}>
                 <div style={{ display: 'flex', height: (HORA_FIN - HORA_INICIO) * ALTO_HORA }}>
 
                   {/* time axis */}
@@ -5507,20 +5620,28 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
                         </div>
                       )}
                       {/* appointments */}
-                      {turnosDelDia(dia).map(t => {
-                        const d = new Date(t.fechaHora)
-                        const top = (d.getHours() - HORA_INICIO + d.getMinutes() / 60) * ALTO_HORA
-                        const height = Math.max((t.duracionMinutos / 60) * ALTO_HORA, 22)
-                        const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
-                        return (
-                          <div key={t.id}
-                            onClick={e => { e.stopPropagation(); abrirEditar(t) }}
-                            style={{ position: 'absolute', top, left: 4, right: 4, height, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 4, padding: '3px 6px', cursor: 'pointer', overflow: 'hidden', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 1, boxSizing: 'border-box' }}>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: col.text, fontFamily: T.font }}>{formatHora(t.fechaHora)}</span>
-                            <span style={{ fontSize: 11, color: col.text, fontFamily: T.font, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombrePaciente(t)}</span>
-                          </div>
-                        )
-                      })}
+                      {(() => {
+                        const turnosDia = turnosDelDia(dia)
+                        const layout = calcularColumnasTurnos(turnosDia)
+                        return turnosDia.map(t => {
+                          const d = new Date(t.fechaHora)
+                          const top = (d.getHours() - HORA_INICIO + d.getMinutes() / 60) * ALTO_HORA
+                          const height = Math.max((t.duracionMinutos / 60) * ALTO_HORA, 16)
+                          const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
+                          const info = layout.get(t.id) ?? { col: 0, totalCols: 1 }
+                          const positioning = info.totalCols === 1
+                            ? { left: 4, right: 4 }
+                            : { left: `calc(${info.col * (100 / info.totalCols)}% + 2px)`, width: `calc(${100 / info.totalCols}% - 4px)` }
+                          return (
+                            <div key={t.id}
+                              onClick={e => { e.stopPropagation(); abrirEditar(t) }}
+                              style={{ position: 'absolute', top, height, ...positioning, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 4, padding: '2px 6px', cursor: 'pointer', overflow: 'hidden', zIndex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, boxSizing: 'border-box' }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: col.text, fontFamily: T.font, lineHeight: 1.1, flexShrink: 0 }}>{formatHora(t.fechaHora)}</span>
+                              <span style={{ fontSize: 11, color: col.text, fontFamily: T.font, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{nombrePaciente(t)}</span>
+                            </div>
+                          )
+                        })
+                      })()}
                     </div>
                     )
                   })}
