@@ -469,7 +469,7 @@ function MainLayout({ token, usuario, onLogout }) {
           {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
           {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} fechaInicial={turnosFechaInicial} />}
           {vista === 'estudios'       && (isMobile ? <VistaDesktopOnly titulo="Estudios" onVolver={() => setVista('dashboard')} /> : <VistaEstudios apiFetch={apiFetch} />)}
-          {vista === 'consultas'      && (isMobile ? <VistaDesktopOnly titulo="Consultas" onVolver={() => setVista('dashboard')} /> : <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} onVolverAFinanzas={consultasFiltroInicial ? () => { setConsultasFiltroInicial(false); setVista('finanzas') } : undefined} />)}
+          {vista === 'consultas'      && ((isMobile && !consultasFiltroInicial) ? <VistaDesktopOnly titulo="Consultas" onVolver={() => setVista('dashboard')} /> : <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} onVolverAFinanzas={consultasFiltroInicial ? () => { setConsultasFiltroInicial(false); setVista('finanzas') } : undefined} />)}
           {vista === 'finanzas'       && <VistaFinanzas apiFetch={apiFetch} mesInicial={finanzasMesInicial} onIrAConsultas={(año, mes) => { setFinanzasMesInicial({ año, mes }); setConsultasFiltroInicial(true); setVista('consultas') }} />}
           {vista === 'obras-sociales' && <VistaObrasSociales apiFetch={apiFetch} />}
           {vista === 'consultorios'   && <VistaConsultorios apiFetch={apiFetch} />}
@@ -2264,8 +2264,8 @@ function PieChart({ items }) {
   })
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', gap: 16 }}>
-      <svg width={160} height={160} viewBox="0 0 140 140" style={{ flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', gap: 14, width: '100%', minWidth: 0, boxSizing: 'border-box' }}>
+      <svg width={120} height={120} viewBox="0 0 140 140" style={{ flexShrink: 0 }}>
         {slices.length === 1
           ? <>
               <circle cx={cx} cy={cy} r={R} fill={slices[0].color} />
@@ -2284,10 +2284,10 @@ function PieChart({ items }) {
       </svg>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
         {slices.map((s, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
             <div style={{ width: 9, height: 9, borderRadius: 2, background: s.color, flexShrink: 0 }} />
-            <span style={{ fontFamily: T.font, fontSize: 14, color: T.black, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
-            <span style={{ fontFamily: T.font, fontSize: 14, fontWeight: 600, color: T.black, flexShrink: 0 }}>{fmtPesos(s.data.total)}</span>
+            <span style={{ fontFamily: T.font, fontSize: 13, color: T.black, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{s.label}</span>
+            <span style={{ fontFamily: T.font, fontSize: 12, fontWeight: 600, color: T.black, flexShrink: 0 }}>{fmtPesos(s.data.total)}</span>
           </div>
         ))}
       </div>
@@ -3555,6 +3555,7 @@ const COLS_CO = [
 ]
 
 function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteInicial = false, onVolverAFinanzas }) {
+  const isMobile = useIsMobile()
   const [items,          setItems]          = useState([])
   const [meta,           setMeta]           = useState(null)
   const [cargando,       setCargando]       = useState(true)
@@ -3664,11 +3665,11 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
         {!onVolverAFinanzas && <Btn onClick={abrirNuevaConsulta}>Iniciar consulta</Btn>}
       </PageBar>
 
-      <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 16px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
         <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
 
-          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360, borderRadius: 6, background: T.gray2 }}>
+          <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexShrink: 0, flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: isMobile ? 'none' : 360, borderRadius: 6, background: T.gray2 }}>
               <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
               <input
                 value={buscar} onChange={e => setBuscar(e.target.value)}
@@ -3676,19 +3677,19 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
                 style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }}
               />
             </div>
-            <ViewToggle vista={vistaMode} onToggle={toggleVista} />
-            <div style={{ flex: 1 }} />
-            {meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} consultas</span>}
+            {!isMobile && <ViewToggle vista={vistaMode} onToggle={toggleVista} />}
+            {!isMobile && <div style={{ flex: 1 }} />}
+            {!isMobile && meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} consultas</span>}
             {pendientesCount > 0 && (
               <button onClick={() => setSoloPendientes(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 6, border: soloPendientes ? '1px solid #f59e0b' : `1px solid ${T.gray1}`, background: soloPendientes ? '#fffbeb' : T.white, cursor: 'pointer', fontFamily: T.font, fontSize: 12, fontWeight: soloPendientes ? 600 : 400, color: soloPendientes ? '#92400e' : T.gray4, transition: 'all 0.15s' }}>
-                Cobros pendientes
+                {isMobile ? 'Pendientes' : 'Cobros pendientes'}
                 <span style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a', borderRadius: 20, padding: '1px 6px' }}>{pendientesCount}</span>
               </button>
             )}
           </div>
 
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {vistaMode === 'list' ? (
+            {!isMobile && vistaMode === 'list' ? (
               <>
                 <TableHead cols={COLS_CO} gap={16} extraCol={false} />
                 <EmptyOrError cargando={cargando} error={error} empty={filtradas.length === 0} msg={buscar ? 'Sin resultados' : 'No hay consultas registradas'} />
@@ -3702,9 +3703,9 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
               ) : filtradas.length === 0 ? (
                 <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{buscar ? 'Sin resultados' : 'No hay consultas registradas'}</div>
               ) : (
-                <div style={{ padding: '20px 24px', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start' }}>
+                <div style={{ padding: isMobile ? '12px 14px' : '20px 24px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, 240px)', gap: 10, alignContent: 'flex-start' }}>
                   {filtradas.map(a => (
-                    <ConsultaCard key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} onEditar={() => abrirEditar(a)} />
+                    <ConsultaCard key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} onEditar={() => abrirEditar(a)} fullWidth={isMobile} />
                   ))}
                 </div>
               )
@@ -3792,7 +3793,7 @@ function ConsultaFila({ a, fmtMonto, fmtTipo, onEditar }) {
   )
 }
 
-function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar }) {
+function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar, fullWidth = false }) {
   const [hov, setHov] = useState(false)
   const pendiente = a.estadoIngreso === 'PENDIENTE' || a.monto == null
   const tieneDesglose = a.montoTotal != null && a.porcentajeProfesional != null && a.porcentajeProfesional !== 100
@@ -3800,7 +3801,7 @@ function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar }) {
     <div
       onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ width: 240, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: pendiente ? '3px solid #f59e0b' : hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer' }}
+      style={{ width: fullWidth ? '100%' : 240, boxSizing: 'border-box', border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: pendiente ? '3px solid #f59e0b' : hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer' }}
     >
       <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', color: T.black, fontFamily: T.font, lineHeight: 1.3 }}>
         {a.pacienteApellido}, {a.pacienteNombre}
@@ -4853,16 +4854,21 @@ function Odontograma({ apiFetch, pacienteId }) {
 
       {guardando && <span style={{ position: 'absolute', top: 0, right: 0, fontSize: 10, color: T.gray5, fontFamily: T.font, letterSpacing: '0.08em' }}>Guardando…</span>}
 
-      <div style={{ display: 'flex', gap: TG * 4, justifyContent: 'center', marginBottom: ML }}>
-        {filaDientes(Q1, false)}
-        <div style={{ width: 1, background: T.gray1, alignSelf: 'stretch', margin: `0 ${TG * 2}px` }} />
-        {filaDientes(Q2, false)}
-      </div>
+      {/* Scroll horizontal cuando el odontograma no entra en la pantalla — keeps el contenido completo accesible */}
+      <div style={{ overflowX: 'auto', overflowY: 'visible', margin: '0 -16px', padding: '0 16px' }}>
+        <div style={{ minWidth: 'max-content', margin: '0 auto', width: 'fit-content' }}>
+          <div style={{ display: 'flex', gap: TG * 4, marginBottom: ML }}>
+            {filaDientes(Q1, false)}
+            <div style={{ width: 1, background: T.gray1, alignSelf: 'stretch', margin: `0 ${TG * 2}px` }} />
+            {filaDientes(Q2, false)}
+          </div>
 
-      <div style={{ display: 'flex', gap: TG * 4, justifyContent: 'center' }}>
-        {filaDientes(Q4, true)}
-        <div style={{ width: 1, background: T.gray1, alignSelf: 'stretch', margin: `0 ${TG * 2}px` }} />
-        {filaDientes(Q3, true)}
+          <div style={{ display: 'flex', gap: TG * 4 }}>
+            {filaDientes(Q4, true)}
+            <div style={{ width: 1, background: T.gray1, alignSelf: 'stretch', margin: `0 ${TG * 2}px` }} />
+            {filaDientes(Q3, true)}
+          </div>
+        </div>
       </div>
 
       <div style={{ marginTop: 20, display: 'flex', gap: 20, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -6002,9 +6008,9 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, mesInicial }) {
             <PageTitle>Movimientos · {MESES_LABEL[mes - 1]} {año}</PageTitle>
           </div>
         </PageBar>
-        <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 16px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-            <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
+            <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360, borderRadius: 6, background: T.gray2 }}>
                   <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
@@ -6031,7 +6037,7 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, mesInicial }) {
               </div>
             </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
-              <TableHead cols={[{ label: 'Tipo', w: '90px' }, { label: 'Descripción', w: '1fr' }, { label: 'Fecha', w: '90px' }, { label: 'Monto', w: '110px' }, { label: '', w: '40px' }]} extraCol={false} gap={16} />
+              {!isMobile && <TableHead cols={[{ label: 'Descripción', w: '1fr' }, { label: 'Fecha', w: '110px' }, { label: 'Monto', w: '140px', align: 'right' }, { label: '', w: '40px' }]} extraCol={false} gap={16} />}
               <EmptyOrError cargando={cargandoMovs} error={null} empty={!cargandoMovs && movs.length === 0} msg={buscarMov ? 'Sin resultados' : 'Sin movimientos'} />
               {movs.map((m, idx) => {
                 const esIngreso = m.tipo === 'ingreso'
@@ -6040,27 +6046,31 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, mesInicial }) {
                 const fechaFmt = m.fecha ? `${d}/${mo}/${y}` : '—'
                 const borderLeft = pendiente ? '3px solid #f59e0b' : esIngreso ? 'none' : '3px solid #9b1c1c'
                 const eliminable = m.id != null && m.origen !== 'consulta'
+                // Color del monto: verde para ingreso, naranja para pendiente, rojo para egreso.
+                const montoColor = esIngreso ? '#16a34a' : pendiente ? '#92400e' : '#9b1c1c'
+                const signo      = esIngreso || pendiente ? '+' : '−'
                 return (
-                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 90px 110px 40px', columnGap: 16, padding: '0 24px', minHeight: 50, borderBottom: `1px solid ${T.gray1}`, alignItems: 'center', borderLeft }}>
-                    <span style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', background: T.gray2, color: T.gray4, padding: '3px 8px', borderRadius: 20, display: 'inline-block', whiteSpace: 'nowrap', justifySelf: 'start' }}>
-                      {pendiente ? 'Pendiente' : esIngreso ? 'Ingreso' : 'Egreso'}
-                    </span>
-                    <span style={{ fontFamily: T.font, fontSize: 12, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.descripcion}</span>
-                    <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray4 }}>{fechaFmt}</span>
+                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr auto 32px' : '1fr 110px 140px 40px', columnGap: isMobile ? 10 : 16, padding: isMobile ? '0 14px' : '0 24px', minHeight: 52, borderBottom: `1px solid ${T.gray1}`, alignItems: 'center', borderLeft }}>
+                    {/* Col 1: Descripción (en mobile: descripción + fecha apilada abajo) */}
+                    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span style={{ fontFamily: T.font, fontSize: isMobile ? 13 : 12, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isMobile ? 500 : 400 }}>{m.descripcion}</span>
+                      {isMobile && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4 }}>{fechaFmt}</span>}
+                    </div>
+                    {/* Col 2 (desktop): Fecha */}
+                    {!isMobile && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray4 }}>{fechaFmt}</span>}
+                    {/* Col 3: Monto con signo */}
                     {pendiente && m.monto == null
-                      ? <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cobro pendiente</span>
+                      ? <span style={{ fontFamily: T.mono, fontSize: 9, color: '#92400e', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'right' }}>Cobro pendiente</span>
                       : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                          <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 700, color: T.black }}>{esIngreso ? '' : '−'}{fmtPesos(m.monto)}</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
+                          <span style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, color: montoColor, whiteSpace: 'nowrap' }}>{signo}{fmtPesos(m.monto)}</span>
                           {m.montoTotal != null && m.porcentajeProfesional != null && m.porcentajeProfesional !== 100 && (
-                            <span style={{ fontFamily: T.font, fontSize: 10, color: T.gray4, marginTop: 1 }}>Total {fmtPesos(m.montoTotal)} ({m.porcentajeProfesional}%)</span>
-                          )}
-                          {pendiente && (
-                            <span style={{ fontFamily: T.mono, fontSize: 8, color: '#92400e', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 2 }}>Cobro pendiente</span>
+                            <span style={{ fontFamily: T.font, fontSize: 10, color: T.gray4, marginTop: 1, whiteSpace: 'nowrap' }}>Total {fmtPesos(m.montoTotal)} ({m.porcentajeProfesional}%)</span>
                           )}
                         </div>
                       )
                     }
+                    {/* Col 4: Eliminar */}
                     {eliminable ? (
                       <button onClick={() => eliminarMovimiento(m)}
                         title={`Eliminar ${m.origen === 'egreso' ? 'egreso' : 'ingreso'}`}
@@ -6155,28 +6165,28 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, mesInicial }) {
         />
       </div>
 
-      <div style={{ ...(isMobile ? {} : { flex: 1 }), overflow: isMobile ? 'visible' : 'hidden', padding: isMobile ? '0 16px 96px' : '0 24px 24px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, height: isMobile ? 'auto' : '100%' }}>
+      <div style={{ ...(isMobile ? {} : { flex: 1 }), overflow: isMobile ? 'visible' : 'hidden', padding: isMobile ? '0 16px 96px' : '0 24px 24px', minWidth: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12, height: isMobile ? 'auto' : '100%' }}>
 
           {/* ── breakdowns ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflow: isMobile ? 'visible' : 'hidden', order: isMobile ? 2 : 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflow: isMobile ? 'visible' : 'hidden', order: isMobile ? 2 : 1, minWidth: 0 }}>
 
-            <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', ...(isMobile ? {} : { flex: 1 }) }}>
+            <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', minWidth: 0, ...(isMobile ? {} : { flex: 1 }) }}>
               <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
                 <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: T.gray3 }}>Por medio de pago</span>
               </div>
-              <div style={{ ...(isMobile ? {} : { flex: 1 }), display: 'flex', alignItems: 'center' }}>
+              <div style={{ ...(isMobile ? {} : { flex: 1 }), display: 'flex', alignItems: 'center', minWidth: 0, width: '100%' }}>
                 {cargando && <div style={{ padding: '0 20px', fontSize: 11, color: T.gray4, fontFamily: T.font }}>Cargando…</div>}
                 {!cargando && breakdownMp.length === 0 && <EmptyChart />}
                 {!cargando && breakdownMp.length > 0 && <PieChart items={breakdownMp} />}
               </div>
             </div>
 
-            <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', ...(isMobile ? {} : { flex: 1 }) }}>
+            <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', minWidth: 0, ...(isMobile ? {} : { flex: 1 }) }}>
               <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
                 <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: T.gray3 }}>Por tipo de pago</span>
               </div>
-              <div style={{ ...(isMobile ? {} : { flex: 1 }), display: 'flex', alignItems: 'center' }}>
+              <div style={{ ...(isMobile ? {} : { flex: 1 }), display: 'flex', alignItems: 'center', minWidth: 0, width: '100%' }}>
                 {cargando && <div style={{ padding: '0 20px', fontSize: 11, color: T.gray4, fontFamily: T.font }}>Cargando…</div>}
                 {!cargando && breakdownTipo.length === 0 && <EmptyChart />}
                 {!cargando && breakdownTipo.length > 0 && <PieChart items={breakdownTipo} />}
