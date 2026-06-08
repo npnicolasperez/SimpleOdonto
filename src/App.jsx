@@ -364,7 +364,10 @@ const NAV_ITEMS = [
 function MainLayout({ token, usuario, onLogout }) {
   const [vista, setVista] = useState('dashboard')
   const [consultasFiltroInicial, setConsultasFiltroInicial] = useState(false)
+  const [consultaEditarInicial,  setConsultaEditarInicial]  = useState(null) // { consultaId, pacienteId } | null
+  const [volverAFinanzasActivo,  setVolverAFinanzasActivo]  = useState(false) // flag persistente que habilita el back-a-finanzas hasta que se use
   const [finanzasMesInicial,     setFinanzasMesInicial]     = useState(null) // { año, mes } | null
+  const [finanzasSubVistaInicial, setFinanzasSubVistaInicial] = useState(null) // 'dash' | 'movimientos' | null
   const [turnosFechaInicial,     setTurnosFechaInicial]     = useState(null) // Date | null
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -469,8 +472,8 @@ function MainLayout({ token, usuario, onLogout }) {
           {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
           {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} fechaInicial={turnosFechaInicial} />}
           {vista === 'estudios'       && (isMobile ? <VistaDesktopOnly titulo="Estudios" onVolver={() => setVista('dashboard')} /> : <VistaEstudios apiFetch={apiFetch} />)}
-          {vista === 'consultas'      && ((isMobile && !consultasFiltroInicial) ? <VistaDesktopOnly titulo="Consultas" onVolver={() => setVista('dashboard')} /> : <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} onVolverAFinanzas={consultasFiltroInicial ? () => { setConsultasFiltroInicial(false); setVista('finanzas') } : undefined} />)}
-          {vista === 'finanzas'       && <VistaFinanzas apiFetch={apiFetch} mesInicial={finanzasMesInicial} onIrAConsultas={(año, mes) => { setFinanzasMesInicial({ año, mes }); setConsultasFiltroInicial(true); setVista('consultas') }} />}
+          {vista === 'consultas'      && ((isMobile && !consultasFiltroInicial && !volverAFinanzasActivo) ? <VistaDesktopOnly titulo="Consultas" onVolver={() => setVista('dashboard')} /> : <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} consultaEditarInicial={consultaEditarInicial} onConsultaEditarInicialUsada={() => setConsultaEditarInicial(null)} onVolverAFinanzas={(consultasFiltroInicial || volverAFinanzasActivo) ? () => { setConsultasFiltroInicial(false); setConsultaEditarInicial(null); setVolverAFinanzasActivo(false); setVista('finanzas') } : undefined} />)}
+          {vista === 'finanzas'       && <VistaFinanzas apiFetch={apiFetch} mesInicial={finanzasMesInicial} subVistaInicial={finanzasSubVistaInicial} onSubVistaConsumida={() => setFinanzasSubVistaInicial(null)} onIrAConsultas={(año, mes) => { setFinanzasMesInicial({ año, mes }); setConsultasFiltroInicial(true); setVolverAFinanzasActivo(true); setVista('consultas') }} onIrAConsulta={(consultaId, pacienteId) => { setConsultaEditarInicial({ consultaId, pacienteId }); setFinanzasSubVistaInicial('movimientos'); setVolverAFinanzasActivo(true); setVista('consultas') }} />}
           {vista === 'obras-sociales' && <VistaObrasSociales apiFetch={apiFetch} />}
           {vista === 'consultorios'   && <VistaConsultorios apiFetch={apiFetch} />}
           {vista === 'medios-pago'    && <VistaMediosPago apiFetch={apiFetch} />}
@@ -1817,17 +1820,17 @@ function NombreCard({ item, onEliminar }) {
   const [hov, setHov] = useState(false)
   return (
     <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ width: 180, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, position: 'relative', transition: 'border-color 0.15s, box-shadow 0.15s', minHeight: 64, borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
+      style={{ width: '100%', boxSizing: 'border-box', borderTop: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderRight: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderBottom: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, position: 'relative', transition: 'border-color 0.15s, box-shadow 0.15s', minHeight: 56, borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
     >
-      <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '-0.01em', color: T.black, lineHeight: 1.4, fontFamily: T.font }}>
+      <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: T.black, lineHeight: 1.3, fontFamily: T.font, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {item.nombre}
       </div>
       <button onClick={onEliminar}
-        style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: T.gray5, padding: 0, display: 'flex', transition: 'color 0.15s' }}
+        style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: T.gray5, padding: 4, display: 'flex', transition: 'color 0.15s' }}
         onMouseEnter={e => e.currentTarget.style.color = T.red}
         onMouseLeave={e => e.currentTarget.style.color = T.gray5}
       >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
       </button>
     </div>
   )
@@ -1844,9 +1847,6 @@ function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, addLabel, msg
   const [formErr,   setFormErr]   = useState(null)
   const [buscar,    setBuscar]    = useState('')
   const { openConfirm, dialog }   = useConfirm()
-  const [vistaMode, setVistaMode] = useState(() => localStorage.getItem(storageKey) ?? 'list')
-
-  function toggleVista(v) { setVistaMode(v); localStorage.setItem(storageKey, v) }
 
   const cargar = useCallback(async () => {
     setCargando(true); setError(null)
@@ -1888,7 +1888,6 @@ function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, addLabel, msg
     : items
 
   const msgEmpty = buscar.trim() ? 'Sin resultados' : msgVacio
-  const vistaEfectiva = isMobile ? 'list' : vistaMode
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
@@ -1898,38 +1897,27 @@ function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, addLabel, msg
       </PageBar>
 
       <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 96px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
 
-          <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: isMobile ? 'none' : 320, borderRadius: 6, background: T.gray2 }}>
-              <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
-              <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder={`Buscar…`}
-                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }} />
-            </div>
-            {!isMobile && <ViewToggle vista={vistaMode} onToggle={toggleVista} />}
+        <div style={{ padding: '4px 0 12px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 36, paddingLeft: 12, flex: 1, maxWidth: isMobile ? 'none' : 360, borderRadius: 8, background: T.white }}>
+            <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
+            <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar…"
+              style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }} />
           </div>
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {vistaEfectiva === 'list' ? (
-              <>
-                {!isMobile && <TableHead cols={[{ label: 'Nombre', w: '1fr' }]} />}
-                <EmptyOrError cargando={cargando} error={error} empty={filtrados.length === 0} msg={msgEmpty} />
-                {filtrados.map(item => (
-                  <FilaSimple key={item.id} cols={[item.nombre]} gridCols="1fr" onEliminar={() => handleEliminar(item.id)} compact={isMobile} />
-                ))}
-              </>
-            ) : (
-              cargando
-                ? <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
-                : filtrados.length === 0
-                  ? <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{msgEmpty}</div>
-                  : <div style={{ padding: '20px 24px', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start' }}>
-                      {filtrados.map(item => <NombreCard key={item.id} item={item} onEliminar={() => handleEliminar(item.id)} />)}
-                    </div>
-            )}
-          </div>
-
         </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {cargando ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+          ) : filtrados.length === 0 ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{msgEmpty}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {filtrados.map(item => <NombreCard key={item.id} item={item} onEliminar={() => handleEliminar(item.id)} />)}
+            </div>
+          )}
+        </div>
+
       </div>
 
       <SidePanel open={panelOpen} onClose={cerrarPanel} title={panelTitulo} width={380}
@@ -2307,9 +2295,6 @@ function ListaPacientes({ apiFetch, onDetalle, onNuevo }) {
 
   function toggleVista(v) { setVista(v); localStorage.setItem('pacientes-vista', v) }
 
-  // En mobile forzamos vista lista (las cards quedan muy apretadas en pantallas chicas).
-  const vistaEfectiva = isMobile ? 'list' : vista
-
   const cargar = useCallback(async (q, page = 0) => {
     if (page === 0) { setCargando(true); setError(null) }
     else setCargandoMas(true)
@@ -2342,45 +2327,37 @@ function ListaPacientes({ apiFetch, onDetalle, onNuevo }) {
       </PageBar>
 
       <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 96px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
 
-          <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: isMobile ? 'none' : 360, borderRadius: 6, background: T.gray2 }}>
-              <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
-              <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar por nombre o DNI…"
-                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.02em', width: '100%' }} />
-            </div>
-            {!isMobile && meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} pacientes</span>}
-            {!isMobile && <ViewToggle vista={vista} onToggle={toggleVista} />}
+        <div style={{ padding: '4px 0 12px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 36, paddingLeft: 12, flex: 1, maxWidth: isMobile ? 'none' : 360, borderRadius: 8, background: T.white }}>
+            <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
+            <input value={buscar} onChange={e => setBuscar(e.target.value)} placeholder="Buscar por nombre o DNI…"
+              style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily: T.font, color: T.black, letterSpacing: '0.02em', width: '100%' }} />
           </div>
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {vistaEfectiva === 'list' ? (
-              <>
-                {!isMobile && <TableHead cols={COLS_PAC} />}
-                <EmptyOrError cargando={cargando} error={error} empty={!cargando && !error && pacientes.length === 0} msg={msgVacio} />
-                {pacientes.map(p => <FilaPaciente key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar, 0)} apiFetch={apiFetch} compact={isMobile} />)}
-              </>
-            ) : (
-              cargando ? (
-                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
-              ) : pacientes.length === 0 ? (
-                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{msgVacio}</div>
-              ) : (
-                <div style={{ padding: '20px', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start' }}>
-                  {pacientes.map(p => <PacienteCard key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar, 0)} apiFetch={apiFetch} />)}
-                </div>
-              )
-            )}
-            {!cargando && !error && !meta?.last && pacientes.length > 0 && (
-              <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'center', borderTop: `1px solid ${T.gray1}` }}>
-                <Btn variant="outline" onClick={() => cargar(buscar, (meta?.number ?? 0) + 1)} disabled={cargandoMas}>
-                  {cargandoMas ? 'Cargando…' : `Cargar más`}
-                </Btn>
-              </div>
-            )}
-          </div>
+          {!isMobile && meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} pacientes</span>}
         </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {cargando ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+          ) : error ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, color: T.red, fontFamily: T.font }}>{error}</div>
+          ) : pacientes.length === 0 ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{msgVacio}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {pacientes.map(p => <PacienteCard key={p.id} paciente={p} onClick={() => onDetalle(p.id)} onEliminar={() => cargar(buscar, 0)} apiFetch={apiFetch} />)}
+            </div>
+          )}
+          {!cargando && !error && !meta?.last && pacientes.length > 0 && (
+            <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
+              <Btn variant="outline" onClick={() => cargar(buscar, (meta?.number ?? 0) + 1)} disabled={cargandoMas}>
+                {cargandoMas ? 'Cargando…' : `Cargar más`}
+              </Btn>
+            </div>
+          )}
+        </div>
+
       </div>
 
       {isMobile && (
@@ -2409,20 +2386,24 @@ function PacienteCard({ paciente: p, onClick, onEliminar, apiFetch }) {
       onClick={onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
-      style={{ width: 200, border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, background: T.white, padding: 12, display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', transition: 'border-color 0.15s, box-shadow 0.15s', cursor: 'pointer', minHeight: 100, borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
+      style={{ width: '100%', boxSizing: 'border-box', borderTop: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderRight: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderBottom: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', transition: 'border-color 0.15s, box-shadow 0.15s', cursor: 'pointer', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)' }}
     >
       <button
         onClick={handleEliminar}
-        style={{ position: 'absolute', top: 6, right: 8, background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: T.gray5, lineHeight: 1, padding: 0, transition: 'color 0.15s', zIndex: 1 }}
-        onMouseEnter={e => { e.stopPropagation(); e.currentTarget.style.color = T.black }}
+        style={{ position: 'absolute', top: 10, right: 10, background: 'none', border: 'none', cursor: 'pointer', color: T.gray5, padding: 4, display: 'flex', transition: 'color 0.15s', zIndex: 1 }}
+        onMouseEnter={e => { e.stopPropagation(); e.currentTarget.style.color = T.red }}
         onMouseLeave={e => e.currentTarget.style.color = T.gray5}
-      >×</button>
-      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.black, paddingRight: 18, lineHeight: 1.4, fontFamily: T.font }}>
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+      </button>
+      <div style={{ fontSize: 14, fontWeight: 700, color: T.black, paddingRight: 28, lineHeight: 1.3, fontFamily: T.font, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {p.apellido}, {p.nombre}
       </div>
-      {p.dni && <div style={{ fontSize: 11, color: T.gray4, fontFamily: T.font }}>DNI {p.dni}</div>}
-      {p.telefono && <div style={{ fontSize: 11, color: T.gray4, fontFamily: T.font }}>{p.telefono}</div>}
-      {p.obraSocialNombre && <div style={{ fontSize: 10, color: T.gray3, fontFamily: T.font, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{p.obraSocialNombre}</div>}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: 12, color: T.gray4, fontFamily: T.font }}>
+        {p.dni && <span>DNI {p.dni}</span>}
+        {p.telefono && <span>{p.telefono}</span>}
+      </div>
+      {p.obraSocialNombre && <div style={{ fontSize: 10, color: T.gray3, fontFamily: T.mono, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>{p.obraSocialNombre}</div>}
     </div>
     {dialog}
     </>
@@ -2618,9 +2599,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {tab === 'historia' && (
             <div style={{ padding: '16px', paddingBottom: 96 }}>
-              <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, overflow: 'hidden' }}>
-                <HistoriaClinica consultas={consultas} cargando={cargandoCO} apiFetch={apiFetch} onRefresh={cargarConsultas} onEditarConsulta={onEditarConsulta} />
-              </div>
+              <HistoriaClinica consultas={consultas} cargando={cargandoCO} apiFetch={apiFetch} onRefresh={cargarConsultas} onEditarConsulta={onEditarConsulta} />
             </div>
           )}
           {tab === 'odontograma' && (
@@ -2629,15 +2608,17 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
             </div>
           )}
           {tab === 'estudios' && (
-            <div style={{ padding: '8px 16px', paddingBottom: 96 }}>
+            <div style={{ padding: '16px', paddingBottom: 96 }}>
               {cargandoAnal ? (
                 <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font, display: 'block', padding: 16 }}>Cargando…</span>
               ) : estudiosList.length === 0 ? (
                 <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font, letterSpacing: '0.04em', display: 'block', padding: 16 }}>Sin estudios registrados</span>
               ) : (
-                estudiosList.map(a => (
-                  <EstudioFilaPaciente key={a.id} a={a} onAbrir={() => onAbrirEstudio(a.id)} onEliminar={() => handleEliminarEstudio(a.id)} />
-                ))
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {estudiosList.map(a => (
+                    <EstudioCard key={a.id} a={a} onAbrir={() => onAbrirEstudio(a.id)} onEliminar={() => handleEliminarEstudio(a.id)} />
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -2822,9 +2803,11 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
                   ) : estudiosList.length === 0 ? (
                     <span style={{ fontSize: 11, color: T.gray5, fontFamily: T.font, letterSpacing: '0.04em' }}>Sin estudios registrados</span>
                   ) : (
-                    estudiosList.map(a => (
-                      <EstudioFilaPaciente key={a.id} a={a} onAbrir={() => onAbrirEstudio(a.id)} onEliminar={() => handleEliminarEstudio(a.id)} />
-                    ))
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {estudiosList.map(a => (
+                        <EstudioCard key={a.id} a={a} onAbrir={() => onAbrirEstudio(a.id)} onEliminar={() => handleEliminarEstudio(a.id)} />
+                      ))}
+                    </div>
                   )}
                 </div>
               )}
@@ -3210,7 +3193,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 </select>
               </div>
               {cobrarDespues && (
-                <div style={{ fontSize: 11, fontFamily: T.font, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
+                <div style={{ fontSize: 11, fontFamily: T.font, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
                   El ingreso queda como <strong>pendiente</strong>. Podés cargar el monto ahora (queda registrado pero igual pendiente hasta que cobres) o dejarlo vacío y completarlo cuando se efectúe el cobro.
                 </div>
               )}
@@ -3301,10 +3284,14 @@ function HistoriaClinica({ consultas, cargando, apiFetch, onRefresh, onEditarCon
   if (consultas.length === 0) return (
     <div style={{ padding: '20px 0', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Sin consultas registradas</div>
   )
+
+  // Cards estilo "cobros pendientes" — fullWidth, sin nombre del paciente (redundante en detalle de paciente).
+  const fmtMonto = m => m != null ? `$${Number(m).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
+  const fmtTipo  = t => TIPO_PAGO[t] ?? t
   return (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {consultas.map((a, i) => (
-        <ConsultaHCItem key={a.id} a={a} last={i === consultas.length - 1} apiFetch={apiFetch} onEditar={() => onEditarConsulta?.(a)} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 16 }}>
+      {consultas.map(a => (
+        <ConsultaCard key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} onEditar={() => onEditarConsulta?.(a)} fullWidth hidePaciente />
       ))}
     </div>
   )
@@ -3341,7 +3328,7 @@ function ConsultaHCItem({ a, last, apiFetch, onEditar }) {
           </div>
         )}
         {pendiente && (
-          <div style={{ marginTop: 4, fontSize: 9, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#92400e' }}>Pendiente de cobro</div>
+          <div style={{ marginTop: 4, fontSize: 9, fontFamily: T.mono, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#b45309' }}>Pendiente de cobro</div>
         )}
       </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -3554,7 +3541,7 @@ const COLS_CO = [
   { label: 'Fecha',       w: '1fr' },
 ]
 
-function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteInicial = false, onVolverAFinanzas }) {
+function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteInicial = false, onVolverAFinanzas, consultaEditarInicial = null, onConsultaEditarInicialUsada }) {
   const isMobile = useIsMobile()
   const [items,          setItems]          = useState([])
   const [meta,           setMeta]           = useState(null)
@@ -3616,7 +3603,16 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
     setSub('nueva-consulta')
   }
 
+  // Marca si la sesión actual de edición vino directamente desde Finanzas (movimientos pendientes)
+  // → el back del form va directo a Finanzas en vez de a la lista de consultas.
+  const desdeFinanzasRef = useRef(false)
+
   function volverALista() {
+    if (desdeFinanzasRef.current && onVolverAFinanzas) {
+      desdeFinanzasRef.current = false
+      onVolverAFinanzas()
+      return
+    }
     setSub('lista')
     setPacienteSelecId(null)
     setConsultaEditar(null)
@@ -3624,10 +3620,35 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
   }
 
   function abrirEditar(a) {
+    // Edición disparada desde la lista normal — limpiamos cualquier rastro de origen "finanzas".
+    desdeFinanzasRef.current = false
     setConsultaEditar(a)
     setPacienteSelecId(a.pacienteId)
     setSub('nueva-consulta')
   }
+
+  // Si llegamos desde Finanzas con una consulta puntual para abrir, fetcheamos los datos y la abrimos
+  // saltándonos la lista. El back nos va a llevar de regreso a Finanzas (no a la lista de consultas).
+  // El clear del parent state se hace DESPUÉS de abrir la consulta para evitar race conditions con
+  // el gate mobile/desktop en MainLayout.
+  useEffect(() => {
+    if (!consultaEditarInicial?.consultaId) return
+    const id = consultaEditarInicial.consultaId
+    let cancelled = false
+    apiFetch(`/consultas/${id}`).then(async res => {
+      if (cancelled) return
+      if (res?.ok) {
+        const consulta = await res.json()
+        setConsultaEditar(consulta)
+        setPacienteSelecId(consulta.pacienteId)
+        setSub('nueva-consulta')
+        desdeFinanzasRef.current = true // sólo este flujo marca el origen
+      }
+      onConsultaEditarInicialUsada?.()
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [consultaEditarInicial?.consultaId])
 
   if (sub === 'nueva-consulta') {
     return <VistaNuevaConsulta apiFetch={apiFetch} pacienteId={pacienteSelecId} onVolver={volverALista} usuario={usuario} consulta={consultaEditar} />
@@ -3666,60 +3687,48 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
       </PageBar>
 
       <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 16px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
 
-          <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexShrink: 0, flexWrap: 'wrap' }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: isMobile ? 'none' : 360, borderRadius: 6, background: T.gray2 }}>
-              <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
-              <input
-                value={buscar} onChange={e => setBuscar(e.target.value)}
-                placeholder="Buscar por paciente o práctica…"
-                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }}
-              />
-            </div>
-            {!isMobile && <ViewToggle vista={vistaMode} onToggle={toggleVista} />}
-            {!isMobile && <div style={{ flex: 1 }} />}
-            {!isMobile && meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} consultas</span>}
-            {pendientesCount > 0 && (
-              <button onClick={() => setSoloPendientes(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 6, border: soloPendientes ? '1px solid #f59e0b' : `1px solid ${T.gray1}`, background: soloPendientes ? '#fffbeb' : T.white, cursor: 'pointer', fontFamily: T.font, fontSize: 12, fontWeight: soloPendientes ? 600 : 400, color: soloPendientes ? '#92400e' : T.gray4, transition: 'all 0.15s' }}>
-                {isMobile ? 'Pendientes' : 'Cobros pendientes'}
-                <span style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, background: '#fef9c3', color: '#92400e', border: '1px solid #fde68a', borderRadius: 20, padding: '1px 6px' }}>{pendientesCount}</span>
-              </button>
-            )}
+        <div style={{ padding: '4px 0 12px', display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexShrink: 0, flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 36, paddingLeft: 12, flex: 1, maxWidth: isMobile ? 'none' : 360, borderRadius: 8, background: T.white }}>
+            <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
+            <input
+              value={buscar} onChange={e => setBuscar(e.target.value)}
+              placeholder="Buscar por paciente o práctica…"
+              style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }}
+            />
           </div>
-
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {!isMobile && vistaMode === 'list' ? (
-              <>
-                <TableHead cols={COLS_CO} gap={16} extraCol={false} />
-                <EmptyOrError cargando={cargando} error={error} empty={filtradas.length === 0} msg={buscar ? 'Sin resultados' : 'No hay consultas registradas'} />
-                {filtradas.map(a => (
-                  <ConsultaFila key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} onEditar={() => abrirEditar(a)} />
-                ))}
-              </>
-            ) : (
-              cargando ? (
-                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
-              ) : filtradas.length === 0 ? (
-                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{buscar ? 'Sin resultados' : 'No hay consultas registradas'}</div>
-              ) : (
-                <div style={{ padding: isMobile ? '12px 14px' : '20px 24px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, 240px)', gap: 10, alignContent: 'flex-start' }}>
-                  {filtradas.map(a => (
-                    <ConsultaCard key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} onEditar={() => abrirEditar(a)} fullWidth={isMobile} />
-                  ))}
-                </div>
-              )
-            )}
-            {!cargando && !error && !meta?.last && items.length > 0 && (
-              <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'center', borderTop: `1px solid ${T.gray1}` }}>
-                <Btn variant="outline" onClick={() => cargar(buscar, (meta?.number ?? 0) + 1)} disabled={cargandoMas}>
-                  {cargandoMas ? 'Cargando…' : 'Cargar más'}
-                </Btn>
-              </div>
-            )}
-          </div>
-
+          {!isMobile && meta && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{meta.totalElements} consultas</span>}
+          {pendientesCount > 0 && (
+            <button onClick={() => setSoloPendientes(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px', borderRadius: 8, border: soloPendientes ? '1px solid #b45309' : `1px solid ${T.gray1}`, background: soloPendientes ? '#fffbeb' : T.white, cursor: 'pointer', fontFamily: T.font, fontSize: 12, fontWeight: soloPendientes ? 600 : 400, color: soloPendientes ? '#b45309' : T.gray4, transition: 'all 0.15s' }}>
+              {isMobile ? 'Pendientes' : 'Cobros pendientes'}
+              <span style={{ fontFamily: T.mono, fontSize: 10, fontWeight: 700, background: '#fef9c3', color: '#b45309', border: '1px solid #fde68a', borderRadius: 20, padding: '1px 6px' }}>{pendientesCount}</span>
+            </button>
+          )}
         </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {cargando ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+          ) : error ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, color: T.red, fontFamily: T.font }}>{error}</div>
+          ) : filtradas.length === 0 ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{buscar ? 'Sin resultados' : 'No hay consultas registradas'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {filtradas.map(a => (
+                <ConsultaCard key={a.id} a={a} fmtMonto={fmtMonto} fmtTipo={fmtTipo} onEditar={() => abrirEditar(a)} fullWidth />
+              ))}
+            </div>
+          )}
+          {!cargando && !error && !meta?.last && items.length > 0 && (
+            <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
+              <Btn variant="outline" onClick={() => cargar(buscar, (meta?.number ?? 0) + 1)} disabled={cargandoMas}>
+                {cargandoMas ? 'Cargando…' : 'Cargar más'}
+              </Btn>
+            </div>
+          )}
+        </div>
+
       </div>
 
       {sinConsultorios && (
@@ -3768,7 +3777,7 @@ function ConsultaFila({ a, fmtMonto, fmtTipo, onEditar }) {
     <div
       onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr', columnGap: 16, padding: '10px 24px', minHeight: 50, alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: hov ? T.gray2 : T.white, borderLeft: pendiente ? '3px solid #f59e0b' : 'none', transition: 'background 0.1s', cursor: 'pointer' }}
+      style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr 1fr 1fr', columnGap: 16, padding: '10px 24px', minHeight: 50, alignItems: 'center', borderBottom: `1px solid ${T.gray2}`, background: hov ? T.gray2 : T.white, borderLeft: pendiente ? '3px solid #b45309' : 'none', transition: 'background 0.1s', cursor: 'pointer' }}
     >
       <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, color: T.black, letterSpacing: '0.02em' }}>{a.pacienteApellido}, {a.pacienteNombre}</span>
       <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, letterSpacing: '0.02em', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', lineHeight: 1.4 }}>{a.descripcion || '—'}</span>
@@ -3781,7 +3790,7 @@ function ConsultaFila({ a, fmtMonto, fmtTipo, onEditar }) {
               <span style={{ fontFamily: T.font, fontSize: 10, color: T.gray4 }}>Total {fmtMonto(a.montoTotal)} ({a.porcentajeProfesional}%)</span>
             )}
             {pendiente && a.monto != null && (
-              <span style={{ fontFamily: T.mono, fontSize: 8, color: '#92400e', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 2 }}>Pendiente</span>
+              <span style={{ fontFamily: T.mono, fontSize: 8, color: '#b45309', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 2 }}>Cobro pendiente</span>
             )}
           </div>
         )
@@ -3793,7 +3802,7 @@ function ConsultaFila({ a, fmtMonto, fmtTipo, onEditar }) {
   )
 }
 
-function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar, fullWidth = false }) {
+function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar, fullWidth = false, hidePaciente = false }) {
   const [hov, setHov] = useState(false)
   const pendiente = a.estadoIngreso === 'PENDIENTE' || a.monto == null
   const tieneDesglose = a.montoTotal != null && a.porcentajeProfesional != null && a.porcentajeProfesional !== 100
@@ -3801,11 +3810,13 @@ function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar, fullWidth = false }) {
     <div
       onClick={onEditar}
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ width: fullWidth ? '100%' : 240, boxSizing: 'border-box', border: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: pendiente ? '3px solid #f59e0b' : hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer' }}
+      style={{ width: fullWidth ? '100%' : 240, boxSizing: 'border-box', borderTop: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderRight: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderBottom: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: pendiente ? '3px solid #b45309' : hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer' }}
     >
-      <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', color: T.black, fontFamily: T.font, lineHeight: 1.3 }}>
-        {a.pacienteApellido}, {a.pacienteNombre}
-      </div>
+      {!hidePaciente && (
+        <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.04em', color: T.black, fontFamily: T.font, lineHeight: 1.3 }}>
+          {a.pacienteApellido}, {a.pacienteNombre}
+        </div>
+      )}
       {a.descripcion && (
         <div style={{ fontSize: 11, color: T.gray4, fontFamily: T.font, lineHeight: 1.4, letterSpacing: '0.02em' }}>
           {a.descripcion}
@@ -3821,7 +3832,7 @@ function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar, fullWidth = false }) {
                   <span style={{ fontSize: 10, color: T.gray4, fontFamily: T.font }}>Total {fmtMonto(a.montoTotal)} ({a.porcentajeProfesional}%)</span>
                 )}
                 {pendiente && a.monto != null && (
-                  <span style={{ fontFamily: T.mono, fontSize: 8, color: '#92400e', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 2 }}>Pendiente</span>
+                  <span style={{ fontFamily: T.mono, fontSize: 8, color: '#b45309', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 2 }}>Cobro pendiente</span>
                 )}
               </div>
               <span style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4, fontFamily: T.font, flexShrink: 0 }}>{fmtTipo(a.tipoPago)}</span>
@@ -3831,7 +3842,7 @@ function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar, fullWidth = false }) {
       {a.consultorioNombre && (
         <div style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{a.consultorioNombre}</div>
       )}
-      <div style={{ fontSize: 10, color: T.gray5, fontFamily: T.font, letterSpacing: '0.04em', marginTop: 2 }}>{a.fecha || fmtFecha(a.dateCreated)}</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: T.black, fontFamily: T.font, letterSpacing: '0.02em', marginTop: 2 }}>{a.fecha || fmtFecha(a.dateCreated)}</div>
     </div>
   )
 }
@@ -4368,33 +4379,40 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         <Btn onClick={() => setSub('upload')}>+ Nuevo estudio</Btn>
       </PageBar>
       <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-          <div style={{ padding: '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360, borderRadius: 6, background: T.gray2 }}>
-              <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
-              <input
-                value={buscarEst} onChange={e => setBuscarEst(e.target.value)}
-                placeholder="Buscar por nombre o paciente…"
-                style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }}
-              />
-            </div>
-            {metaEst && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap', marginLeft: 'auto' }}>{metaEst.totalElements} estudios</span>}
+
+        <div style={{ padding: '4px 0 12px', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 36, paddingLeft: 12, flex: 1, maxWidth: 360, borderRadius: 8, background: T.white }}>
+            <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
+            <input
+              value={buscarEst} onChange={e => setBuscarEst(e.target.value)}
+              placeholder="Buscar por nombre o paciente…"
+              style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }}
+            />
           </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <TableHead cols={COLS_ANALISIS} />
-            <EmptyOrError cargando={cargandoLista} error={null} empty={lista.length === 0} msg={buscarEst ? 'Sin resultados' : 'No hay estudios guardados'} />
-            {lista.map(a => (
-              <EstudioFila key={a.id} a={a} onClick={() => cargarEstudio(a.id)} onEliminar={() => handleEliminar(a.id)} onAsignar={!a.pacienteApellido ? () => abrirAsignacion(a.id) : null} />
-            ))}
-            {!cargandoLista && !metaEst?.last && lista.length > 0 && (
-              <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'center', borderTop: `1px solid ${T.gray1}` }}>
-                <Btn variant="outline" onClick={() => cargarLista(buscarEst, (metaEst?.number ?? 0) + 1)} disabled={cargandoMasEst}>
-                  {cargandoMasEst ? 'Cargando…' : 'Cargar más'}
-                </Btn>
-              </div>
-            )}
-          </div>
+          {metaEst && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap', marginLeft: 'auto' }}>{metaEst.totalElements} estudios</span>}
         </div>
+
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {cargandoLista ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+          ) : lista.length === 0 ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{buscarEst ? 'Sin resultados' : 'No hay estudios guardados'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {lista.map(a => (
+                <EstudioCard key={a.id} a={a} onAbrir={() => cargarEstudio(a.id)} onEliminar={() => handleEliminar(a.id)} onAsignar={!a.pacienteApellido ? () => abrirAsignacion(a.id) : null} />
+              ))}
+            </div>
+          )}
+          {!cargandoLista && !metaEst?.last && lista.length > 0 && (
+            <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
+              <Btn variant="outline" onClick={() => cargarLista(buscarEst, (metaEst?.number ?? 0) + 1)} disabled={cargandoMasEst}>
+                {cargandoMasEst ? 'Cargando…' : 'Cargar más'}
+              </Btn>
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* Modal nombre estudio */}
@@ -4667,6 +4685,95 @@ function EstudioFila({ a, onClick, onEliminar, onAsignar }) {
       <button onClick={e => { e.stopPropagation(); onEliminar() }}
         onMouseEnter={() => setHovT(true)} onMouseLeave={() => setHovT(false)}
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: hovT ? T.red : T.gray6, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.15s' }}>✕</button>
+    </div>
+  )
+}
+
+function MovimientoCard({ m, onEliminar, onIrAConsulta }) {
+  const [hov, setHov] = useState(false)
+  const esIngreso = m.tipo === 'ingreso'
+  const pendiente = m.tipo === 'pendiente'
+  const [y, mo, d] = (m.fecha || '').split('-')
+  const fechaFmt = m.fecha ? `${d}/${mo}/${y}` : '—'
+  const eliminable = m.id != null && m.origen !== 'consulta'
+  const irAConsulta = pendiente && m.origen === 'consulta' && m.consultaId != null && onIrAConsulta
+  const signo = esIngreso || pendiente ? '+' : '−'
+  const borderLeftColor = pendiente ? '#b45309' : esIngreso ? (hov ? T.black : T.gray1) : '#9b1c1c'
+  return (
+    <div
+      onClick={irAConsulta ? () => onIrAConsulta(m.consultaId, m.pacienteId) : undefined}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ width: '100%', boxSizing: 'border-box', borderTop: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderRight: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderBottom: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: `3px solid ${borderLeftColor}`, background: T.white, padding: 14, display: 'grid', gridTemplateColumns: '1fr auto 32px', columnGap: 12, alignItems: 'center', transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)', cursor: irAConsulta ? 'pointer' : 'default' }}
+    >
+      {/* Col 1: Descripción + fecha */}
+      <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <span style={{ fontFamily: T.font, fontSize: 14, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>{m.descripcion}</span>
+        <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.04em' }}>{fechaFmt}</span>
+      </div>
+      {/* Col 2: Monto con signo */}
+      {pendiente && m.monto == null
+        ? <span style={{ fontFamily: T.mono, fontSize: 9, color: '#b45309', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'right' }}>Cobro pendiente</span>
+        : (
+          <div style={{ minWidth: 0, textAlign: 'right' }}>
+            <span style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, color: T.black, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', display: 'block' }}>{signo}{fmtPesos(m.monto)}</span>
+            {m.montoTotal != null && m.porcentajeProfesional != null && m.porcentajeProfesional !== 100 && (
+              <span style={{ fontFamily: T.font, fontSize: 10, color: T.gray4, marginTop: 1, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', display: 'block' }}>Total {fmtPesos(m.montoTotal)} ({m.porcentajeProfesional}%)</span>
+            )}
+            {pendiente && (
+              <span style={{ fontFamily: T.mono, fontSize: 9, color: '#b45309', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 2, display: 'block', whiteSpace: 'nowrap' }}>Cobro pendiente</span>
+            )}
+          </div>
+        )
+      }
+      {/* Col 3: Eliminar o chevron de "ir a consulta" */}
+      {eliminable ? (
+        <button onClick={e => { e.stopPropagation(); onEliminar() }}
+          title={`Eliminar ${m.origen === 'egreso' ? 'egreso' : 'ingreso'}`}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: T.gray5, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onMouseEnter={e => e.currentTarget.style.color = T.red}
+          onMouseLeave={e => e.currentTarget.style.color = T.gray5}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      ) : irAConsulta ? (
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.gray4, fontSize: 18, fontFamily: T.mono, lineHeight: 1 }}>›</span>
+      ) : <span />}
+    </div>
+  )
+}
+
+function EstudioCard({ a, onAbrir, onEliminar, onAsignar }) {
+  const [hov, setHov] = useState(false)
+  const tienePaciente = !!a.pacienteApellido
+  return (
+    <div
+      onClick={onAbrir}
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{ width: '100%', boxSizing: 'border-box', borderTop: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderRight: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderBottom: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: hov ? `3px solid ${T.black}` : `3px solid ${T.gray1}`, background: T.white, padding: 14, display: 'flex', flexDirection: 'column', gap: 6, transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer' }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: T.black, fontFamily: T.font, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>{a.nombre}</span>
+        <button onClick={e => { e.stopPropagation(); onEliminar() }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: T.gray5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          onMouseEnter={e => e.currentTarget.style.color = T.red}
+          onMouseLeave={e => e.currentTarget.style.color = T.gray5}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+        </button>
+      </div>
+      {tienePaciente && (
+        <div style={{ fontSize: 12, fontFamily: T.font, color: T.gray4 }}>{a.pacienteApellido}, {a.pacienteNombre}</div>
+      )}
+      {!tienePaciente && onAsignar && (
+        <button onClick={e => { e.stopPropagation(); onAsignar() }}
+          style={{ alignSelf: 'flex-start', background: 'none', border: `1px solid ${T.gray1}`, borderRadius: 4, padding: '3px 10px', fontFamily: T.mono, fontSize: 9, color: T.gray4, cursor: 'pointer', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+          + Asignar paciente
+        </button>
+      )}
+      <div style={{ fontSize: 11, fontFamily: T.font, color: T.gray4, letterSpacing: '0.04em' }}>
+        {a.cantidadTrazos} {a.cantidadTrazos === 1 ? 'trazo' : 'trazos'}
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: T.black, fontFamily: T.font, letterSpacing: '0.02em', marginTop: 2 }}>
+        {fmtFecha(a.lastUpdated || a.dateCreated)}
+      </div>
     </div>
   )
 }
@@ -5824,7 +5931,7 @@ function mesStr(year, month) {
 const INGRESO_LIBRE_EMPTY = { descripcion: '', monto: '', tipoPago: '', medioPagoId: '', consultorioId: '' }
 const EGRESO_EMPTY = { fecha: new Date().toISOString().slice(0, 10), monto: '', descripcion: '', consultorioId: '' }
 
-function VistaFinanzas({ apiFetch, onIrAConsultas, mesInicial }) {
+function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, subVistaInicial, onSubVistaConsumida }) {
   const isMobile = useIsMobile()
   const hoy = new Date()
   const [año,      setAño]      = useState(mesInicial?.año ?? hoy.getFullYear())
@@ -5843,13 +5950,18 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, mesInicial }) {
   const [consultorios, setConsultorios] = useState([])
   const [filtroCons,   setFiltroCons]   = useState('')
   const [filtroConsId, setFiltroConsId] = useState(null)
-  const [filtroTipo,   setFiltroTipo]   = useState(null)
+  const [filtroTipo,   setFiltroTipo]   = useState(() => subVistaInicial === 'movimientos' ? 'pendiente' : null)
   const [buscarMov,    setBuscarMov]    = useState('')
   const [movs,         setMovs]         = useState([])
   const [metaMov,      setMetaMov]      = useState(null)
   const [cargandoMovs, setCargandoMovs] = useState(false)
   const [cargandoMasMov,setCargandoMasMov]= useState(false)
-  const [subVista,     setSubVista]     = useState('dash')
+  const [subVista,     setSubVista]     = useState(() => subVistaInicial || 'dash')
+  // Avisar al parent que ya consumimos el subVistaInicial (para que lo limpie y no se reaplique en próximas visitas).
+  useEffect(() => {
+    if (subVistaInicial) onSubVistaConsumida?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const { openConfirm, dialog: confirmDialog } = useConfirm()
 
   async function eliminarMovimiento(m) {
@@ -6009,89 +6121,55 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, mesInicial }) {
           </div>
         </PageBar>
         <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 16px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ background: T.white, borderRadius: 8, border: `1px solid ${T.gray1}`, flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-            <div style={{ padding: isMobile ? '10px 14px' : '10px 20px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 32, paddingLeft: 10, flex: 1, maxWidth: 360, borderRadius: 6, background: T.gray2 }}>
-                  <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
-                  <input value={buscarMov} onChange={e => setBuscarMov(e.target.value)} placeholder="Buscar por descripción o paciente…"
-                    style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 12, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }} />
-                </div>
-                {metaMov && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap', marginLeft: 'auto' }}>{metaMov.totalElements} movimientos</span>}
+
+          <div style={{ padding: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 36, paddingLeft: 12, flex: 1, maxWidth: isMobile ? 'none' : 360, borderRadius: 8, background: T.white }}>
+                <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
+                <input value={buscarMov} onChange={e => setBuscarMov(e.target.value)} placeholder="Buscar por descripción o paciente…"
+                  style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }} />
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {[
-                  { key: null,        label: 'Todos' },
-                  { key: 'ingreso',   label: 'Ingresos' },
-                  { key: 'egreso',    label: 'Egresos' },
-                  { key: 'pendiente', label: 'Pendientes' },
-                ].map(({ key, label }) => {
-                  const sel = filtroTipo === key
-                  return (
-                    <button key={key ?? 'todos'} onClick={() => setFiltroTipo(key)}
-                      style={{ fontFamily: T.font, fontSize: 12, fontWeight: sel ? 600 : 400, background: sel ? T.black : T.white, color: sel ? T.white : T.black, border: `1px solid ${sel ? T.black : T.gray1}`, borderRadius: 20, padding: '0 14px', height: 28, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                      {label}
-                    </button>
-                  )
-                })}
-              </div>
+              {metaMov && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap', marginLeft: 'auto' }}>{metaMov.totalElements} movimientos</span>}
             </div>
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-              {!isMobile && <TableHead cols={[{ label: 'Descripción', w: '1fr' }, { label: 'Fecha', w: '110px' }, { label: 'Monto', w: '140px', align: 'right' }, { label: '', w: '40px' }]} extraCol={false} gap={16} />}
-              <EmptyOrError cargando={cargandoMovs} error={null} empty={!cargandoMovs && movs.length === 0} msg={buscarMov ? 'Sin resultados' : 'Sin movimientos'} />
-              {movs.map((m, idx) => {
-                const esIngreso = m.tipo === 'ingreso'
-                const pendiente = m.tipo === 'pendiente'
-                const [y, mo, d] = (m.fecha || '').split('-')
-                const fechaFmt = m.fecha ? `${d}/${mo}/${y}` : '—'
-                const borderLeft = pendiente ? '3px solid #f59e0b' : esIngreso ? 'none' : '3px solid #9b1c1c'
-                const eliminable = m.id != null && m.origen !== 'consulta'
-                // Color del monto: verde para ingreso, naranja para pendiente, rojo para egreso.
-                const montoColor = esIngreso ? '#16a34a' : pendiente ? '#92400e' : '#9b1c1c'
-                const signo      = esIngreso || pendiente ? '+' : '−'
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { key: null,        label: 'Todos' },
+                { key: 'ingreso',   label: 'Ingresos' },
+                { key: 'egreso',    label: 'Egresos' },
+                { key: 'pendiente', label: 'Pendientes' },
+              ].map(({ key, label }) => {
+                const sel = filtroTipo === key
                 return (
-                  <div key={idx} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr auto 32px' : '1fr 110px 140px 40px', columnGap: isMobile ? 10 : 16, padding: isMobile ? '0 14px' : '0 24px', minHeight: 52, borderBottom: `1px solid ${T.gray1}`, alignItems: 'center', borderLeft }}>
-                    {/* Col 1: Descripción (en mobile: descripción + fecha apilada abajo) */}
-                    <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <span style={{ fontFamily: T.font, fontSize: isMobile ? 13 : 12, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isMobile ? 500 : 400 }}>{m.descripcion}</span>
-                      {isMobile && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4 }}>{fechaFmt}</span>}
-                    </div>
-                    {/* Col 2 (desktop): Fecha */}
-                    {!isMobile && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray4 }}>{fechaFmt}</span>}
-                    {/* Col 3: Monto con signo */}
-                    {pendiente && m.monto == null
-                      ? <span style={{ fontFamily: T.mono, fontSize: 9, color: '#92400e', letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'right' }}>Cobro pendiente</span>
-                      : (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', minWidth: 0 }}>
-                          <span style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, color: montoColor, whiteSpace: 'nowrap' }}>{signo}{fmtPesos(m.monto)}</span>
-                          {m.montoTotal != null && m.porcentajeProfesional != null && m.porcentajeProfesional !== 100 && (
-                            <span style={{ fontFamily: T.font, fontSize: 10, color: T.gray4, marginTop: 1, whiteSpace: 'nowrap' }}>Total {fmtPesos(m.montoTotal)} ({m.porcentajeProfesional}%)</span>
-                          )}
-                        </div>
-                      )
-                    }
-                    {/* Col 4: Eliminar */}
-                    {eliminable ? (
-                      <button onClick={() => eliminarMovimiento(m)}
-                        title={`Eliminar ${m.origen === 'egreso' ? 'egreso' : 'ingreso'}`}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: T.gray5, display: 'flex', alignItems: 'center', justifyContent: 'center', justifySelf: 'end' }}
-                        onMouseEnter={e => e.currentTarget.style.color = T.red}
-                        onMouseLeave={e => e.currentTarget.style.color = T.gray5}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                      </button>
-                    ) : <span />}
-                  </div>
+                  <button key={key ?? 'todos'} onClick={() => setFiltroTipo(key)}
+                    style={{ fontFamily: T.font, fontSize: 12, fontWeight: sel ? 600 : 400, background: sel ? T.black : T.white, color: sel ? T.white : T.black, border: `1px solid ${sel ? T.black : T.gray1}`, borderRadius: 20, padding: '0 14px', height: 28, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    {label}
+                  </button>
                 )
               })}
-              {!cargandoMovs && !metaMov?.last && movs.length > 0 && (
-                <div style={{ padding: '16px 24px', display: 'flex', justifyContent: 'center', borderTop: `1px solid ${T.gray1}` }}>
-                  <Btn variant="outline" onClick={() => cargarMovs(buscarMov, (metaMov?.number ?? 0) + 1)} disabled={cargandoMasMov}>
-                    {cargandoMasMov ? 'Cargando…' : 'Cargar más'}
-                  </Btn>
-                </div>
-              )}
             </div>
           </div>
+
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {cargandoMovs ? (
+              <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+            ) : movs.length === 0 ? (
+              <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{buscarMov ? 'Sin resultados' : 'Sin movimientos'}</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {movs.map((m, idx) => (
+                  <MovimientoCard key={idx} m={m} onEliminar={() => eliminarMovimiento(m)} onIrAConsulta={onIrAConsulta} />
+                ))}
+              </div>
+            )}
+            {!cargandoMovs && !metaMov?.last && movs.length > 0 && (
+              <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
+                <Btn variant="outline" onClick={() => cargarMovs(buscarMov, (metaMov?.number ?? 0) + 1)} disabled={cargandoMasMov}>
+                  {cargandoMasMov ? 'Cargando…' : 'Cargar más'}
+                </Btn>
+              </div>
+            )}
+          </div>
+
         </div>
         {confirmDialog}
       </div>
@@ -6144,7 +6222,7 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, mesInicial }) {
           sub="cobrado + pendiente"
           desglose={cargando ? null : [
             { label: 'Cobrado',             value: fmtPesos(totalConfirmadosNum) },
-            { label: 'Pendiente de cobro',  value: fmtPesos(totalPendienteNum), highlight: totalPendienteNum > 0, onClick: totalPendienteNum > 0 ? () => onIrAConsultas(año, mes) : undefined },
+            { label: 'Pendiente de cobro',  value: fmtPesos(totalPendienteNum), highlight: totalPendienteNum > 0, onClick: totalPendienteNum > 0 ? () => { setFiltroTipo('pendiente'); setSubVista('movimientos') } : undefined },
           ]}
         />
         <StatCard
