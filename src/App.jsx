@@ -1604,17 +1604,17 @@ function DashStatCard({ label, value, sub, dark }) {
   )
 }
 
-function DashBarChart({ datos, isMobile }) {
+function DashBarChart({ datos, isMobile, titulo = 'Ingresos últimos 12 meses', valorField = 'total', resumenTipo = 'suma' }) {
   if (!datos || datos.length === 0) {
     return (
       <div style={{ background: T.white, borderRadius: 10, border: `1px solid ${T.gray1}`, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-        <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, display: 'block', marginBottom: 12 }}>Ingresos últimos 12 meses</span>
+        <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, display: 'block', marginBottom: 12 }}>{titulo}</span>
         <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: T.gray4, fontFamily: T.font }}>Sin datos</div>
       </div>
     )
   }
   const MESES_LETRA = ['E','F','M','A','M','J','J','A','S','O','N','D']
-  const max = Math.max(...datos.map(d => Number(d.total) || 0), 1)
+  const max = Math.max(...datos.map(d => Number(d[valorField]) || 0), 1)
   const fmtCorto = n => {
     const v = Number(n) || 0
     if (v === 0) return '$0'
@@ -1623,17 +1623,28 @@ function DashBarChart({ datos, isMobile }) {
     return `$${Math.round(v)}`
   }
   const fmtFull = n => `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  const total12 = datos.reduce((s, d) => s + (Number(d.total) || 0), 0)
+
+  let resumenLabel = 'Total'
+  let resumenValor = 0
+  if (resumenTipo === 'promedio') {
+    const conValor = datos.filter(d => Number(d[valorField]) > 0)
+    resumenLabel = 'Promedio'
+    resumenValor = conValor.length > 0
+      ? conValor.reduce((s, d) => s + Number(d[valorField]), 0) / conValor.length
+      : 0
+  } else {
+    resumenValor = datos.reduce((s, d) => s + (Number(d[valorField]) || 0), 0)
+  }
 
   return (
     <div style={{ background: T.white, borderRadius: 10, border: `1px solid ${T.gray1}`, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14 }}>
-        <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4 }}>Ingresos últimos 12 meses</span>
-        <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray5 }}>Total: <span style={{ color: T.black, fontWeight: 600 }}>{fmtFull(total12)}</span></span>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 14, gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4 }}>{titulo}</span>
+        <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray5 }}>{resumenLabel}: <span style={{ color: T.black, fontWeight: 600 }}>{fmtFull(resumenValor)}</span></span>
       </div>
       <div style={{ display: 'flex', height: 140, gap: isMobile ? 4 : 8 }}>
         {datos.map((d, i) => {
-          const v = Number(d.total) || 0
+          const v = Number(d[valorField]) || 0
           const h = max > 0 ? (v / max) * 100 : 0
           return (
             <div key={`${d.año}-${d.mes}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
@@ -1658,7 +1669,6 @@ function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) 
   const [dash,      setDash]      = useState(null)
   const [turnosHoy, setTurnosHoy] = useState([])
   const [cargando,  setCargando]  = useState(true)
-  const [ingresosAnuales, setIngresosAnuales] = useState(null)
   const [mesSel, setMesSel] = useState(() => {
     const d = new Date()
     return { año: d.getFullYear(), mes: d.getMonth() + 1 }
@@ -1666,21 +1676,16 @@ function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) 
 
   const pad = n => String(n).padStart(2, '0')
 
-  // Fetch que NO depende de mesSel (se hace una sola vez al montar)
   useEffect(() => {
     const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T00:00:00`
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0)
     const manana = new Date(hoy); manana.setDate(manana.getDate() + 1)
 
-    Promise.all([
-      apiFetch(`/turnos?desde=${encodeURIComponent(fmt(hoy))}&hasta=${encodeURIComponent(fmt(manana))}`),
-      apiFetch('/dashboard/ingresos-anuales'),
-    ]).then(async ([resHoy, resIng]) => {
+    apiFetch(`/turnos?desde=${encodeURIComponent(fmt(hoy))}&hasta=${encodeURIComponent(fmt(manana))}`).then(async (resHoy) => {
       if (resHoy?.ok) {
         const data = await resHoy.json()
         setTurnosHoy(data.sort((a, b) => new Date(a.fechaHora) - new Date(b.fechaHora)))
       }
-      if (resIng?.ok) setIngresosAnuales(await resIng.json())
     })
   }, [apiFetch])
 
@@ -1749,9 +1754,6 @@ function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) 
             />
           </div>
         </div>
-
-        {/* ── Gráfico de ingresos últimos 12 meses ── */}
-        <DashBarChart datos={ingresosAnuales} isMobile={isMobile} />
 
         {/* ── Pendientes mañana ── */}
         {!cargando && dash != null && (
@@ -2043,7 +2045,18 @@ const TIPO_PAGO = {
 
 /* ─── VistaPacientes ─────────────────────────────────────────── */
 
-const VACÍO_FORM = { apellido: '', nombre: '', dni: '', fechaNac: '', telefono: '', email: '', direccion: '', obraSocialId: '', nroAfiliado: '', planObraSocial: '', titularObraSocial: '', ocupacion: '', grupoSanguineo: '', alergias: '', medicaciones: '', antecedentes: '', antecedentesFamiliares: '', peso: '', altura: '' }
+const VACÍO_FORM = { apellido: '', nombre: '', dni: '', fechaNac: '', telefono: '', email: '', direccion: '', obrasSociales: [], ocupacion: '', grupoSanguineo: '', alergias: '', medicaciones: '', antecedentes: '', antecedentesFamiliares: '', peso: '', altura: '' }
+
+function buildObrasSocialesBody(lista) {
+  return (lista || [])
+    .filter(o => o.obraSocialId)
+    .map(o => ({
+      obraSocialId: Number(o.obraSocialId),
+      nroAfiliado:  o.nroAfiliado || null,
+      plan:         o.plan || null,
+      titular:      o.titular || null,
+    }))
+}
 const COLS_PAC = [{ label: 'Paciente', w: '2fr' }, { label: 'DNI', w: '1fr' }, { label: 'Teléfono', w: '1fr' }, { label: 'Obra social', w: '1.5fr' }, { label: 'Registrado', w: '1fr' }]
 
 function VistaNuevoPaciente({ apiFetch, onVolver, onCreado }) {
@@ -2055,7 +2068,7 @@ function VistaNuevoPaciente({ apiFetch, onVolver, onCreado }) {
     e.preventDefault()
     if (!form.apellido.trim() || !form.nombre.trim()) { setErr('Apellido y nombre son requeridos'); return }
     setErr(null); setGuardando(true)
-    const body = { nombre: form.nombre, apellido: form.apellido, dni: form.dni || null, fechaNac: form.fechaNac || null, telefono: form.telefono || null, email: form.email || null, direccion: form.direccion || null, obraSocialId: form.obraSocialId ? Number(form.obraSocialId) : null, nroAfiliado: form.nroAfiliado || null, planObraSocial: form.planObraSocial || null, titularObraSocial: form.titularObraSocial || null, ocupacion: form.ocupacion || null, grupoSanguineo: form.grupoSanguineo || null, alergias: form.alergias || null, medicaciones: form.medicaciones || null, antecedentes: form.antecedentes || null, antecedentesFamiliares: form.antecedentesFamiliares || null, peso: form.peso ? Number(form.peso) : null, altura: form.altura ? Number(form.altura) : null }
+    const body = { nombre: form.nombre, apellido: form.apellido, dni: form.dni || null, fechaNac: form.fechaNac || null, telefono: form.telefono || null, email: form.email || null, direccion: form.direccion || null, obrasSociales: buildObrasSocialesBody(form.obrasSociales), ocupacion: form.ocupacion || null, grupoSanguineo: form.grupoSanguineo || null, alergias: form.alergias || null, medicaciones: form.medicaciones || null, antecedentes: form.antecedentes || null, antecedentesFamiliares: form.antecedentesFamiliares || null, peso: form.peso ? Number(form.peso) : null, altura: form.altura ? Number(form.altura) : null }
     const res = await apiFetch('/pacientes', { method: 'POST', body: JSON.stringify(body) })
     if (!res) { setGuardando(false); return }
     if (res.ok) {
@@ -2403,7 +2416,7 @@ function PacienteCard({ paciente: p, onClick, onEliminar, apiFetch }) {
         {p.dni && <span>DNI {p.dni}</span>}
         {p.telefono && <span>{p.telefono}</span>}
       </div>
-      {p.obraSocialNombre && <div style={{ fontSize: 10, color: T.gray3, fontFamily: T.mono, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>{p.obraSocialNombre}</div>}
+      {p.obrasSociales?.length > 0 && <div style={{ fontSize: 10, color: T.gray3, fontFamily: T.mono, letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 2 }}>{p.obrasSociales[0].obraSocialNombre}{p.obrasSociales.length > 1 ? ` +${p.obrasSociales.length - 1}` : ''}</div>}
     </div>
     {dialog}
     </>
@@ -2444,7 +2457,7 @@ function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch, compact = fa
       <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, color: T.black, letterSpacing: '0.02em' }}>{p.apellido}, {p.nombre}</span>
       <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>{p.dni || '—'}</span>
       <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>{p.telefono || '—'}</span>
-      <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>{p.obraSocialNombre || '—'}</span>
+      <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>{p.obrasSociales?.length > 0 ? `${p.obrasSociales[0].obraSocialNombre}${p.obrasSociales.length > 1 ? ` +${p.obrasSociales.length - 1}` : ''}` : '—'}</span>
       <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray3, letterSpacing: '0.04em' }}>{fmtFecha(p.dateCreated)}</span>
       <button onClick={handleEliminar} onMouseEnter={e => { e.stopPropagation(); setHovT(true) }} onMouseLeave={() => setHovT(false)}
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: hovT ? T.red : T.gray6, fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'color 0.15s' }}>
@@ -2516,8 +2529,15 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
     setFormEdit({
       apellido: paciente.apellido ?? '', nombre: paciente.nombre ?? '', dni: paciente.dni ?? '',
       fechaNac: paciente.fechaNac ?? '', telefono: paciente.telefono ?? '', email: paciente.email ?? '',
-      direccion: paciente.direccion ?? '', obraSocialId: paciente.obraSocialId ?? '',
-      nroAfiliado: paciente.nroAfiliado ?? '', planObraSocial: paciente.planObraSocial ?? '', titularObraSocial: paciente.titularObraSocial ?? '', ocupacion: paciente.ocupacion ?? '',
+      direccion: paciente.direccion ?? '',
+      obrasSociales: (paciente.obrasSociales ?? []).map(o => ({
+        obraSocialId:     o.obraSocialId ?? '',
+        obraSocialNombre: o.obraSocialNombre ?? '',
+        nroAfiliado:      o.nroAfiliado ?? '',
+        plan:             o.plan ?? '',
+        titular:          o.titular ?? '',
+      })),
+      ocupacion: paciente.ocupacion ?? '',
       grupoSanguineo: paciente.grupoSanguineo ?? '', alergias: paciente.alergias ?? '',
       medicaciones: paciente.medicaciones ?? '', antecedentes: paciente.antecedentes ?? '',
       antecedentesFamiliares: paciente.antecedentesFamiliares ?? '',
@@ -2529,7 +2549,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
 
   async function handleGuardarEdit(e) {
     e.preventDefault(); setEditErr(null); setGuardando(true)
-    const body = { nombre: formEdit.nombre, apellido: formEdit.apellido, dni: formEdit.dni || null, fechaNac: formEdit.fechaNac || null, telefono: formEdit.telefono || null, email: formEdit.email || null, direccion: formEdit.direccion || null, obraSocialId: formEdit.obraSocialId ? Number(formEdit.obraSocialId) : null, nroAfiliado: formEdit.nroAfiliado || null, planObraSocial: formEdit.planObraSocial || null, titularObraSocial: formEdit.titularObraSocial || null, ocupacion: formEdit.ocupacion || null, grupoSanguineo: formEdit.grupoSanguineo || null, alergias: formEdit.alergias || null, medicaciones: formEdit.medicaciones || null, antecedentes: formEdit.antecedentes || null, antecedentesFamiliares: formEdit.antecedentesFamiliares || null, peso: formEdit.peso ? Number(formEdit.peso) : null, altura: formEdit.altura ? Number(formEdit.altura) : null }
+    const body = { nombre: formEdit.nombre, apellido: formEdit.apellido, dni: formEdit.dni || null, fechaNac: formEdit.fechaNac || null, telefono: formEdit.telefono || null, email: formEdit.email || null, direccion: formEdit.direccion || null, obrasSociales: buildObrasSocialesBody(formEdit.obrasSociales), ocupacion: formEdit.ocupacion || null, grupoSanguineo: formEdit.grupoSanguineo || null, alergias: formEdit.alergias || null, medicaciones: formEdit.medicaciones || null, antecedentes: formEdit.antecedentes || null, antecedentesFamiliares: formEdit.antecedentesFamiliares || null, peso: formEdit.peso ? Number(formEdit.peso) : null, altura: formEdit.altura ? Number(formEdit.altura) : null }
     const res = await apiFetch(`/pacientes/${id}`, { method: 'PUT', body: JSON.stringify(body) })
     if (!res) return
     if (res.ok) { setPanelEdit(false); cargar() }
@@ -2571,8 +2591,8 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
             </div>
             <div style={{ fontFamily: T.font, fontSize: 12, color: T.gray5, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {edad != null && `${edad} años`}
-              {edad != null && p.obraSocialNombre && ' · '}
-              {p.obraSocialNombre}
+              {edad != null && p.obrasSociales?.length > 0 && ' · '}
+              {p.obrasSociales?.length > 0 && (p.obrasSociales[0].obraSocialNombre + (p.obrasSociales.length > 1 ? ` +${p.obrasSociales.length - 1}` : ''))}
             </div>
           </div>
           <Btn size="sm" variant="outline" onClick={() => setDatosOpen(true)}>Ver datos</Btn>
@@ -2636,10 +2656,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
                 <DatoClinico label="Teléfono"     value={p.telefono} />
                 <DatoClinico label="Email"        value={p.email} truncate />
                 <DatoClinico label="Dirección"    value={p.direccion} truncate />
-                <DatoClinico label="Obra social"  value={p.obraSocialNombre} truncate />
-                <DatoClinico label="Nro afiliado" value={p.nroAfiliado} />
-                <DatoClinico label="Plan"         value={p.planObraSocial} truncate />
-                <DatoClinico label="Titular"      value={p.titularObraSocial} truncate />
+                <ObrasSocialesList obrasSociales={p.obrasSociales} />
               </div>
             </div>
             <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 16 }}>
@@ -2732,10 +2749,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
               <DatoClinico label="Teléfono"     value={p.telefono} />
               <DatoClinico label="Email"        value={p.email} truncate />
               <div style={{ gridColumn: '1 / -1' }}><DatoClinico label="Dirección" value={p.direccion} truncate /></div>
-              <DatoClinico label="Obra social"  value={p.obraSocialNombre} truncate />
-              <DatoClinico label="Nro afiliado" value={p.nroAfiliado} />
-              <DatoClinico label="Plan"         value={p.planObraSocial} truncate />
-              <DatoClinico label="Titular"      value={p.titularObraSocial} truncate />
+              <div style={{ gridColumn: '1 / -1' }}><ObrasSocialesList obrasSociales={p.obrasSociales} /></div>
             </div>
           </div>
 
@@ -2869,7 +2883,8 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
     porcentajeProfesional: consulta.porcentajeProfesional != null ? String(consulta.porcentajeProfesional) : '100',
     tipoPago:              consulta.tipoPago || 'PARTICULAR',
     medioPagoId:           consulta.medioPagoId ? String(consulta.medioPagoId) : '',
-  } : { consultorioId: '', fecha: hoyISO(), descripcion: '', montoTotal: '', porcentajeProfesional: '100', tipoPago: 'PARTICULAR', medioPagoId: '' })
+    obraSocialId:          consulta.obraSocialId ? String(consulta.obraSocialId) : '',
+  } : { consultorioId: '', fecha: hoyISO(), descripcion: '', montoTotal: '', porcentajeProfesional: '100', tipoPago: 'PARTICULAR', medioPagoId: '', obraSocialId: '' })
   const [archivosExist,  setArchivosExist]  = useState(modoEdicion ? (consulta.archivos || []) : [])
   const [archivos,       setArchivos]       = useState([])
   const { openConfirm, dialog }             = useConfirm()
@@ -2974,6 +2989,16 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
     cargar()
   }, [apiFetch, pacienteId])
 
+  // Pre-selección de la 1ra OS del paciente cuando el tipo de pago es OBRA_SOCIAL
+  // y aún no hay una elegida. Cubre el caso en que el paciente carga después del
+  // primer render o cuando se edita una consulta legacy sin obraSocialId.
+  useEffect(() => {
+    if (form.tipoPago !== 'OBRA_SOCIAL') return
+    if (form.obraSocialId) return
+    if (!paciente?.obrasSociales?.length) return
+    setForm(f => ({ ...f, obraSocialId: String(paciente.obrasSociales[0].obraSocialId) }))
+  }, [form.tipoPago, form.obraSocialId, paciente])
+
   async function handleEliminarArchivoExist(archivoId) {
     await apiFetch(`/consultas/${consulta.id}/archivos/${archivoId}`, { method: 'DELETE' })
     setArchivosExist(prev => prev.filter(a => a.id !== archivoId))
@@ -2999,6 +3024,11 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
       openAlert('Seleccioná un consultorio antes de guardar la consulta.', { title: 'Campo requerido' })
       return null
     }
+    const tipoPagoFinal = form.montoTotal ? form.tipoPago : null
+    if (tipoPagoFinal === 'OBRA_SOCIAL' && !form.obraSocialId) {
+      openAlert('Seleccioná una obra social para esta consulta.', { title: 'Campo requerido' })
+      return null
+    }
 
     const body = {
       ...(modoEdicion || idActual ? {} : { pacienteId: Number(pacienteId) }),
@@ -3007,8 +3037,9 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
       descripcion:           form.descripcion   || null,
       montoTotal:            form.montoTotal            ? Number(form.montoTotal)            : null,
       porcentajeProfesional: form.porcentajeProfesional ? Number(form.porcentajeProfesional) : null,
-      tipoPago:              form.montoTotal            ? form.tipoPago                       : null,
+      tipoPago:              tipoPagoFinal,
       medioPagoId:           form.medioPagoId ? Number(form.medioPagoId) : null,
+      obraSocialId:          tipoPagoFinal === 'OBRA_SOCIAL' && form.obraSocialId ? Number(form.obraSocialId) : null,
       pendienteCobro:        cobrarDespues,
     }
 
@@ -3161,13 +3192,39 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 <FieldLabel>Tipo de pago *</FieldLabel>
                 <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden', maxWidth: 300 }}>
                   {Object.entries(TIPO_PAGO).map(([op, label], idx, arr) => (
-                    <button key={op} type="button" onClick={() => setForm(f => ({ ...f, tipoPago: op }))}
+                    <button key={op} type="button" onClick={() => setForm(f => {
+                      const next = { ...f, tipoPago: op }
+                      // Al elegir OBRA_SOCIAL, pre-seleccionar la primera OS del paciente si no hay una elegida.
+                      if (op === 'OBRA_SOCIAL' && !f.obraSocialId && paciente?.obrasSociales?.length > 0) {
+                        next.obraSocialId = String(paciente.obrasSociales[0].obraSocialId)
+                      }
+                      return next
+                    })}
                       style={{ flex: 1, border: 'none', borderRight: idx < arr.length - 1 ? `1px solid ${T.gray1}` : 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase', background: form.tipoPago === op ? T.black : T.white, color: form.tipoPago === op ? T.white : T.black, transition: 'background 0.15s, color 0.15s' }}>
                       {label}
                     </button>
                   ))}
                 </div>
               </div>
+              {form.tipoPago === 'OBRA_SOCIAL' && (
+                <div>
+                  <FieldLabel>Obra social *</FieldLabel>
+                  {paciente?.obrasSociales?.length > 0 ? (
+                    <select value={form.obraSocialId}
+                      onChange={e => setForm(f => ({ ...f, obraSocialId: e.target.value }))}
+                      style={{ width: '100%', maxWidth: 320, height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: form.obraSocialId ? T.black : T.gray5, background: T.white, outline: 'none' }}>
+                      <option value="">Seleccionar…</option>
+                      {paciente.obrasSociales.map(os => (
+                        <option key={os.obraSocialId} value={os.obraSocialId}>{os.obraSocialNombre}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div style={{ fontSize: 11, fontFamily: T.font, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
+                      Este paciente no tiene obras sociales registradas. Agregale una desde su ficha para asociar el cobro.
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'minmax(140px, 180px) minmax(120px, 140px) 1fr', gap: 14, alignItems: 'end' }}>
                 <div>
                   <FieldLabel>Total de la práctica</FieldLabel>
@@ -3466,6 +3523,89 @@ function DatoClinico({ label, value, truncate, warning }) {
   )
 }
 
+/* ─── ObrasSocialesList (read-only display de las OS del paciente) ── */
+
+function ObrasSocialesList({ obrasSociales }) {
+  if (!obrasSociales || obrasSociales.length === 0) {
+    return <DatoClinico label="Obra social" value={null} />
+  }
+  const principal = obrasSociales[0]
+  const extras    = obrasSociales.length - 1
+  const label = extras > 0
+    ? `Obra social (principal · +${extras} más)`
+    : 'Obra social'
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <DatoClinico label={label} value={principal.obraSocialNombre} truncate />
+      {(principal.nroAfiliado || principal.plan || principal.titular) && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {principal.nroAfiliado && <DatoClinico label="Nro afiliado" value={principal.nroAfiliado} />}
+          {principal.plan        && <DatoClinico label="Plan"         value={principal.plan} truncate />}
+          {principal.titular     && <div style={{ gridColumn: '1 / -1' }}><DatoClinico label="Titular" value={principal.titular} truncate /></div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── ObrasSocialesEditor (lista editable de OS del paciente) ── */
+
+function ObrasSocialesEditor({ apiFetch, lista, onChange }) {
+  function update(idx, patch) {
+    onChange(lista.map((o, i) => i === idx ? { ...o, ...patch } : o))
+  }
+  function agregar() {
+    onChange([...lista, { obraSocialId: '', nroAfiliado: '', plan: '', titular: '' }])
+  }
+  function quitar(idx) {
+    onChange(lista.filter((_, i) => i !== idx))
+  }
+
+  if (lista.length === 0) {
+    return (
+      <div style={{ background: T.gray2, border: `1px dashed ${T.gray1}`, borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4 }}>Sin obras sociales registradas</span>
+        <Btn size="sm" variant="outline" type="button" onClick={agregar}>+ Agregar obra social</Btn>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {lista.map((os, idx) => (
+        <div key={idx} style={{ background: T.gray2, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4 }}>
+              {idx === 0 ? 'Principal' : `Obra social ${idx + 1}`}
+            </span>
+            <button type="button" onClick={() => quitar(idx)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.gray5, fontSize: 16, lineHeight: 1, padding: 4 }}
+              title="Quitar"
+            >✕</button>
+          </div>
+          <div>
+            <FieldLabel>Obra social / Prepaga *</FieldLabel>
+            <ObraSocialSelector apiFetch={apiFetch} value={os.obraSocialId}
+              onChange={e => update(idx, { obraSocialId: e.target.value })} />
+          </div>
+          <div><FieldLabel>Nro. de afiliado</FieldLabel>
+            <Input value={os.nroAfiliado} onChange={e => update(idx, { nroAfiliado: e.target.value })} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div><FieldLabel>Plan</FieldLabel>
+              <Input value={os.plan} onChange={e => update(idx, { plan: e.target.value })} />
+            </div>
+            <div><FieldLabel>Titular</FieldLabel>
+              <Input value={os.titular} onChange={e => update(idx, { titular: e.target.value })} />
+            </div>
+          </div>
+        </div>
+      ))}
+      <Btn size="sm" variant="outline" type="button" onClick={agregar}>+ Agregar otra obra social</Btn>
+    </div>
+  )
+}
+
 /* ─── PacienteFormFields (shared form sections) ──────────────── */
 
 function PacienteFormFields({ form, handleChange, setField, apiFetch }) {
@@ -3490,15 +3630,11 @@ function PacienteFormFields({ form, handleChange, setField, apiFetch }) {
       </div>
       <div>
         <SectionTitle>Cobertura</SectionTitle>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <FieldLabel>Obra social / Prepaga</FieldLabel>
-            <ObraSocialSelector apiFetch={apiFetch} value={form.obraSocialId} onChange={handleChange} />
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}><FieldLabel>Nro. de afiliado</FieldLabel><Input name="nroAfiliado" value={form.nroAfiliado} onChange={handleChange} /></div>
-          <div><FieldLabel>Plan de obra social</FieldLabel><Input name="planObraSocial" value={form.planObraSocial} onChange={handleChange} /></div>
-          <div><FieldLabel>Titular de obra social</FieldLabel><Input name="titularObraSocial" value={form.titularObraSocial} onChange={handleChange} /></div>
-        </div>
+        <ObrasSocialesEditor
+          apiFetch={apiFetch}
+          lista={form.obrasSociales || []}
+          onChange={(nueva) => setField('obrasSociales', nueva)}
+        />
       </div>
       <div>
         <SectionTitle>Datos clínicos</SectionTitle>
@@ -5957,6 +6093,8 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
   const [cargandoMovs, setCargandoMovs] = useState(false)
   const [cargandoMasMov,setCargandoMasMov]= useState(false)
   const [subVista,     setSubVista]     = useState(() => subVistaInicial || 'dash')
+  const [estAnuales,   setEstAnuales]   = useState(null)
+  const [cargandoAnual,setCargandoAnual]= useState(false)
   // Avisar al parent que ya consumimos el subVistaInicial (para que lo limpie y no se reaplique en próximas visitas).
   useEffect(() => {
     if (subVistaInicial) onSubVistaConsumida?.()
@@ -6014,6 +6152,16 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
     const t = setTimeout(() => cargarMovs(buscarMov, 0), buscarMov ? 350 : 0)
     return () => clearTimeout(t)
   }, [subVista, buscarMov, cargarMovs])
+
+  useEffect(() => {
+    if (subVista !== 'anual') return
+    setCargandoAnual(true)
+    const qs = filtroConsId ? `?consultorioId=${filtroConsId}` : ''
+    apiFetch(`/finanzas/estadisticas-anuales${qs}`).then(async (res) => {
+      if (res?.ok) setEstAnuales(await res.json())
+      setCargandoAnual(false)
+    })
+  }, [subVista, apiFetch, filtroConsId])
 
   useEffect(() => {
     apiFetch('/medios-pago').then(r => r?.ok && r.json().then(setMediosPago))
@@ -6101,6 +6249,13 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
   const saldoNum          = totalConfirmadosNum - totalEgresosNum
   const totalPendienteNum = pendientes.reduce((s, i) => s + Number(i.monto ?? 0), 0)
 
+  // Promedio "por consulta": sólo ingresos vinculados a consulta con monto > 0, filtrado por consultorio.
+  // Mismo criterio que el backend (que no acepta consultorioId), pero acá lo hacemos client-side.
+  const consultasConMonto = ingresosFiltrados.filter(i => i.consultaId != null && Number(i.monto ?? 0) > 0)
+  const ticketPromedioNum = consultasConMonto.length > 0
+    ? consultasConMonto.reduce((s, i) => s + Number(i.monto), 0) / consultasConMonto.length
+    : null
+
   const resumenPorConsultorio = consultorios.map(c => {
     const ingC = ingresos.filter(i => i.consultorioNombre === c.nombre && i.estado === 'CONFIRMADO')
     const egrC = egresos.filter(e => e.consultorioNombre === c.nombre)
@@ -6110,6 +6265,41 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
   })
 
   const navBtnStyle = { background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: T.gray4, borderRadius: 6 }
+
+  if (subVista === 'anual') {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
+        <PageBar>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <BackBtn onClick={() => setSubVista('dash')} />
+            <PageTitle>Estadísticas anuales</PageTitle>
+          </div>
+        </PageBar>
+        <div style={{ padding: isMobile ? '12px 16px 8px' : '12px 24px 8px', display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
+          {[{ id: '', nombre: 'Total' }, ...consultorios].map(c => {
+            const sel = filtroCons === (c.id === '' ? '' : c.nombre)
+            return (
+              <button key={c.id === '' ? '__total' : c.id}
+                onClick={() => { setFiltroCons(c.id === '' ? '' : c.nombre); setFiltroConsId(c.id === '' ? null : c.id) }}
+                style={{ background: sel ? T.black : T.white, color: sel ? T.white : T.black, border: `1px solid ${sel ? T.black : T.gray1}`, borderRadius: 20, padding: '0 14px', height: 30, fontFamily: T.font, fontSize: 12, fontWeight: sel ? 600 : 400, cursor: 'pointer', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+                {c.nombre}
+              </button>
+            )
+          })}
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '4px 16px 24px' : '8px 24px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {cargandoAnual ? (
+            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+          ) : (
+            <>
+              <DashBarChart datos={estAnuales} isMobile={isMobile} titulo="Ingresos últimos 12 meses" valorField="ingresosTotales" resumenTipo="suma" />
+              <DashBarChart datos={estAnuales} isMobile={isMobile} titulo="Consulta promedio últimos 12 meses" valorField="consultaPromedio" resumenTipo="promedio" />
+            </>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   if (subVista === 'movimientos') {
     return (
@@ -6190,6 +6380,10 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
             </span>
             <button style={navBtnStyle} onClick={() => navMes(1)}>›</button>
           </div>
+          <button onClick={() => setSubVista('anual')}
+                  style={{ fontFamily: T.font, fontSize: 12, fontWeight: 500, background: T.white, color: T.black, border: `1px solid ${T.gray1}`, borderRadius: 20, padding: '0 14px', height: 30, cursor: 'pointer', letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+            Estadísticas anuales
+          </button>
         </div>
         {!isMobile && (
           <div style={{ display: 'flex', gap: 8 }}>
@@ -6239,7 +6433,7 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
         />
         <StatCard
           label="Tu consulta promedio"
-          value={!cargando && resumen?.ticketPromedio != null ? fmtPesos(resumen.ticketPromedio) : null}
+          value={!cargando && ticketPromedioNum != null ? fmtPesos(ticketPromedioNum) : null}
         />
       </div>
 

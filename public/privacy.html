@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Política de Privacidad — holaDoc</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { -webkit-font-smoothing: antialiased; }
+    body { font-family: 'DM Sans', system-ui, sans-serif; background: #fff; color: #111; line-height: 1.65; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 64px 24px 96px; }
+    .logo { display: inline-flex; align-items: center; gap: 10px; margin-bottom: 48px; text-decoration: none; }
+    .logo-box { width: 36px; height: 36px; background: #111; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
+    .logo-box span { color: #fff; font-weight: 700; font-size: 14px; }
+    .logo-text { font-size: 18px; font-weight: 700; color: #111; letter-spacing: -0.02em; }
+    .logo-text .light { font-weight: 300; color: #888; }
+    h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; }
+    .meta { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: #888; margin-bottom: 40px; }
+    h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; margin: 40px 0 12px; color: #111; }
+    h3 { font-size: 14px; font-weight: 700; margin: 24px 0 8px; color: #111; }
+    p { font-size: 15px; color: #333; margin-bottom: 14px; }
+    ul { margin: 8px 0 14px 24px; }
+    li { font-size: 15px; color: #333; margin-bottom: 6px; }
+    a { color: #111; text-decoration: underline; text-underline-offset: 3px; }
+    .footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid #e0e0dc; font-size: 12px; color: #888; }
+    .footer a { color: #555; }
+    strong { color: #111; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a href="/" class="logo">
+      <div class="logo-box"><span>hD</span></div>
+      <div class="logo-text"><span class="light">hola</span>Doc</div>
+    </a>
+
+    <h1>Política de Privacidad</h1>
+    <div class="meta">Última actualización: 9 de junio de 2026</div>
+
+    <p>Esta Política de Privacidad describe cómo <strong>holaDoc</strong> ("nosotros", "nuestro" o "el Servicio") recopila, utiliza y protege la información de los profesionales de la salud que utilizan nuestra plataforma de gestión clínica, así como los datos de pacientes que los profesionales cargan en el sistema.</p>
+
+    <p>Al usar holaDoc aceptás los términos descriptos en esta política. Si no estás de acuerdo, no debés utilizar el Servicio.</p>
+
+    <h2>1. Quiénes somos</h2>
+    <p>holaDoc es una aplicación web (<a href="https://www.holadocapp.com">https://www.holadocapp.com</a>) que permite a profesionales de la salud independientes gestionar turnos, pacientes, historia clínica, estudios, odontogramas, firmas de consentimiento y finanzas de su consultorio.</p>
+
+    <h2>2. Información que recopilamos</h2>
+
+    <h3>2.1 Información del profesional</h3>
+    <p>Cuando creás una cuenta en holaDoc, recopilamos:</p>
+    <ul>
+      <li>Nombre, apellido y correo electrónico (obtenidos de tu cuenta de Google al iniciar sesión, o ingresados por vos al registrarte)</li>
+      <li>Especialidad y matrícula profesional</li>
+      <li>Foto de perfil de Google (si autorizás el acceso a tu cuenta)</li>
+    </ul>
+
+    <h3>2.2 Información de pacientes</h3>
+    <p>El profesional carga manualmente los datos de sus pacientes. Estos datos pueden incluir:</p>
+    <ul>
+      <li>Datos personales: nombre, apellido, DNI, fecha de nacimiento, teléfono, email, dirección</li>
+      <li>Información de obra social y plan de cobertura</li>
+      <li>Datos clínicos: grupo sanguíneo, peso, altura, alergias, medicaciones, antecedentes personales y familiares</li>
+      <li>Historia clínica: fechas de consulta, descripciones, montos y archivos adjuntos (imágenes, PDFs)</li>
+      <li>Odontogramas y estudios radiográficos</li>
+      <li>Firmas digitales de consentimiento (capturadas en pantalla táctil)</li>
+    </ul>
+    <p>El profesional es el responsable del tratamiento de los datos de sus pacientes y debe contar con el consentimiento informado correspondiente para cargarlos en la plataforma.</p>
+
+    <h3>2.3 Información de Google Calendar (opcional)</h3>
+    <p>Si optás por conectar tu cuenta de Google Calendar a holaDoc, solicitamos acceso a los siguientes datos a través de la API de Google:</p>
+    <ul>
+      <li><strong>Eventos de tu calendario principal</strong> (scope <code>https://www.googleapis.com/auth/calendar</code>): para crear, leer, actualizar y eliminar los turnos que registrás en holaDoc, manteniéndolos sincronizados con tu calendario personal.</li>
+    </ul>
+    <p>holaDoc <strong>solo</strong> utiliza el acceso a Google Calendar para sincronizar los turnos que vos creás o modificás dentro del servicio. No accedemos a eventos personales que no sean turnos relacionados con holaDoc.</p>
+
+    <h3>2.4 Información financiera</h3>
+    <p>El profesional puede registrar manualmente ingresos, egresos y medios de pago para llevar el control financiero de su consultorio. holaDoc <strong>no procesa pagos</strong> ni almacena datos de tarjetas de crédito.</p>
+
+    <h2>3. Cómo usamos tu información</h2>
+    <p>Usamos los datos recopilados exclusivamente para:</p>
+    <ul>
+      <li>Brindarte el Servicio: autenticarte, mostrarte tus pacientes, turnos, estudios, finanzas, etc.</li>
+      <li>Sincronizar turnos con tu Google Calendar (si conectaste esa integración)</li>
+      <li>Enviarte notificaciones transaccionales por email relacionadas con tu cuenta (ej. confirmación de registro)</li>
+      <li>Garantizar la seguridad, prevenir fraude y depurar errores</li>
+      <li>Cumplir con obligaciones legales</li>
+    </ul>
+    <p><strong>No usamos los datos para marketing, publicidad personalizada, ni los vendemos ni cedemos a terceros con fines comerciales.</strong></p>
+
+    <h2>4. Compartimos datos con terceros</h2>
+    <p>Solo compartimos datos con los proveedores estrictamente necesarios para operar el Servicio:</p>
+    <ul>
+      <li><strong>Railway</strong> (hosting de la aplicación y la base de datos)</li>
+      <li><strong>Google</strong> (autenticación y sincronización opcional de Google Calendar, según los permisos que vos autorices)</li>
+      <li><strong>Resend</strong> (envío de emails transaccionales a profesionales)</li>
+      <li><strong>Cloudflare Turnstile</strong> (verificación anti-bot en el registro)</li>
+    </ul>
+    <p>Estos proveedores acceden a los datos únicamente para prestar el servicio que contratamos y están obligados a proteger tu información.</p>
+
+    <h2>5. Almacenamiento y seguridad</h2>
+    <p>Los datos se almacenan en una base de datos PostgreSQL alojada en Railway, con conexiones cifradas mediante TLS. Las contraseñas (cuando aplican) y tokens sensibles se almacenan utilizando técnicas estándar de hashing y cifrado.</p>
+    <p>El acceso al sistema requiere autenticación con JWT y los datos de cada profesional están aislados lógicamente: ningún profesional puede acceder a los datos de otro.</p>
+
+    <h2>6. Retención de datos</h2>
+    <p>Mantenemos tus datos mientras tu cuenta esté activa. Podés desconectar Google Calendar en cualquier momento desde la sección "Turnos" → "Desconectar"; esto elimina los tokens de acceso de nuestra base de datos.</p>
+    <p>Si decidís dar de baja tu cuenta, podés solicitar la eliminación de todos tus datos enviando un email a <a href="mailto:soporte@holadocapp.com">soporte@holadocapp.com</a>. Procesaremos la solicitud dentro de los 30 días.</p>
+
+    <h2>7. Tus derechos</h2>
+    <p>De acuerdo con la Ley 25.326 de Protección de Datos Personales (Argentina), tenés derecho a:</p>
+    <ul>
+      <li>Acceder a tus datos personales</li>
+      <li>Solicitar la rectificación de datos inexactos</li>
+      <li>Solicitar la supresión de tus datos</li>
+      <li>Oponerte al tratamiento</li>
+    </ul>
+    <p>Para ejercer estos derechos contactanos a <a href="mailto:soporte@holadocapp.com">soporte@holadocapp.com</a>.</p>
+
+    <h2>8. Revocar el acceso a Google</h2>
+    <p>Podés revocar el acceso de holaDoc a tu cuenta de Google en cualquier momento desde:</p>
+    <ul>
+      <li>La pantalla "Turnos" en holaDoc, botón "Desconectar"</li>
+      <li>Tu cuenta de Google en <a href="https://myaccount.google.com/permissions">https://myaccount.google.com/permissions</a></li>
+    </ul>
+
+    <h2>9. Cookies</h2>
+    <p>holaDoc utiliza almacenamiento local del navegador (localStorage) para mantener tu sesión iniciada. No utilizamos cookies de seguimiento ni de publicidad.</p>
+
+    <h2>10. Menores de edad</h2>
+    <p>El Servicio está destinado a profesionales de la salud mayores de edad. No recopilamos conscientemente datos directamente de menores.</p>
+
+    <h2>11. Cambios a esta política</h2>
+    <p>Podemos actualizar esta Política de Privacidad ocasionalmente. Cuando hagamos cambios significativos te notificaremos por email o mediante un aviso en el Servicio. La fecha de "Última actualización" indica la versión vigente.</p>
+
+    <h2>12. Contacto</h2>
+    <p>Si tenés preguntas sobre esta Política de Privacidad o sobre cómo manejamos tus datos, escribinos a:</p>
+    <p><a href="mailto:soporte@holadocapp.com">soporte@holadocapp.com</a></p>
+
+    <div class="footer">
+      <p>holaDoc · gestión clínica para profesionales independientes · <a href="/terms.html">Términos de Servicio</a></p>
+    </div>
+  </div>
+</body>
+</html>
