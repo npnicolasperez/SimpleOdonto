@@ -452,11 +452,7 @@ function MainLayout({ token, usuario, onLogout }) {
         >
           <nav style={{ flex: 1, paddingTop: 8, paddingBottom: 8 }}>
             {NAV_ITEMS
-              .filter(({ key, adminOnly }) => {
-                if (adminOnly && !usuario?.esAdmin) return false
-                if (isMobile && (key === 'estudios' || key === 'consultas')) return false
-                return true
-              })
+              .filter(({ adminOnly }) => !(adminOnly && !usuario?.esAdmin))
               .map(({ key, label }) => (
                 <NavItem key={key} label={label} active={vista === key} onClick={() => navegar(key)} />
               ))}
@@ -471,8 +467,8 @@ function MainLayout({ token, usuario, onLogout }) {
           {vista === 'dashboard'      && <VistaDashboard apiFetch={apiFetch} usuario={usuario} setVista={setVista} setTurnosFechaInicial={setTurnosFechaInicial} />}
           {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} />}
           {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} fechaInicial={turnosFechaInicial} />}
-          {vista === 'estudios'       && (isMobile ? <VistaDesktopOnly titulo="Estudios" onVolver={() => setVista('dashboard')} /> : <VistaEstudios apiFetch={apiFetch} />)}
-          {vista === 'consultas'      && ((isMobile && !consultasFiltroInicial && !volverAFinanzasActivo) ? <VistaDesktopOnly titulo="Consultas" onVolver={() => setVista('dashboard')} /> : <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} consultaEditarInicial={consultaEditarInicial} onConsultaEditarInicialUsada={() => setConsultaEditarInicial(null)} onVolverAFinanzas={(consultasFiltroInicial || volverAFinanzasActivo) ? () => { setConsultasFiltroInicial(false); setConsultaEditarInicial(null); setVolverAFinanzasActivo(false); setVista('finanzas') } : undefined} />)}
+          {vista === 'estudios'       && <VistaEstudios apiFetch={apiFetch} />}
+          {vista === 'consultas'      && <VistaConsultas apiFetch={apiFetch} onIrAConsultorios={() => setVista('consultorios')} usuario={usuario} filtroPendienteInicial={consultasFiltroInicial} consultaEditarInicial={consultaEditarInicial} onConsultaEditarInicialUsada={() => setConsultaEditarInicial(null)} onVolverAFinanzas={(consultasFiltroInicial || volverAFinanzasActivo) ? () => { setConsultasFiltroInicial(false); setConsultaEditarInicial(null); setVolverAFinanzasActivo(false); setVista('finanzas') } : undefined} />}
           {vista === 'finanzas'       && <VistaFinanzas apiFetch={apiFetch} mesInicial={finanzasMesInicial} subVistaInicial={finanzasSubVistaInicial} onSubVistaConsumida={() => setFinanzasSubVistaInicial(null)} onIrAConsultas={(año, mes) => { setFinanzasMesInicial({ año, mes }); setConsultasFiltroInicial(true); setVolverAFinanzasActivo(true); setVista('consultas') }} onIrAConsulta={(consultaId, pacienteId) => { setConsultaEditarInicial({ consultaId, pacienteId }); setFinanzasSubVistaInicial('movimientos'); setVolverAFinanzasActivo(true); setVista('consultas') }} />}
           {vista === 'obras-sociales' && <VistaObrasSociales apiFetch={apiFetch} />}
           {vista === 'consultorios'   && <VistaConsultorios apiFetch={apiFetch} />}
@@ -754,7 +750,7 @@ function SidePanel({ open, onClose, title, width = 520, footer, children }) {
 
 /* ─── ConfirmDialog + useConfirm ─────────────────────────────── */
 
-function ConfirmDialog({ message, onConfirm, onCancel, confirmLabel = 'Eliminar' }) {
+function ConfirmDialog({ message, onConfirm, onCancel, confirmLabel = 'Eliminar', confirmVariant = 'destructive' }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={onCancel}>
@@ -763,7 +759,7 @@ function ConfirmDialog({ message, onConfirm, onCancel, confirmLabel = 'Eliminar'
         <span style={{ fontFamily: T.font, fontSize: 14, color: T.black, lineHeight: 1.5 }}>{message}</span>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <Btn variant="outline" onClick={onCancel}>Cancelar</Btn>
-          <Btn variant="destructive" onClick={onConfirm}>{confirmLabel}</Btn>
+          <Btn variant={confirmVariant} onClick={onConfirm}>{confirmLabel}</Btn>
         </div>
       </div>
     </div>
@@ -774,10 +770,12 @@ function useConfirm() {
   const [cfg, setCfg] = useState(null)
   const resolveRef = useRef(null)
 
-  function openConfirm(message) {
+  // openConfirm acepta opcionalmente { confirmLabel, confirmVariant } para customizar el botón
+  // de confirmación. Por default es destructivo ("Eliminar") porque la mayoría son acciones de borrado.
+  function openConfirm(message, opts = {}) {
     return new Promise(resolve => {
       resolveRef.current = resolve
-      setCfg({ message })
+      setCfg({ message, ...opts })
     })
   }
 
@@ -785,7 +783,8 @@ function useConfirm() {
   function handleCancel()  { resolveRef.current?.(false); setCfg(null) }
 
   const dialog = cfg
-    ? <ConfirmDialog message={cfg.message} onConfirm={handleConfirm} onCancel={handleCancel} />
+    ? <ConfirmDialog message={cfg.message} onConfirm={handleConfirm} onCancel={handleCancel}
+        confirmLabel={cfg.confirmLabel} confirmVariant={cfg.confirmVariant} />
     : null
 
   return { openConfirm, dialog }
@@ -1331,16 +1330,16 @@ function VistaLogin({ onLogin }) {
         </div>
       </div>
 
-      <div style={{ position: 'relative', zIndex: 1, borderTop: '1px solid #1a1a1a', paddingTop: '1.5rem' }}>
-        <div style={{ fontSize: 12.5, fontStyle: 'italic', color: '#555', lineHeight: 1.65 }}>
-          {modo === 'registro'
-            ? '"Estamos buscando a los profesionales que quieran ayudarnos a construir el mejor sistema de gestión clínica de Argentina."'
-            : '"Antes tardaba 20 minutos preparando cada consulta. Ahora entro, abro holaDoc y ya está todo."'}
+      {modo === 'registro' && (
+        <div style={{ position: 'relative', zIndex: 1, borderTop: '1px solid #1a1a1a', paddingTop: '1.5rem' }}>
+          <div style={{ fontSize: 12.5, fontStyle: 'italic', color: '#555', lineHeight: 1.65 }}>
+            "Estamos buscando a los profesionales que quieran ayudarnos a construir el mejor sistema de gestión clínica de Argentina."
+          </div>
+          <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#333', marginTop: 10 }}>
+            holaDoc · Beta · 2026
+          </div>
         </div>
-        <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: '#333', marginTop: 10 }}>
-          {modo === 'registro' ? 'holaDoc · Beta · 2026' : 'Dra. López · Odontóloga · CABA'}
-        </div>
-      </div>
+      )}
     </div>
   )
 
@@ -1389,8 +1388,7 @@ function VistaLogin({ onLogin }) {
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
                 <LoginLogo size={20} />
               </div>
-              {modo === 'login' && <Badge>Beta · Acceso anticipado</Badge>}
-              {modo === 'registro' && <Badge>Solo 3 lugares disponibles</Badge>}
+              {modo === 'registro' && <Badge>Acceso</Badge>}
               {modo === 'exito' && <Badge>Solicitud enviada</Badge>}
               <div style={{ fontSize: 16, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
                 {modo === 'login'    && 'Bienvenido/a'}
@@ -1492,9 +1490,6 @@ function VistaLogin({ onLogin }) {
               </div>
             )}
 
-            <div style={{ marginTop: 24, paddingTop: 18, borderTop: `1px solid ${T.gray7}`, textAlign: 'center', fontFamily: T.mono, fontSize: 8.5, letterSpacing: '0.06em', color: T.gray6, lineHeight: 1.7 }}>
-              Al {modo === 'registro' ? 'solicitar acceso' : 'ingresar'} aceptás los términos de uso y la política de privacidad de holaDoc.
-            </div>
           </div>
 
           <div style={{ marginTop: 18, fontFamily: T.mono, fontSize: 9, color: T.gray6, letterSpacing: '0.08em', textAlign: 'center' }}>
@@ -2695,7 +2690,6 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
         {!datosOpen && !panelEdit && (
           <FabAcciones acciones={[
             { label: 'Iniciar consulta', onClick: onIniciarConsulta, variant: 'primary' },
-            { label: 'Nuevo estudio',    onClick: onNuevoEstudio,    variant: 'outline' },
           ]} />
         )}
       </div>
@@ -3024,11 +3018,35 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
       openAlert('Seleccioná un consultorio antes de guardar la consulta.', { title: 'Campo requerido' })
       return null
     }
-    const tipoPagoFinal = form.montoTotal ? form.tipoPago : null
+
+    const tieneMonto = !!form.montoTotal && Number(form.montoTotal) > 0
+
+    // Cuando hay monto, tipo de pago y medio de pago son obligatorios.
+    if (tieneMonto && !form.tipoPago) {
+      openAlert('Seleccioná un tipo de pago.', { title: 'Campo requerido' })
+      return null
+    }
+    if (tieneMonto && !form.medioPagoId) {
+      openAlert('Seleccioná un medio de pago.', { title: 'Campo requerido' })
+      return null
+    }
+
+    const tipoPagoFinal = tieneMonto ? form.tipoPago : null
     if (tipoPagoFinal === 'OBRA_SOCIAL' && !form.obraSocialId) {
       openAlert('Seleccioná una obra social para esta consulta.', { title: 'Campo requerido' })
       return null
     }
+
+    // Sin monto → la consulta queda como cobro pendiente automáticamente.
+    // Pedimos confirmación si el usuario no marcó explícitamente "Dejar cobro pendiente".
+    if (!tieneMonto && !cobrarDespues) {
+      const ok = await openConfirm(
+        'No ingresaste un monto. La consulta va a quedar marcada como pendiente de cobro. ¿Continuar?',
+        { confirmLabel: 'Continuar', confirmVariant: 'default' }
+      )
+      if (!ok) return null
+    }
+    const pendienteFinal = cobrarDespues || !tieneMonto
 
     const body = {
       ...(modoEdicion || idActual ? {} : { pacienteId: Number(pacienteId) }),
@@ -3038,9 +3056,9 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
       montoTotal:            form.montoTotal            ? Number(form.montoTotal)            : null,
       porcentajeProfesional: form.porcentajeProfesional ? Number(form.porcentajeProfesional) : null,
       tipoPago:              tipoPagoFinal,
-      medioPagoId:           form.medioPagoId ? Number(form.medioPagoId) : null,
+      medioPagoId:           tieneMonto && form.medioPagoId ? Number(form.medioPagoId) : null,
       obraSocialId:          tipoPagoFinal === 'OBRA_SOCIAL' && form.obraSocialId ? Number(form.obraSocialId) : null,
-      pendienteCobro:        cobrarDespues,
+      pendienteCobro:        pendienteFinal,
     }
 
     const url    = idActual ? `/consultas/${idActual}` : '/consultas'
@@ -3242,10 +3260,10 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 </div>
               </div>
               <div>
-                <FieldLabel>Medio de pago</FieldLabel>
+                <FieldLabel>Medio de pago{form.montoTotal ? ' *' : ''}</FieldLabel>
                 <select value={form.medioPagoId} onChange={e => setForm(f => ({ ...f, medioPagoId: e.target.value }))}
-                  style={{ width: '100%', maxWidth: 320, height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, background: T.white, outline: 'none' }}>
-                  <option value="">Sin especificar</option>
+                  style={{ width: '100%', maxWidth: 320, height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: form.medioPagoId ? T.black : T.gray5, background: T.white, outline: 'none' }}>
+                  <option value="">Seleccionar…</option>
                   {mediosPago.map(mp => <option key={mp.id} value={mp.id}>{mp.nombre}</option>)}
                 </select>
               </div>
@@ -3819,7 +3837,7 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
           {onVolverAFinanzas && <BackBtn onClick={onVolverAFinanzas} />}
           <PageTitle>Consultas</PageTitle>
         </div>
-        {!onVolverAFinanzas && <Btn onClick={abrirNuevaConsulta}>Iniciar consulta</Btn>}
+        {!onVolverAFinanzas && !isMobile && <Btn onClick={abrirNuevaConsulta}>Iniciar consulta</Btn>}
       </PageBar>
 
       <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 16px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
@@ -3901,6 +3919,12 @@ function VistaConsultas({ apiFetch, onIrAConsultorios, usuario, filtroPendienteI
           </div>
         </div>
       )}
+
+      {isMobile && !onVolverAFinanzas && (
+        <FabAcciones acciones={[
+          { label: 'Iniciar consulta', onClick: abrirNuevaConsulta, variant: 'primary' },
+        ]} />
+      )}
     </div>
   )
 }
@@ -3942,6 +3966,7 @@ function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar, fullWidth = false, hideP
   const [hov, setHov] = useState(false)
   const pendiente = a.estadoIngreso === 'PENDIENTE' || a.monto == null
   const tieneDesglose = a.montoTotal != null && a.porcentajeProfesional != null && a.porcentajeProfesional !== 100
+  const tipoLabel = fmtTipo(a.tipoPago)
   return (
     <div
       onClick={onEditar}
@@ -3953,32 +3978,43 @@ function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar, fullWidth = false, hideP
           {a.pacienteApellido}, {a.pacienteNombre}
         </div>
       )}
-      {a.descripcion && (
-        <div style={{ fontSize: 11, color: T.gray4, fontFamily: T.font, lineHeight: 1.4, letterSpacing: '0.02em' }}>
-          {a.descripcion}
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'stretch' }}>
+        {/* Columna izquierda: descripción, consultorio, fecha */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
+          {a.descripcion && (
+            <div style={{ fontSize: 11, color: T.gray4, fontFamily: T.font, lineHeight: 1.4, letterSpacing: '0.02em' }}>
+              {a.descripcion}
+            </div>
+          )}
+          <div style={{ flex: 1 }} />
+          {a.consultorioNombre && (
+            <div style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{a.consultorioNombre}</div>
+          )}
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.black, fontFamily: T.font, letterSpacing: '0.02em' }}>{a.fecha || fmtFecha(a.dateCreated)}</div>
         </div>
-      )}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 4, gap: 8 }}>
-        {a.monto == null
-          ? <span style={{ fontFamily: T.mono, fontSize: 9, color: T.gray4, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cobro pendiente</span>
-          : <>
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                <span style={{ fontSize: 13, fontWeight: 500, color: T.black, fontFamily: T.font }}>{fmtMonto(a.monto)}</span>
-                {tieneDesglose && (
-                  <span style={{ fontSize: 10, color: T.gray4, fontFamily: T.font }}>Total {fmtMonto(a.montoTotal)} ({a.porcentajeProfesional}%)</span>
-                )}
-                {pendiente && a.monto != null && (
-                  <span style={{ fontFamily: T.mono, fontSize: 8, color: '#b45309', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 2 }}>Cobro pendiente</span>
-                )}
-              </div>
-              <span style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4, fontFamily: T.font, flexShrink: 0 }}>{fmtTipo(a.tipoPago)}</span>
-            </>
-        }
+
+        {/* Columna derecha: monto arriba, tipo de pago alineado con la fecha */}
+        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end', textAlign: 'right', gap: 6 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            {a.monto == null
+              ? <span style={{ fontFamily: T.mono, fontSize: 9, color: '#b45309', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Cobro pendiente</span>
+              : <>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: T.black, fontFamily: T.font }}>{fmtMonto(a.monto)}</span>
+                  {tieneDesglose && (
+                    <span style={{ fontSize: 10, color: T.gray4, fontFamily: T.font }}>Total {fmtMonto(a.montoTotal)} ({a.porcentajeProfesional}%)</span>
+                  )}
+                  {pendiente && (
+                    <span style={{ fontFamily: T.mono, fontSize: 8, color: '#b45309', letterSpacing: '0.06em', textTransform: 'uppercase', marginTop: 2 }}>Cobro pendiente</span>
+                  )}
+                </>
+            }
+          </div>
+          {tipoLabel && (
+            <span style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4, fontFamily: T.font }}>{tipoLabel}</span>
+          )}
+        </div>
       </div>
-      {a.consultorioNombre && (
-        <div style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{a.consultorioNombre}</div>
-      )}
-      <div style={{ fontSize: 13, fontWeight: 700, color: T.black, fontFamily: T.font, letterSpacing: '0.02em', marginTop: 2 }}>{a.fecha || fmtFecha(a.dateCreated)}</div>
     </div>
   )
 }
@@ -4027,7 +4063,11 @@ function desnormalizarTrazos(trazos, w, h, escala) {
 
 function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = null, onVolver = null }) {
   const isMobile = useIsMobile()
-  const [sub,          setSub]          = useState(onVolver ? (estudioIdInicial ? 'cargando' : 'upload') : 'lista')
+  // En mobile la vista es solo lectura — sin upload, sin edición de trazos, sin eliminar/asignar.
+  const readOnly = isMobile
+  const [sub,          setSub]          = useState(onVolver
+    ? (estudioIdInicial ? 'cargando' : (readOnly ? 'lista' : 'upload'))
+    : 'lista')
   const [lista,        setLista]        = useState([])
   const [metaEst,      setMetaEst]      = useState(null)
   const [buscarEst,    setBuscarEst]    = useState('')
@@ -4053,6 +4093,12 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   const [asignandoId,   setAsignandoId]   = useState(null)
   const [pacientesOpts, setPacientesOpts] = useState([])
   const [pacSelId,      setPacSelId]      = useState('')
+  // Flujo "+ Nuevo estudio": el usuario primero elige paciente (o crea uno) y luego sube la imagen.
+  const [modalPacUpload, setModalPacUpload] = useState(false)
+  const [pacIdUpload,    setPacIdUpload]    = useState(null)
+  const [pacSelTempUpload, setPacSelTempUpload] = useState('')
+  // Marca a dónde volver después de crear un paciente nuevo: 'asignar' (modal de asignación a estudio existente) o 'upload' (continuar al upload).
+  const [intencionPostNuevo, setIntencionPostNuevo] = useState('asignar')
   const [estadoGuardado, setEstadoGuardado] = useState(null)
   const [pendingFile,    setPendingFile]    = useState(null)
   const [nombrePendiente,setNombrePendiente]= useState('')
@@ -4132,12 +4178,14 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
 
   async function procesarArchivo(file, nombreFinal) {
     if (!file || !file.type.startsWith('image/')) return
+    const pacId = pacienteIdInicial ?? pacIdUpload
+    if (!pacId) { setErrSubida('Tenés que seleccionar un paciente antes de subir el estudio.'); return }
     setSubiendo(true); setErrSubida(null); setPendingFile(null)
     const fd = new FormData()
     fd.append('imagen', file)
     fd.append('nombre', nombreFinal || file.name)
     fd.append('escala', '1')
-    if (pacienteIdInicial) fd.append('pacienteId', pacienteIdInicial)
+    fd.append('pacienteId', pacId)
     let res
     try { res = await apiFetch('/estudios', { method: 'POST', body: fd }) }
     catch (e) { setSubiendo(false); setErrSubida('No se pudo conectar con el servidor'); return }
@@ -4148,6 +4196,23 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     setImagen(URL.createObjectURL(file))
     setTrazos([]); resetInProgress(); setEscala(1); setCalibrado(false)
     setSubiendo(false); setSub('editor')
+  }
+
+  // Disparado por "+ Nuevo estudio" en la lista: abre un modal para elegir/crear paciente antes del upload.
+  async function abrirNuevoEstudio() {
+    if (pacientesOpts.length === 0) {
+      const res = await apiFetch('/pacientes?size=200')
+      if (res?.ok) { const d = await res.json(); setPacientesOpts(Array.isArray(d) ? d : (d.content ?? [])) }
+    }
+    setPacSelTempUpload('')
+    setModalPacUpload(true)
+  }
+
+  function confirmarPacienteUpload() {
+    if (!pacSelTempUpload) return
+    setPacIdUpload(pacSelTempUpload)
+    setModalPacUpload(false)
+    setSub('upload')
   }
 
   async function cargarEstudio(id) {
@@ -4491,17 +4556,26 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     </div>
   )
 
-  // ── NUEVO PACIENTE (desde modal asignar) ──
+  // ── NUEVO PACIENTE (desde modal asignar o desde "Nuevo estudio") ──
   if (sub === 'nuevo-paciente') {
     return (
       <VistaNuevoPaciente
         apiFetch={apiFetch}
-        onVolver={() => setSub('lista')}
+        onVolver={() => {
+          // Si veníamos del flow "Nuevo estudio", al cancelar volvemos al modal de selección de paciente.
+          if (intencionPostNuevo === 'upload') { setSub('lista'); setModalPacUpload(true) }
+          else setSub('lista')
+        }}
         onCreado={async (id) => {
-          setPacSelId(id)
           const rp = await apiFetch('/pacientes?size=200')
           if (rp?.ok) { const dp = await rp.json(); setPacientesOpts(Array.isArray(dp) ? dp : (dp.content ?? [])) }
-          setSub('lista')
+          if (intencionPostNuevo === 'upload') {
+            setPacIdUpload(id)
+            setSub('upload')
+          } else {
+            setPacSelId(id)
+            setSub('lista')
+          }
         }}
       />
     )
@@ -4512,7 +4586,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
       <PageBar>
         <PageTitle>Estudios</PageTitle>
-        <Btn onClick={() => setSub('upload')}>+ Nuevo estudio</Btn>
+        {!readOnly && <Btn onClick={abrirNuevoEstudio}>+ Nuevo estudio</Btn>}
       </PageBar>
       <div style={{ flex: 1, overflow: 'hidden', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
 
@@ -4536,7 +4610,10 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {lista.map(a => (
-                <EstudioCard key={a.id} a={a} onAbrir={() => cargarEstudio(a.id)} onEliminar={() => handleEliminar(a.id)} onAsignar={!a.pacienteApellido ? () => abrirAsignacion(a.id) : null} />
+                <EstudioCard key={a.id} a={a}
+                  onAbrir={() => cargarEstudio(a.id)}
+                  onEliminar={readOnly ? null : () => handleEliminar(a.id)}
+                  onAsignar={readOnly || a.pacienteApellido ? null : () => abrirAsignacion(a.id)} />
               ))}
             </div>
           )}
@@ -4576,7 +4653,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         </div>
       )}
 
-      {/* Modal asignar paciente */}
+      {/* Modal asignar paciente (estudios legacy sin paciente) */}
       {asignandoId && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
           onClick={e => { if (e.target === e.currentTarget) setAsignandoId(null) }}>
@@ -4587,7 +4664,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
               <PacientePicker pacientes={pacientesOpts} value={pacSelId} onChange={setPacSelId} placeholder="Buscar por nombre o DNI…" />
             </div>
             <button
-              onClick={() => setSub('nuevo-paciente')}
+              onClick={() => { setIntencionPostNuevo('asignar'); setSub('nuevo-paciente') }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textAlign: 'left', padding: 0, textDecoration: 'underline' }}
             >
               + Agregar nuevo paciente
@@ -4595,6 +4672,31 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <Btn variant="outline" onClick={() => setAsignandoId(null)}>Cancelar</Btn>
               <Btn onClick={confirmarAsignacion} disabled={!pacSelId}>Asignar</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal seleccionar paciente para "Nuevo estudio" */}
+      {modalPacUpload && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+          onClick={e => { if (e.target === e.currentTarget) setModalPacUpload(false) }}>
+          <div style={{ background: T.white, borderRadius: 12, padding: '28px 32px', width: 420, display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.14)' }}>
+            <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>Seleccionar paciente</span>
+            <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, lineHeight: 1.5 }}>Cada estudio queda asociado a un paciente. Elegí uno existente o cargá uno nuevo.</span>
+            <div>
+              <FieldLabel>Paciente</FieldLabel>
+              <PacientePicker pacientes={pacientesOpts} value={pacSelTempUpload} onChange={setPacSelTempUpload} placeholder="Buscar por nombre o DNI…" />
+            </div>
+            <button
+              onClick={() => { setIntencionPostNuevo('upload'); setModalPacUpload(false); setSub('nuevo-paciente') }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textAlign: 'left', padding: 0, textDecoration: 'underline' }}
+            >
+              + Agregar nuevo paciente
+            </button>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <Btn variant="outline" onClick={() => setModalPacUpload(false)}>Cancelar</Btn>
+              <Btn onClick={confirmarPacienteUpload} disabled={!pacSelTempUpload}>Continuar</Btn>
             </div>
           </div>
         </div>
@@ -4888,12 +4990,14 @@ function EstudioCard({ a, onAbrir, onEliminar, onAsignar }) {
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: T.black, fontFamily: T.font, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>{a.nombre}</span>
-        <button onClick={e => { e.stopPropagation(); onEliminar() }}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: T.gray5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-          onMouseEnter={e => e.currentTarget.style.color = T.red}
-          onMouseLeave={e => e.currentTarget.style.color = T.gray5}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-        </button>
+        {onEliminar && (
+          <button onClick={e => { e.stopPropagation(); onEliminar() }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: T.gray5, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            onMouseEnter={e => e.currentTarget.style.color = T.red}
+            onMouseLeave={e => e.currentTarget.style.color = T.gray5}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        )}
       </div>
       {tienePaciente && (
         <div style={{ fontSize: 12, fontFamily: T.font, color: T.gray4 }}>{a.pacienteApellido}, {a.pacienteNombre}</div>
@@ -5033,7 +5137,7 @@ function Odontograma({ apiFetch, pacienteId }) {
 
   async function handleNuevo(e) {
     e.stopPropagation()
-    if (!await openConfirm('Se creará un odontograma nuevo en blanco. El actual quedará guardado en el historial. ¿Continuar?')) return
+    if (!await openConfirm('Se creará un odontograma nuevo en blanco. El actual quedará guardado en el historial. ¿Continuar?', { confirmLabel: 'Continuar', confirmVariant: 'default' })) return
     setGuardando(true)
     const r = await apiFetch(`/pacientes/${pacienteId}/odontogramas`, { method: 'POST' })
     if (r?.ok) { await cargarTodos(); setSelId(null) }
@@ -6243,6 +6347,8 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
 
   const breakdownMp   = agrupar(confirmados, i => i.medioPagoNombre)
   const breakdownTipo = agrupar(confirmados, i => TIPO_PAGO[i.tipoPago] ?? i.tipoPago)
+  // Sólo ingresos con tipoPago=OBRA_SOCIAL — el resto no aplica al breakdown
+  const breakdownOs   = agrupar(confirmados.filter(i => i.tipoPago === 'OBRA_SOCIAL'), i => i.obraSocialNombre)
 
   const egresosFiltrados  = egresos.filter(e => !filtroCons || e.consultorioNombre === filtroCons)
   const totalEgresosNum   = egresosFiltrados.reduce((s, e) => s + Number(e.monto ?? 0), 0)
@@ -6407,6 +6513,11 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
         })}
       </div>
 
+      {/* ── botón ver todos los movimientos ── */}
+      <div style={{ padding: isMobile ? '0 16px 12px' : '0 24px 12px', flexShrink: 0 }}>
+        <Btn variant="outline" onClick={() => setSubVista('movimientos')}>Ver todos los movimientos</Btn>
+      </div>
+
       {/* ── stat cards ── */}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 12, padding: isMobile ? '0 16px 16px' : '0 24px 16px', flexShrink: 0 }}>
         <StatCard
@@ -6440,8 +6551,8 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
       <div style={{ ...(isMobile ? {} : { flex: 1 }), overflow: isMobile ? 'visible' : 'hidden', padding: isMobile ? '0 16px 96px' : '0 24px 24px', minWidth: 0 }}>
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12, height: isMobile ? 'auto' : '100%' }}>
 
-          {/* ── breakdowns ── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflow: isMobile ? 'visible' : 'hidden', order: isMobile ? 2 : 1, minWidth: 0 }}>
+          {/* ── columna izquierda: medio de pago + tipo de pago ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflow: isMobile ? 'visible' : 'hidden', minWidth: 0 }}>
 
             <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', minWidth: 0, ...(isMobile ? {} : { flex: 1 }) }}>
               <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
@@ -6467,9 +6578,18 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
 
           </div>
 
-          {/* ── botón ver todos los movimientos ── */}
-          <div style={{ alignSelf: 'start', order: isMobile ? 1 : 2 }}>
-            <Btn fullWidth variant="outline" onClick={() => setSubVista('movimientos')}>Ver todos los movimientos</Btn>
+          {/* ── columna derecha: obra social ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+            <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, display: 'flex', flexDirection: 'column', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', overflow: 'hidden', minWidth: 0, ...(isMobile ? {} : { flex: 1 }) }}>
+              <div style={{ padding: '16px 20px 0', flexShrink: 0 }}>
+                <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: T.gray3 }}>Por obra social</span>
+              </div>
+              <div style={{ ...(isMobile ? {} : { flex: 1 }), display: 'flex', alignItems: 'center', minWidth: 0, width: '100%' }}>
+                {cargando && <div style={{ padding: '0 20px', fontSize: 11, color: T.gray4, fontFamily: T.font }}>Cargando…</div>}
+                {!cargando && breakdownOs.length === 0 && <EmptyChart />}
+                {!cargando && breakdownOs.length > 0 && <PieChart items={breakdownOs} />}
+              </div>
+            </div>
           </div>
 
         </div>
