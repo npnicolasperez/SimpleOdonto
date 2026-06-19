@@ -2925,8 +2925,17 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
   // El único cambio permitido es desvincular (que despeja este flag y desbloquea el form).
   const bloqueadoPorCobro = mantenerEnBatch
   const cobrarDespues = mantenerEnBatch ? false : (esObraSocial ? true : estadoCobro !== 'cobrar')
-  const mostrarMonto     = !bloqueadoPorCobro && !esObraSocial && estadoCobro !== 'pendiente_sin_monto'
-  const mostrarMedioPago = !bloqueadoPorCobro && !esObraSocial && estadoCobro === 'cobrar'
+  // Para OS, monto y medio = coseguro (opcional). Si el paciente no pagó nada al toque, quedan vacíos.
+  // El coseguro es independiente del cobro batch de la OS: se puede editar incluso cuando la
+  // consulta ya está cerrada por un cobro batch (el back preserva el cobro batch al guardar).
+  const coseguroOpcional = esObraSocial
+  const coseguroConMonto = coseguroOpcional && form.monto && Number(form.monto) > 0
+  const mostrarMonto     = esObraSocial
+                            ? true
+                            : (!bloqueadoPorCobro && estadoCobro !== 'pendiente_sin_monto')
+  const mostrarMedioPago = esObraSocial
+                            ? coseguroConMonto
+                            : (!bloqueadoPorCobro && estadoCobro === 'cobrar')
 
   // ── Firma del paciente ─────────────────────────────────────────
   const isMobileOrTouch = useIsMobileOrTouch()
@@ -3087,15 +3096,21 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
       return null
     }
 
-    // "Cobrar ahora" y "pendiente con monto" → monto obligatorio (> 0). "Cobrar ahora" además exige medio.
-    if (mostrarMonto) {
+    // PARTICULAR: monto obligatorio cuando se muestra (cobrar ahora / pendiente con monto). Medio
+    // obligatorio en "cobrar ahora". Para OS el monto del coseguro es opcional — pero si se carga,
+    // exigimos el medio.
+    if (mostrarMonto && !coseguroOpcional) {
       if (!form.monto || Number(form.monto) <= 0) {
         openAlert('Ingresá un monto válido (mayor a 0). Si todavía no sabés el monto, elegí "Pendiente sin monto".', { title: 'Campo requerido' })
         return null
       }
     }
-    if (mostrarMedioPago && !form.medioPagoId) {
+    if (mostrarMedioPago && !coseguroOpcional && !form.medioPagoId) {
       openAlert('Seleccioná un medio de pago.', { title: 'Campo requerido' })
+      return null
+    }
+    if (coseguroConMonto && !form.medioPagoId) {
+      openAlert('Seleccioná el medio de pago del coseguro.', { title: 'Campo requerido' })
       return null
     }
 
@@ -3104,12 +3119,11 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
       consultorioId:         form.consultorioId ? Number(form.consultorioId) : null,
       fecha:                 form.fecha || null,
       descripcion:           form.descripcion   || null,
-      // En "pendiente sin monto" no se manda monto. En "pendiente con monto" sí (queda registrado aunque
-      // el ingreso esté pendiente). En "cobrar" obviamente también.
+      // PARTICULAR: monto solo si "cobrar" o "pendiente con monto". OS: monto = coseguro (opcional).
       monto:                 mostrarMonto && form.monto ? Number(form.monto) : null,
       // tipoPago y obraSocialId se mandan siempre — son metadata del cobro futuro.
       tipoPago:              form.tipoPago || null,
-      // Medio de pago sólo cuando se cobra ahora (en pendientes no aplica todavía).
+      // Medio de pago: PARTICULAR cuando se cobra ahora; OS solo si hay coseguro con monto.
       medioPagoId:           mostrarMedioPago && form.medioPagoId ? Number(form.medioPagoId) : null,
       obraSocialId:          form.tipoPago === 'OBRA_SOCIAL' && form.obraSocialId ? Number(form.obraSocialId) : null,
       pendienteCobro:        cobrarDespues,
@@ -3296,7 +3310,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
               {/* OBRA_SOCIAL pendiente (no cobrada todavía): nota informativa. */}
               {esObraSocial && !estabaEnBatch && (
                 <div style={{ fontSize: 11, fontFamily: T.font, color: T.gray4, background: T.gray2, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '8px 12px', lineHeight: 1.55 }}>
-                  Esta consulta queda <strong>pendiente de cobro</strong>. Cuando la obra social te pague, vas a Finanzas → "Registrar cobro", cargás el monto recibido y marcás las consultas que cubrió.
+                  Esta consulta queda <strong>pendiente de cobro</strong>. Cuando la obra social te pague, vas a Finanzas → "Registrar cobro".
                 </div>
               )}
 
@@ -3307,7 +3321,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                     Esta consulta ya está <strong>cobrada</strong> dentro de un pago de obra social.
                   </span>
                   <span style={{ fontSize: 11, fontFamily: T.font, color: T.gray4, lineHeight: 1.55 }}>
-                    Para modificar el pago, primero marcala de nuevo como pendiente. Eso la desvincula del pago registrado (sin borrarlo).
+                    Para modificar el pago, primero marcala de nuevo como pendiente. Eso la desvincula del pago registrado de la obra social.
                   </span>
                   <button type="button" onClick={() => setDesvincularBatch(true)}
                     style={{ alignSelf: 'flex-start', marginTop: 2, background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: '6px 14px', fontFamily: T.font, fontSize: 11, fontWeight: 600, color: '#b45309', cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
@@ -3348,16 +3362,16 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 </div>
               )}
 
-              {/* Monto (cuando aplica) + Medio de pago (sólo en "cobrar ahora") — sólo para PARTICULAR */}
+              {/* Monto + Medio. Labels distintos según OS (coseguro opcional) vs PARTICULAR (monto obligatorio). */}
               {mostrarMonto && (
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : (mostrarMedioPago ? 'minmax(140px, 220px) minmax(180px, 320px)' : 'minmax(140px, 220px)'), gap: 14, alignItems: 'end' }}>
                   <div>
-                    <FieldLabel>Monto *</FieldLabel>
+                    <FieldLabel>{coseguroOpcional ? 'Coseguro (opcional)' : 'Monto *'}</FieldLabel>
                     <Input type="number" min="0" step="0.01" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="0" />
                   </div>
                   {mostrarMedioPago && (
                     <div>
-                      <FieldLabel>Medio de pago *</FieldLabel>
+                      <FieldLabel>{coseguroOpcional ? 'Medio de pago del coseguro *' : 'Medio de pago *'}</FieldLabel>
                       <select value={form.medioPagoId} onChange={e => setForm(f => ({ ...f, medioPagoId: e.target.value }))}
                         style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: form.medioPagoId ? T.black : T.gray5, background: T.white, outline: 'none' }}>
                         <option value="">Seleccionar…</option>
@@ -4120,6 +4134,14 @@ function ConsultaCard({ a, fmtMonto, fmtTipo, onEditar, fullWidth = false, hideP
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
             {tipoLabel && (
               <span style={{ fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: T.gray4, fontFamily: T.font }}>{tipoLabel}</span>
+            )}
+            {/* En modo seleccionable (pendientes-por-os), mostrar el coseguro ya cobrado como info auxiliar.
+                NO afecta al monto del cobro batch — es solo para que el profesional recuerde qué entró del paciente. */}
+            {selectable && a.tipoPago === 'OBRA_SOCIAL' && a.monto != null && Number(a.monto) > 0 && (
+              <span title="El paciente ya pagó este coseguro. No se suma al cobro de la obra social."
+                style={{ fontFamily: T.mono, fontSize: 9, color: '#15803d', letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap', background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 4, padding: '2px 6px' }}>
+                Coseguro {fmtMonto ? fmtMonto(a.monto) : a.monto}
+              </span>
             )}
             {a.cobroObraSocialId && (
               <span title="Esta consulta fue cobrada dentro de un pago de obra social"
@@ -5064,9 +5086,13 @@ function MovimientoCard({ m, onEliminar, onIrAConsulta }) {
       onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{ width: '100%', boxSizing: 'border-box', borderTop: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderRight: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderBottom: hov ? `1px solid ${T.black}` : `1px solid ${T.gray1}`, borderLeft: `3px solid ${borderLeftColor}`, background: T.white, padding: 14, display: 'grid', gridTemplateColumns: '1fr auto 32px', columnGap: 12, alignItems: 'center', transition: 'border-color 0.15s, box-shadow 0.15s', borderRadius: 8, boxShadow: hov ? '0 2px 12px rgba(0,0,0,0.07)' : '0 1px 3px rgba(0,0,0,0.04)', cursor: irAConsulta ? 'pointer' : 'default' }}
     >
-      {/* Col 1: Descripción + fecha */}
+      {/* Col 1: Descripción + fecha. Para filas pendientes de OS, sufijamos el nombre de la OS
+          (la descripción base "Consulta · X" no lo trae). Si ya está en la descripción, no lo duplicamos. */}
       <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <span style={{ fontFamily: T.font, fontSize: 14, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>{m.descripcion}</span>
+        <span style={{ fontFamily: T.font, fontSize: 14, color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
+          {m.descripcion}
+          {pendiente && m.obraSocialNombre && !m.descripcion?.includes(m.obraSocialNombre) ? ` · ${m.obraSocialNombre}` : ''}
+        </span>
         <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.04em' }}>{fechaFmt}</span>
       </div>
       {/* Col 2: Monto con signo */}
@@ -5587,6 +5613,7 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
   const [pacientes,       setPacientes]       = useState([])
   const [consultorios,    setConsultorios]    = useState([])
   const [usarPacienteLib, setUsarPacienteLib] = useState(false)
+  const { openConfirm, dialog: confirmDialog } = useConfirm()
 
   // Centra la grilla en la hora actual al terminar de cargar, al cambiar de día o cambiar de modo.
   useEffect(() => {
@@ -5666,6 +5693,32 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
   async function cargarFormDeps() {
     apiFetch('/pacientes?size=200').then(r => r?.ok && r.json().then(d => setPacientes(Array.isArray(d) ? d : (d.content ?? []))))
     apiFetch('/consultorios').then(r => r?.ok && r.json().then(d => setConsultorios(d)))
+  }
+
+  /**
+   * Variante de abrirNuevo que primero revalida el estado de Google Calendar contra el back.
+   * Si HABÍA conexión activa y se detecta que se cayó (token revocado entre la carga de la vista
+   * y este click), ofrece reconectar (mismo flow que el botón "Conectar" del header). Si el
+   * usuario opta por no reconectar, abre el modal igual (el turno se guarda sin sincronizar).
+   * Si nunca conectó, abre el modal directamente.
+   */
+  async function abrirNuevoConChequeoCal(diaDate, hora = 9) {
+    const estabaConectado = calConectado === true
+    if (estabaConectado) {
+      const res = await apiFetch('/calendar/status')
+      if (res?.ok) {
+        const data = await res.json()
+        setCalConectado(data.conectado)
+        if (!data.conectado) {
+          const reconectar = await openConfirm('Google Calendar se desconectó. ¿Querés reconectarlo ahora? Se abrirá Google en una nueva pestaña para que autorices el acceso.', { confirmLabel: 'Reconectar', confirmVariant: 'primary' })
+          if (reconectar) {
+            conectarCalendar()
+            return
+          }
+        }
+      }
+    }
+    abrirNuevo(diaDate, hora)
   }
 
   function abrirNuevo(diaDate, hora = 9) {
@@ -5788,16 +5841,19 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
     background: T.white, outline: 'none', appearance: 'none',
   }
 
-  // ── Mobile: vista 1 día con grilla de horas (estilo Google Calendar) ───────────
+  // ── Mobile: vista día (default) o semana (con scroll horizontal). En mobile no exponemos Mes ───
   if (isMobile) {
+    const HORA_INICIO_M = HORA_INICIO_GRILLA, HORA_FIN_M = HORA_FIN_GRILLA, ALTO_HORA_M = ALTO_HORA_MOBILE
+    const horasM = Array.from({ length: HORA_FIN_M - HORA_INICIO_M }, (_, i) => HORA_INICIO_M + i)
     const diaActual = diasRango[0]
     const esHoyDiaActual = diaActual.getFullYear() === hoy.getFullYear() && diaActual.getMonth() === hoy.getMonth() && diaActual.getDate() === hoy.getDate()
     const fmtFechaDia = diaActual.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })
-    const HORA_INICIO_M = HORA_INICIO_GRILLA, HORA_FIN_M = HORA_FIN_GRILLA, ALTO_HORA_M = ALTO_HORA_MOBILE
-    const horasM = Array.from({ length: HORA_FIN_M - HORA_INICIO_M }, (_, i) => HORA_INICIO_M + i)
     const nowTopM = esHoyDiaActual ? (ahora.getHours() - HORA_INICIO_M + ahora.getMinutes() / 60) * ALTO_HORA_M : null
-    const mostrarLineaAhoraM = esHoyDiaActual && nowTopM != null && nowTopM >= 0 && nowTopM <= (HORA_FIN_M - HORA_INICIO_M) * ALTO_HORA_M
-    const turnosDelDiaActual = turnosDelDia(diaActual)
+    const mostrarLineaAhoraM = modoVista === 'dia' && esHoyDiaActual && nowTopM != null && nowTopM >= 0 && nowTopM <= (HORA_FIN_M - HORA_INICIO_M) * ALTO_HORA_M
+    const turnosDelDiaActual = modoVista === 'dia' ? turnosDelDia(diaActual) : []
+    const subtituloHeader = modoVista === 'semana'
+      ? `${MESES_LABEL[(diasRango[Math.floor(diasRango.length / 2)] || rangoInicio).getMonth()]} de ${(diasRango[Math.floor(diasRango.length / 2)] || rangoInicio).getFullYear()}`
+      : fmtFechaDia
 
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.white }}>
@@ -5805,8 +5861,8 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
         <div style={{ padding: '14px 16px 12px', flexShrink: 0, borderBottom: `1px solid ${T.gray1}` }}>
           <div style={{ fontFamily: T.font, fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>Turnos</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-            <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fmtFechaDia}</span>
-            {esHoyDiaActual && <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', background: T.black, color: T.white, padding: '2px 6px', borderRadius: 3 }}>Hoy</span>}
+            <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtituloHeader}</span>
+            {modoVista === 'dia' && esHoyDiaActual && <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', background: T.black, color: T.white, padding: '2px 6px', borderRadius: 3 }}>Hoy</span>}
           </div>
         </div>
 
@@ -5828,21 +5884,123 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
           )}
         </div>
 
-        {/* navegación día */}
-        <div style={{ padding: '8px 16px', flexShrink: 0, borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-          <button onClick={() => setRangoInicio(s => addDays(s, -1))}
+        {/* navegación: ‹ Hoy › + selector Día/Semana */}
+        <div style={{ padding: '8px 16px', flexShrink: 0, borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button onClick={() => {
+              if (modoVista === 'semana') setRangoInicio(s => addDays(s, -7))
+              else setRangoInicio(s => addDays(s, -1))
+            }}
             style={{ background: 'none', border: 'none', cursor: 'pointer', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: T.gray4 }}>‹</button>
-          <button onClick={() => { const d = new Date(); d.setHours(0,0,0,0); setRangoInicio(d) }}
-            disabled={esHoyDiaActual}
-            style={{ background: 'none', border: `1px solid ${esHoyDiaActual ? T.gray2 : T.gray1}`, cursor: esHoyDiaActual ? 'default' : 'pointer', height: 30, padding: '0 14px', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', color: esHoyDiaActual ? T.gray2 : T.gray4, borderRadius: 6 }}>
+          <button onClick={() => {
+              if (modoVista === 'semana') setRangoInicio(startOfWeek(new Date()))
+              else { const d = new Date(); d.setHours(0,0,0,0); setRangoInicio(d) }
+            }}
+            disabled={esHoyEnVista}
+            style={{ background: T.white, border: `1px solid ${esHoyEnVista ? T.gray2 : T.gray1}`, cursor: esHoyEnVista ? 'default' : 'pointer', height: 32, padding: '0 14px', fontFamily: T.font, fontSize: 12, fontWeight: 500, color: esHoyEnVista ? T.gray3 : T.black, borderRadius: 100 }}>
             Hoy
           </button>
-          <button onClick={() => setRangoInicio(s => addDays(s, 1))}
+          <button onClick={() => {
+              if (modoVista === 'semana') setRangoInicio(s => addDays(s, 7))
+              else setRangoInicio(s => addDays(s, 1))
+            }}
             style={{ background: 'none', border: 'none', cursor: 'pointer', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, color: T.gray4 }}>›</button>
+          <div style={{ flex: 1 }} />
+          <div style={{ position: 'relative' }}>
+            <select value={modoVista} onChange={e => cambiarModoVista(e.target.value)}
+              style={{ height: 32, border: `1px solid ${T.gray1}`, borderRadius: 100, background: T.white, padding: '0 28px 0 14px', fontFamily: T.font, fontSize: 12, color: T.black, cursor: 'pointer', appearance: 'none', outline: 'none' }}>
+              <option value="dia">Día</option>
+              <option value="semana">Semana</option>
+            </select>
+            <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: T.gray5, fontSize: 9 }}>▼</span>
+          </div>
         </div>
 
+        {/* grilla SEMANA mobile: 7 columnas estrechas con scroll horizontal */}
+        {modoVista === 'semana' && (cargando ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+        ) : (
+          <div ref={scrollGridRef} style={{ flex: 1, overflow: 'auto' }}>
+            {(() => {
+              const COL_WIDTH = 96  // ancho por columna día
+              const totalWidth = 48 + COL_WIDTH * diasRango.length
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: totalWidth }}>
+                  {/* headers de días sticky */}
+                  <div style={{ display: 'flex', flexShrink: 0, background: T.white, position: 'sticky', top: 0, zIndex: 3 }}>
+                    <div style={{ width: 48, flexShrink: 0 }} />
+                    {diasRango.map((dia, i) => {
+                      const esHoy = dia.getFullYear() === hoy.getFullYear() && dia.getMonth() === hoy.getMonth() && dia.getDate() === hoy.getDate()
+                      const labelIdx = (dia.getDay() + 6) % 7
+                      return (
+                        <div key={i} style={{ width: COL_WIDTH, flexShrink: 0, padding: '6px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                          <span style={{ fontSize: 9, fontFamily: T.font, letterSpacing: '0.08em', textTransform: 'uppercase', color: esHoy ? T.black : T.gray4, fontWeight: 500 }}>{DIAS_SEMANA_LABELS[labelIdx].toUpperCase()}</span>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', background: esHoy ? T.black : 'transparent', color: esHoy ? T.white : T.black, fontSize: 16, fontFamily: T.font, fontWeight: 400, lineHeight: 1 }}>
+                            {dia.getDate()}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {/* grilla horas */}
+                  <div style={{ display: 'flex', position: 'relative', height: (HORA_FIN_M - HORA_INICIO_M) * ALTO_HORA_M, paddingBottom: 80 }}>
+                    {/* eje horas sticky a la izquierda */}
+                    <div style={{ width: 48, flexShrink: 0, position: 'sticky', left: 0, background: T.white, zIndex: 2 }}>
+                      {horasM.map((h, i) => (
+                        <div key={h} style={{ height: ALTO_HORA_M, display: 'flex', alignItems: 'flex-start', paddingTop: 4, paddingRight: 6, justifyContent: 'flex-end' }}>
+                          {i > 0 && <span style={{ fontSize: 9, color: T.gray4, fontFamily: T.mono, letterSpacing: '0.04em' }}>{h}:00</span>}
+                        </div>
+                      ))}
+                    </div>
+                    {/* columnas día */}
+                    {diasRango.map((dia, di) => {
+                      const esHoyCol = dia.getFullYear() === hoy.getFullYear() && dia.getMonth() === hoy.getMonth() && dia.getDate() === hoy.getDate()
+                      const nowTop = esHoyCol ? (ahora.getHours() - HORA_INICIO_M + ahora.getMinutes() / 60) * ALTO_HORA_M : null
+                      const mostrarLineaAhora = esHoyCol && nowTop != null && nowTop >= 0 && nowTop <= (HORA_FIN_M - HORA_INICIO_M) * ALTO_HORA_M
+                      const turnosCol = turnosDelDia(dia)
+                      const layoutCol = calcularColumnasTurnos(turnosCol)
+                      return (
+                        <div key={di} style={{ width: COL_WIDTH, flexShrink: 0, position: 'relative', borderLeft: `1px solid ${T.gray1}` }}>
+                          {horasM.map((h, i) => (
+                            <div key={h}
+                              onClick={() => abrirNuevo(dia, h)}
+                              style={{ position: 'absolute', top: i * ALTO_HORA_M, left: 0, right: 0, height: ALTO_HORA_M, borderTop: `1px solid ${T.gray1}`, cursor: 'pointer', boxSizing: 'border-box' }}
+                            />
+                          ))}
+                          {mostrarLineaAhora && (
+                            <div style={{ position: 'absolute', top: nowTop - 1, left: 0, right: 0, height: 2, background: T.red, zIndex: 2, pointerEvents: 'none' }}>
+                              <div style={{ position: 'absolute', left: -5, top: -4, width: 10, height: 10, borderRadius: '50%', background: T.red }} />
+                            </div>
+                          )}
+                          {turnosCol.map(t => {
+                            const d = new Date(t.fechaHora)
+                            const top = (d.getHours() - HORA_INICIO_M + d.getMinutes() / 60) * ALTO_HORA_M
+                            const height = Math.max((t.duracionMinutos / 60) * ALTO_HORA_M, 16)
+                            const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
+                            const info = layoutCol.get(t.id) ?? { col: 0, totalCols: 1 }
+                            const positioning = info.totalCols === 1
+                              ? { left: 3, right: 3 }
+                              : { left: `calc(${info.col * (100 / info.totalCols)}% + 2px)`, width: `calc(${100 / info.totalCols}% - 3px)` }
+                            return (
+                              <div key={t.id}
+                                onClick={e => { e.stopPropagation(); abrirEditar(t) }}
+                                style={{ position: 'absolute', top, height, ...positioning, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 4, padding: '2px 4px', cursor: 'pointer', overflow: 'hidden', zIndex: 1, display: 'flex', flexDirection: 'column', gap: 0, boxSizing: 'border-box' }}>
+                                <span style={{ fontSize: 9, fontWeight: 700, color: col.text, fontFamily: T.font, lineHeight: 1.1 }}>{formatHora(t.fechaHora)}</span>
+                                <span style={{ fontSize: 10, color: col.text, fontFamily: T.font, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombrePaciente(t)}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+        ))}
+
         {/* grilla 1 día */}
-        {cargando ? (
+        {modoVista === 'dia' && (cargando ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
         ) : (
           <div ref={scrollGridRef} style={{ flex: 1, overflowY: 'auto' }}>
@@ -5895,15 +6053,16 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
               </div>
             </div>
           </div>
-        )}
+        ))}
 
         {!modalOpen && (
           <FabAcciones acciones={[
-            { label: 'Nuevo turno', onClick: () => abrirNuevo(diaActual), variant: 'primary' },
+            { label: 'Nuevo turno', onClick: () => abrirNuevoConChequeoCal(diaActual), variant: 'primary' },
           ]} />
         )}
 
         {turnoModal()}
+        {confirmDialog}
       </div>
     )
   }
@@ -5928,7 +6087,7 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
             ? <Btn size="sm" variant="ghost" onClick={desconectarCalendar}>Desconectar</Btn>
             : <Btn size="sm" variant="ghost" onClick={conectarCalendar}>Conectar</Btn>
           }
-          <Btn onClick={() => abrirNuevo(new Date())}>+ Nuevo turno</Btn>
+          <Btn onClick={() => abrirNuevoConChequeoCal(new Date())}>+ Nuevo turno</Btn>
         </div>
       </PageBar>
 
@@ -5936,46 +6095,57 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* navegación + selector de vista */}
-        <div style={{ padding: '10px 24px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        {/* navegación + selector de vista — estilo Google Calendar (botón Hoy redondeado,
+            flechas circulares, mes grande con título "Mes Año", selector dropdown a la derecha). */}
+        <div style={{ padding: '10px 24px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
           <button onClick={() => {
               if (modoVista === 'mes') setMesAncla(new Date())
               else if (modoVista === 'semana') setRangoInicio(startOfWeek(new Date()))
               else { const d = new Date(); d.setHours(0,0,0,0); setRangoInicio(d) }
             }}
             disabled={esHoyEnVista}
-            style={{ background: 'none', border: `1px solid ${esHoyEnVista ? T.gray2 : T.gray1}`, cursor: esHoyEnVista ? 'default' : 'pointer', height: 30, padding: '0 14px', fontFamily: T.font, fontSize: 11, letterSpacing: '0.06em', color: esHoyEnVista ? T.gray2 : T.gray4, borderRadius: 6 }}>
+            onMouseEnter={e => { if (!esHoyEnVista) e.currentTarget.style.background = T.gray2 }}
+            onMouseLeave={e => { e.currentTarget.style.background = T.white }}
+            style={{ background: T.white, border: `1px solid ${T.gray1}`, cursor: esHoyEnVista ? 'default' : 'pointer', height: 36, padding: '0 18px', fontFamily: T.font, fontSize: 14, fontWeight: 500, color: esHoyEnVista ? T.gray3 : T.black, borderRadius: 100, transition: 'background 0.15s' }}>
             Hoy
           </button>
-          <button onClick={() => {
-              if (modoVista === 'mes') setMesAncla(a => new Date(a.getFullYear(), a.getMonth() - 1, 1))
-              else setRangoInicio(s => addDays(s, -cantDiasRango))
-            }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: T.gray4 }}>
-            ‹
-          </button>
-          <button onClick={() => {
-              if (modoVista === 'mes') setMesAncla(a => new Date(a.getFullYear(), a.getMonth() + 1, 1))
-              else setRangoInicio(s => addDays(s, cantDiasRango))
-            }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: T.gray4 }}>
-            ›
-          </button>
-          <span style={{ fontFamily: T.font, fontSize: 14, color: T.black, letterSpacing: '0.02em', fontWeight: 500, flex: 1 }}>
-            {modoVista === 'mes' ? `${MESES_LABEL[mesAncla.getMonth()]} ${mesAncla.getFullYear()}` : fmtRango()}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <button onClick={() => {
+                if (modoVista === 'mes') setMesAncla(a => new Date(a.getFullYear(), a.getMonth() - 1, 1))
+                else setRangoInicio(s => addDays(s, -cantDiasRango))
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = T.gray2}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              aria-label="Anterior"
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: T.gray5, lineHeight: 1, transition: 'background 0.15s' }}>
+              ‹
+            </button>
+            <button onClick={() => {
+                if (modoVista === 'mes') setMesAncla(a => new Date(a.getFullYear(), a.getMonth() + 1, 1))
+                else setRangoInicio(s => addDays(s, cantDiasRango))
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = T.gray2}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              aria-label="Siguiente"
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: T.gray5, lineHeight: 1, transition: 'background 0.15s' }}>
+              ›
+            </button>
+          </div>
+          <span style={{ fontFamily: T.font, fontSize: 22, color: T.black, letterSpacing: '-0.01em', fontWeight: 400, flex: 1, textTransform: 'capitalize' }}>
+            {(() => {
+              const refDate = modoVista === 'mes' ? mesAncla : (diasRango[Math.floor(diasRango.length / 2)] || rangoInicio)
+              return `${MESES_LABEL[refDate.getMonth()]} de ${refDate.getFullYear()}`
+            })()}
           </span>
-          {/* selector de vista */}
-          <div style={{ display: 'flex', height: 30, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden' }}>
-            {[
-              { key: 'dia',    label: 'Día' },
-              { key: 'semana', label: 'Semana' },
-              { key: 'mes',    label: 'Mes' },
-            ].map(({ key, label }, idx, arr) => (
-              <button key={key} onClick={() => cambiarModoVista(key)}
-                style={{ border: 'none', borderRight: idx < arr.length - 1 ? `1px solid ${T.gray1}` : 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 11, letterSpacing: '0.04em', padding: '0 14px', background: modoVista === key ? T.black : T.white, color: modoVista === key ? T.white : T.gray4, fontWeight: modoVista === key ? 500 : 400, transition: 'background 0.15s, color 0.15s' }}>
-                {label}
-              </button>
-            ))}
+          {/* selector de vista — dropdown estilo GCal */}
+          <div style={{ position: 'relative' }}>
+            <select value={modoVista} onChange={e => cambiarModoVista(e.target.value)}
+              style={{ height: 36, border: `1px solid ${T.gray1}`, borderRadius: 100, background: T.white, padding: '0 36px 0 18px', fontFamily: T.font, fontSize: 14, color: T.black, cursor: 'pointer', appearance: 'none', outline: 'none' }}>
+              <option value="semana">Semana</option>
+              <option value="dia">Día</option>
+              <option value="mes">Mes</option>
+            </select>
+            <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: T.gray5, fontSize: 10 }}>▼</span>
           </div>
         </div>
 
@@ -6041,16 +6211,18 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
         return (
           <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
-            {/* sticky day headers — estilo GCal: día arriba (chico), número grande, círculo si es hoy */}
-            <div style={{ display: 'flex', flexShrink: 0, borderBottom: `1px solid ${T.gray1}`, background: T.white }}>
+            {/* sticky day headers — estilo Google Calendar: día arriba (uppercase, gris si no es hoy),
+                número grande debajo. Hoy con círculo negro y número en blanco. Sin divisiones entre días
+                ni fondo blanco — comparte el fondo del panel para que el header se vea como una sola pieza. */}
+            <div style={{ display: 'flex', flexShrink: 0, background: 'transparent' }}>
               <div style={{ width: 52, flexShrink: 0 }} />
               {diasRango.map((dia, i) => {
                 const esHoy = dia.getFullYear() === hoy.getFullYear() && dia.getMonth() === hoy.getMonth() && dia.getDate() === hoy.getDate()
                 const labelIdx = (dia.getDay() + 6) % 7 // lunes = 0
                 return (
-                  <div key={i} style={{ flex: 1, padding: '8px 12px', borderLeft: `1px solid ${T.gray1}`, background: T.white, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                    <span style={{ fontSize: 9, fontFamily: T.mono, letterSpacing: '0.12em', textTransform: 'uppercase', color: esHoy ? T.black : T.gray4 }}>{DIAS_SEMANA_LABELS[labelIdx]}</span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: esHoy ? 26 : 'auto', height: esHoy ? 26 : 'auto', borderRadius: '50%', background: esHoy ? T.black : 'transparent', color: esHoy ? T.white : T.black, fontSize: 14, fontFamily: T.font, fontWeight: 600, lineHeight: 1 }}>
+                  <div key={i} style={{ flex: 1, padding: '8px 12px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontSize: 11, fontFamily: T.font, letterSpacing: '0.08em', textTransform: 'uppercase', color: esHoy ? T.black : T.gray4, fontWeight: 500 }}>{DIAS_SEMANA_LABELS[labelIdx].toUpperCase()}</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, borderRadius: '50%', background: esHoy ? T.black : 'transparent', color: esHoy ? T.white : T.black, fontSize: 22, fontFamily: T.font, fontWeight: 400, lineHeight: 1 }}>
                       {dia.getDate()}
                     </span>
                   </div>
@@ -6349,13 +6521,36 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
   const cargar = useCallback(async () => {
     setCargando(true)
     const q = `mes=${mesStr(año, mes)}`
-    const [resRes, ingRes, egrRes] = await Promise.all([
+    const [resRes, ingRes, egrRes, cobRes] = await Promise.all([
       apiFetch(`/finanzas/resumen?${q}`),
       apiFetch(`/finanzas/ingresos?${q}`),
       apiFetch(`/finanzas/egresos?${q}`),
+      apiFetch(`/cobros-os?${q}`),
     ])
     if (resRes?.ok) setResumen(await resRes.json())
-    if (ingRes?.ok) setIngresos(await ingRes.json())
+    const ingData = ingRes?.ok ? await ingRes.json() : []
+    const cobData = cobRes?.ok ? await cobRes.json() : []
+    // Los cobros de OS son ingresos en finanzas (la parte que paga la OS). Los mergeamos a la lista
+    // de ingresos como "ingresos virtuales" para que el dashboard los cuente sin tocar el back.
+    // consultaId queda null para que NO entren al ticket promedio (eso es solo de consultas).
+    const cobrosVirtuales = cobData.map(c => ({
+      id:                c.id,
+      consultaId:        null,
+      descripcion:       `Cobro · ${c.obraSocialNombre || 'Obra social'}`,
+      monto:             c.montoRecibido,
+      estado:            'CONFIRMADO',
+      tipoPago:          'OBRA_SOCIAL',
+      medioPagoId:       c.medioPagoId,
+      medioPagoNombre:   c.medioPagoNombre,
+      obraSocialId:      c.obraSocialId,
+      obraSocialNombre:  c.obraSocialNombre,
+      consultorioId:     c.consultorioId,
+      consultorioNombre: c.consultorioNombre,
+      cantidadIngresos:  c.cantidadIngresos,
+      fecha:             c.fecha,
+      origen:            'cobro_os',
+    }))
+    setIngresos([...ingData, ...cobrosVirtuales])
     if (egrRes?.ok) setEgresos(await egrRes.json())
     setCargando(false)
   }, [apiFetch, año, mes])
@@ -6478,10 +6673,18 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
     (!filtroCons || i.consultorioNombre === filtroCons)
   )
 
-  const confirmados        = ingresosFiltrados.filter(i => i.estado === 'CONFIRMADO')
-  const pendientes         = ingresosFiltrados.filter(i => i.estado === 'PENDIENTE')
+  // Reglas espejo del back:
+  //  - confirmado: OS con monto > 0 (coseguro cobrado al paciente) o cualquier ingreso con estado=CONFIRMADO.
+  //  - pendiente: cualquier ingreso con estado=PENDIENTE (incluye OS con coseguro — la parte OS sigue pendiente).
+  // Una consulta OS con coseguro entra a AMBOS buckets: el coseguro aporta al monto confirmado, y la consulta
+  // aporta a la cuenta de cobros pendientes (porque la OS todavía no pagó).
+  const esConfirmadoEnFinanzas = i => i.tipoPago === 'OBRA_SOCIAL'
+    ? Number(i.monto ?? 0) > 0
+    : i.estado === 'CONFIRMADO'
+  const confirmados        = ingresosFiltrados.filter(esConfirmadoEnFinanzas)
+  const pendientes         = ingresosFiltrados.filter(i => i.estado === 'PENDIENTE' && i.origen !== 'cobro_os')
   const totalConfirmadosNum = confirmados.reduce((s, i) => s + Number(i.monto ?? 0), 0)
-  const totalGlobalNum     = ingresos.filter(i => i.estado === 'CONFIRMADO').reduce((s, i) => s + Number(i.monto ?? 0), 0)
+  const totalGlobalNum     = ingresos.filter(esConfirmadoEnFinanzas).reduce((s, i) => s + Number(i.monto ?? 0), 0)
   const totalCobros        = cargando ? null : fmtPesos(totalConfirmadosNum)
   const pendienteCount     = cargando ? null : pendientes.length
   const pctConsultorio     = (filtroCons && totalGlobalNum > 0)
@@ -6519,11 +6722,36 @@ function VistaFinanzas({ apiFetch, onIrAConsultas, onIrAConsulta, mesInicial, su
   const saldoNum          = totalConfirmadosNum - totalEgresosNum
   const totalPendienteNum = pendientes.reduce((s, i) => s + Number(i.monto ?? 0), 0)
 
-  // Promedio "por consulta": sólo ingresos vinculados a consulta con monto > 0, filtrado por consultorio.
-  // Mismo criterio que el backend (que no acepta consultorioId), pero acá lo hacemos client-side.
-  const consultasConMonto = ingresosFiltrados.filter(i => i.consultaId != null && Number(i.monto ?? 0) > 0)
-  const ticketPromedioNum = consultasConMonto.length > 0
-    ? consultasConMonto.reduce((s, i) => s + Number(i.monto), 0) / consultasConMonto.length
+  // Promedio "por consulta": reflejar el valor REAL cobrado por consulta. Reglas:
+  //  - Particular CONFIRMADO con monto > 0 → entra con su monto.
+  //  - OS con cobro batch asignado → entra con (coseguro + parte del cobro batch que le toca).
+  //    La parte del cobro batch se reparte uniforme: cobro.monto / cobro.cantidadIngresos.
+  //  - OS pendiente del cobro batch → NO entra (la consulta está incompleta; el coseguro solo
+  //    distorsionaría el promedio).
+  //  - Cobros virtuales (consultaId=null) → NO entran por sí solos, se imputan vía la regla de arriba.
+  //  - Libres → NO entran (no son consultas).
+  const cobrosPorId = {}
+  for (const i of ingresosFiltrados) {
+    if (i.origen === 'cobro_os') cobrosPorId[i.id] = i
+  }
+  const consultasParaTicket = ingresosFiltrados.filter(i => {
+    if (i.origen === 'cobro_os') return false
+    if (i.consultaId == null) return false
+    if (i.tipoPago === 'OBRA_SOCIAL') return i.cobroObraSocialId != null
+    return i.estado === 'CONFIRMADO' && Number(i.monto ?? 0) > 0
+  })
+  const ticketSuma = consultasParaTicket.reduce((s, i) => {
+    let monto = Number(i.monto ?? 0)  // coseguro (OS) o monto cobrado (particular)
+    if (i.tipoPago === 'OBRA_SOCIAL' && i.cobroObraSocialId) {
+      const cobro = cobrosPorId[i.cobroObraSocialId]
+      if (cobro && cobro.cantidadIngresos > 0) {
+        monto += Number(cobro.monto ?? 0) / cobro.cantidadIngresos
+      }
+    }
+    return s + monto
+  }, 0)
+  const ticketPromedioNum = consultasParaTicket.length > 0
+    ? ticketSuma / consultasParaTicket.length
     : null
 
   const resumenPorConsultorio = consultorios.map(c => {
