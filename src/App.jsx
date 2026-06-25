@@ -339,6 +339,12 @@ export default function App() {
     setToken(null); setUsuario(null)
   }
 
+  // Página de bienvenida post-pago: MercadoPago redirige acá tras pagar la suscripción.
+  // Se detecta por path porque no usamos React Router; sale del flujo normal de auth.
+  if (window.location.pathname === '/post-pago') {
+    return <><TopLoader /><VistaPostPago /></>
+  }
+
   let content
   if (!token) content = <VistaLogin onLogin={handleLogin} />
   else if (!usuario?.perfilCompleto) content = <VistaCompletarPerfil token={token} onLogin={handleLogin} onLogout={handleLogout} />
@@ -1186,6 +1192,67 @@ function LoginLogo({ dark, size = 18 }) {
   )
 }
 
+/**
+ * Pantalla a la que redirige MercadoPago después de pagar la suscripción (back_url del plan).
+ * Muestra mensaje cálido + barra de progreso animada de 10s. Al completar, redirige al login
+ * (donde el usuario inicia sesión con Google y entra como ACTIVO porque el webhook ya activó
+ * su cuenta del lado del back).
+ */
+function VistaPostPago() {
+  const isMobile = useIsMobile()
+  const [progreso, setProgreso] = useState(0)
+  const DURACION_MS = 10_000
+
+  useEffect(() => {
+    const inicio = Date.now()
+    const tick = setInterval(() => {
+      const transcurrido = Date.now() - inicio
+      const pct = Math.min(100, (transcurrido / DURACION_MS) * 100)
+      setProgreso(pct)
+      if (pct >= 100) {
+        clearInterval(tick)
+        window.location.href = '/'
+      }
+    }, 80)
+    return () => clearInterval(tick)
+  }, [])
+
+  return (
+    <div style={{
+      minHeight: '100vh', background: T.gray2,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: isMobile ? '24px 16px' : '40px', fontFamily: T.font,
+    }}>
+      <div style={{
+        background: T.white, borderRadius: 16, padding: isMobile ? '32px 24px' : '48px 56px',
+        boxShadow: '0 2px 24px rgba(0,0,0,0.06)', maxWidth: 460, width: '100%', textAlign: 'center',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+          <LoginLogo size={22} />
+        </div>
+        <Badge>Pago recibido</Badge>
+        <div style={{ fontSize: 18, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', marginTop: 6 }}>
+          Bienvenido a la comunidad de holaDoc
+        </div>
+        <div style={{ fontSize: 13, color: T.gray3, marginTop: 8, lineHeight: 1.6 }}>
+          Estamos activando tu cuenta. En unos segundos te vamos a redirigir al login para que entres con Google y empieces a usar la app.
+        </div>
+
+        {/* Barra de progreso */}
+        <div style={{ marginTop: 28, height: 6, width: '100%', background: T.gray1, borderRadius: 100, overflow: 'hidden' }}>
+          <div style={{
+            height: '100%', width: `${progreso}%`, background: T.black,
+            borderRadius: 100, transition: 'width 0.08s linear',
+          }} />
+        </div>
+        <div style={{ marginTop: 10, fontFamily: T.mono, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>
+          Activando · {Math.round(progreso)}%
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function VistaLogin({ onLogin }) {
   const isMobile = useIsMobile()
   const [cargando,        setCargando]        = useState(false)
@@ -1389,16 +1456,16 @@ function VistaLogin({ onLogin }) {
                 <LoginLogo size={20} />
               </div>
               {modo === 'registro' && <Badge>Acceso</Badge>}
-              {modo === 'exito' && <Badge>Solicitud enviada</Badge>}
+              {modo === 'exito' && <Badge>Registro recibido</Badge>}
               <div style={{ fontSize: 16, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
                 {modo === 'login'    && 'Bienvenido/a'}
                 {modo === 'registro' && 'Solicitá acceso'}
-                {modo === 'exito'    && '¡Listo!'}
+                {modo === 'exito'    && 'Revisá tu casilla'}
               </div>
               <div style={{ fontSize: 12.5, color: T.gray3, marginTop: 5, lineHeight: 1.55 }}>
                 {modo === 'login'    && 'Ingresá con tu cuenta de Google para acceder a tu consultorio.'}
                 {modo === 'registro' && 'Completá el formulario y te contactamos para darte acceso anticipado.'}
-                {modo === 'exito'    && 'Un administrador revisará tu cuenta y te habilitará el acceso por email.'}
+                {modo === 'exito'    && 'Te enviamos un mail con el link para activar tu suscripción mensual. Cuando termines el pago, te redirigimos al login para que entres con Google.'}
               </div>
             </div>
 
