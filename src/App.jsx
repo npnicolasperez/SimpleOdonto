@@ -1200,40 +1200,26 @@ function LoginLogo({ dark, size = 18 }) {
  */
 function VistaPostPago() {
   const isMobile = useIsMobile()
-  const [progreso, setProgreso] = useState(0)
-  // Estados: 'pidiendo-email' (no hay email en localStorage → mostrar input), 'activando',
-  // 'ok' (activada), 'error' (falla en /confirmar-pago).
-  const [estado,   setEstado]   = useState('activando')
-  const [email,    setEmail]    = useState('')
-  const [enviando, setEnviando] = useState(false)
+  const [progreso,    setProgreso]    = useState(0)
+  // Estados: 'pidiendo-email' (default — pedimos siempre el email para vincular el pago al
+  // profesional), 'activando' (submit en curso), 'ok' (activada), 'error' (algo falló).
+  const [estado,      setEstado]      = useState('pidiendo-email')
+  // Pre-fill best-effort desde localStorage si el user pre-registró en el mismo browser.
+  // No es bloqueante si está vacío.
+  const [email,       setEmail]       = useState(() => {
+    try { return localStorage.getItem('postPagoEmail') || '' } catch { return '' }
+  })
+  const [enviando,    setEnviando]    = useState(false)
+  const [errorMsg,    setErrorMsg]    = useState(null)
   const DURACION_MS = 10_000
 
   // preapproval_id viene en la URL que MP usa para redirigir al back_url tras el pago.
   const preapprovalId = useMemo(() => new URLSearchParams(window.location.search).get('preapproval_id'), [])
 
-  // Decide si arrancamos activando o si necesitamos pedirle el email al usuario.
-  // El email se guarda en localStorage al pre-registrarse — pero si pagó en otra sesión
-  // (típicamente incógnito) ese localStorage no existe y hay que pedirle el email manualmente.
+  // La barra de progreso solo arranca después de la activación (ok / error). Mientras esperamos
+  // el input del user no contamos — no tendría sentido el redirect automático.
   useEffect(() => {
-    if (!preapprovalId) {
-      // No hay preapproval_id en el URL — no podemos hacer nada útil. Redirige al login.
-      setEstado('error')
-      return
-    }
-    let emailGuardado = null
-    try { emailGuardado = localStorage.getItem('postPagoEmail') } catch {}
-    if (emailGuardado) {
-      confirmarPago(emailGuardado)
-    } else {
-      setEstado('pidiendo-email')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // La barra de progreso solo arranca cuando ya estamos en 'activando' / 'ok' / 'error'.
-  // Mientras esperamos input de email, queda en 0 — no tiene sentido contar.
-  useEffect(() => {
-    if (estado === 'pidiendo-email') return
+    if (estado !== 'ok' && estado !== 'error') return
     const inicio = Date.now()
     const tick = setInterval(() => {
       const transcurrido = Date.now() - inicio
@@ -1247,29 +1233,29 @@ function VistaPostPago() {
     return () => clearInterval(tick)
   }, [estado])
 
-  function confirmarPago(emailParaActivar) {
-    setEstado('activando')
+  function handleSubmitEmail(e) {
+    e.preventDefault()
+    if (!email.trim() || !preapprovalId) return
+    setErrorMsg(null)
     setEnviando(true)
     fetch(`${API_URL}/auth/confirmar-pago`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ email: emailParaActivar, preapprovalId }),
+      body:    JSON.stringify({ email: email.trim(), preapprovalId }),
     })
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(data => {
-        setEstado(data?.ok ? 'ok' : 'error')
         if (data?.ok) {
+          setEstado('ok')
           try { localStorage.removeItem('postPagoEmail') } catch {}
+        } else {
+          // El back devuelve {ok:false} si el email no existe o la preapproval no es válida.
+          // Mantenemos el formulario para que el user corrija sin tener que reiniciar el flow.
+          setErrorMsg('No pudimos encontrar tu cuenta con ese email. Revisá que sea el mismo con el que te registraste.')
         }
       })
-      .catch(() => setEstado('error'))
+      .catch(() => setErrorMsg('Hubo un error al conectar con el servidor. Probá de nuevo en unos segundos.'))
       .finally(() => setEnviando(false))
-  }
-
-  function handleSubmitEmail(e) {
-    e.preventDefault()
-    if (!email.trim()) return
-    confirmarPago(email.trim())
   }
 
   return (
@@ -1286,41 +1272,50 @@ function VistaPostPago() {
           <LoginLogo size={22} />
         </div>
 
-        {estado === 'pidiendo-email' ? (
+        {estado === 'pidiendo-email' && (
           <>
-            <Badge>Confirmá tu email</Badge>
+            <Badge>Pago recibido</Badge>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', marginTop: 6 }}>
               Una cosa más
             </div>
             <div style={{ fontSize: 13, color: T.gray3, marginTop: 8, lineHeight: 1.6 }}>
-              Ingresá el email con el que te registraste para vincular tu pago y activar tu cuenta.
+              Ingresá el email con el que te registraste en holaDoc para vincular tu pago y activar tu cuenta.
             </div>
             <form onSubmit={handleSubmitEmail} style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <input
                 type="email" autoFocus required value={email}
-                onChange={e => setEmail(e.target.value)}
+                onChange={e => { setEmail(e.target.value); setErrorMsg(null) }}
                 placeholder="tu@email.com"
-                style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${T.gray1}`, borderRadius: 8, fontFamily: T.font, fontSize: 14, color: T.black, background: T.white, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
+                style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${errorMsg ? '#dc2626' : T.gray1}`, borderRadius: 8, fontFamily: T.font, fontSize: 14, color: T.black, background: T.white, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
               />
-              <button type="submit" disabled={enviando || !email.trim()}
-                style={{ padding: '12px', background: T.black, color: T.white, border: 'none', borderRadius: 10, fontFamily: T.font, fontWeight: 700, fontSize: 13.5, cursor: (enviando || !email.trim()) ? 'not-allowed' : 'pointer', opacity: (enviando || !email.trim()) ? 0.5 : 1 }}>
+              {errorMsg && (
+                <div style={{ fontSize: 12, color: '#dc2626', lineHeight: 1.5, textAlign: 'left' }}>{errorMsg}</div>
+              )}
+              <button type="submit" disabled={enviando || !email.trim() || !preapprovalId}
+                style={{ padding: '12px', background: T.black, color: T.white, border: 'none', borderRadius: 10, fontFamily: T.font, fontWeight: 700, fontSize: 13.5, cursor: (enviando || !email.trim() || !preapprovalId) ? 'not-allowed' : 'pointer', opacity: (enviando || !email.trim() || !preapprovalId) ? 0.5 : 1 }}>
                 {enviando ? 'Activando…' : 'Activar mi cuenta'}
               </button>
             </form>
+            {!preapprovalId && (
+              <div style={{ marginTop: 14, fontSize: 11, color: T.gray4, lineHeight: 1.5 }}>
+                No detectamos un pago en esta página. Si llegaste acá por error, volvé al <a href="/" style={{ color: T.black }}>login</a>.
+              </div>
+            )}
           </>
-        ) : (
+        )}
+
+        {(estado === 'ok' || estado === 'error') && (
           <>
-            <Badge>{estado === 'error' ? 'No pudimos activar' : 'Pago recibido'}</Badge>
+            <Badge>{estado === 'ok' ? 'Cuenta activada' : 'No pudimos activar'}</Badge>
             <div style={{ fontSize: 18, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', marginTop: 6 }}>
-              {estado === 'error' ? 'Hubo un problema activando tu cuenta' : 'Bienvenido a la comunidad de HolaDocApp'}
+              {estado === 'ok' ? 'Bienvenido a la comunidad de HolaDocApp' : 'Hubo un problema activando tu cuenta'}
             </div>
             <div style={{ fontSize: 13, color: T.gray3, marginTop: 8, lineHeight: 1.6 }}>
-              {estado === 'error'
-                ? 'No pudimos confirmar tu pago automáticamente. Vamos a redirigirte al login — si no podés entrar, contactanos para activarte manualmente.'
-                : 'Estamos activando tu cuenta. En unos segundos te vamos a redirigir al login para que entres con Google y empieces a usar la app.'}
+              {estado === 'ok'
+                ? 'Tu cuenta ya está activa. En unos segundos te vamos a redirigir al login para que entres con Google.'
+                : 'Vamos a redirigirte al login. Si no podés entrar, contactanos para activarte manualmente.'}
             </div>
 
-            {/* Barra de progreso */}
             <div style={{ marginTop: 28, height: 6, width: '100%', background: T.gray1, borderRadius: 100, overflow: 'hidden' }}>
               <div style={{
                 height: '100%', width: `${progreso}%`, background: estado === 'error' ? '#dc2626' : T.black,
@@ -1328,7 +1323,7 @@ function VistaPostPago() {
               }} />
             </div>
             <div style={{ marginTop: 10, fontFamily: T.mono, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>
-              {estado === 'ok' ? 'Cuenta activada' : estado === 'error' ? 'Redirigiendo' : 'Activando'} · {Math.round(progreso)}%
+              Redirigiendo · {Math.round(progreso)}%
             </div>
           </>
         )}
