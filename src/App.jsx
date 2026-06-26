@@ -1201,7 +1201,35 @@ function LoginLogo({ dark, size = 18 }) {
 function VistaPostPago() {
   const isMobile = useIsMobile()
   const [progreso, setProgreso] = useState(0)
+  const [estado,   setEstado]   = useState('activando') // 'activando' | 'ok' | 'error'
   const DURACION_MS = 10_000
+
+  // Al montar, llamamos al back con el preapproval_id (que MP puso en el query string) +
+  // el email del profesional (que guardamos al pre-registrarse en localStorage). El back valida
+  // con MP que el pago esté authorized y activa la cuenta.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const preapprovalId = params.get('preapproval_id')
+    let email = null
+    try { email = localStorage.getItem('postPagoEmail') } catch {}
+    if (!preapprovalId || !email) {
+      setEstado('error')
+      return
+    }
+    fetch(`${API_URL}/auth/confirmar-pago`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email, preapprovalId }),
+    })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        setEstado(data?.ok ? 'ok' : 'error')
+        if (data?.ok) {
+          try { localStorage.removeItem('postPagoEmail') } catch {}
+        }
+      })
+      .catch(() => setEstado('error'))
+  }, [])
 
   useEffect(() => {
     const inicio = Date.now()
@@ -1230,23 +1258,25 @@ function VistaPostPago() {
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
           <LoginLogo size={22} />
         </div>
-        <Badge>Pago recibido</Badge>
+        <Badge>{estado === 'error' ? 'No pudimos activar' : 'Pago recibido'}</Badge>
         <div style={{ fontSize: 18, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', marginTop: 6 }}>
-          Bienvenido a la comunidad de holaDoc
+          {estado === 'error' ? 'Hubo un problema activando tu cuenta' : 'Bienvenido a la comunidad de HolaDocApp'}
         </div>
         <div style={{ fontSize: 13, color: T.gray3, marginTop: 8, lineHeight: 1.6 }}>
-          Estamos activando tu cuenta. En unos segundos te vamos a redirigir al login para que entres con Google y empieces a usar la app.
+          {estado === 'error'
+            ? 'No pudimos confirmar tu pago automáticamente. Vamos a redirigirte al login — si no podés entrar, contactanos para activarte manualmente.'
+            : 'Estamos activando tu cuenta. En unos segundos te vamos a redirigir al login para que entres con Google y empieces a usar la app.'}
         </div>
 
         {/* Barra de progreso */}
         <div style={{ marginTop: 28, height: 6, width: '100%', background: T.gray1, borderRadius: 100, overflow: 'hidden' }}>
           <div style={{
-            height: '100%', width: `${progreso}%`, background: T.black,
+            height: '100%', width: `${progreso}%`, background: estado === 'error' ? '#dc2626' : T.black,
             borderRadius: 100, transition: 'width 0.08s linear',
           }} />
         </div>
         <div style={{ marginTop: 10, fontFamily: T.mono, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>
-          Activando · {Math.round(progreso)}%
+          {estado === 'ok' ? 'Cuenta activada' : estado === 'error' ? 'Redirigiendo' : 'Activando'} · {Math.round(progreso)}%
         </div>
       </div>
     </div>
@@ -1326,6 +1356,10 @@ function VistaLogin({ onLogin }) {
         setTurnstileToken(null)
         return
       }
+      // Guardamos el email para que /post-pago lo use al confirmar el pago con el back (MP no
+      // propaga external_reference desde el query string del init_point del plan, así que la
+      // forma de mapear pago → profesional es vía este localStorage).
+      try { localStorage.setItem('postPagoEmail', form.email.trim()) } catch {}
       setModo('exito')
     } catch { setError('No se pudo conectar con el servidor') }
     finally { setCargando(false) }
