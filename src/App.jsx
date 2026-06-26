@@ -1247,7 +1247,14 @@ function VistaPostPago() {
       .then(data => {
         if (data?.ok) {
           setEstado('ok')
-          try { localStorage.removeItem('postPagoEmail') } catch {}
+          // Limpiamos credenciales viejas del browser (si el user tenía sesión previa con otra
+          // cuenta, su JWT podría matchear por email al row recién activado y saltearse el login
+          // con Google). Forzamos siempre el flow de login completo post-activación.
+          try {
+            localStorage.removeItem('postPagoEmail')
+            localStorage.removeItem('so_token')
+            localStorage.removeItem('so_usuario')
+          } catch {}
         } else {
           // El back devuelve {ok:false} si el email no existe o la preapproval no es válida.
           // Mantenemos el formulario para que el user corrija sin tener que reiniciar el flow.
