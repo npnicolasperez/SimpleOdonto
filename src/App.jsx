@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Upload, LayoutList, LayoutGrid, Users, ScanLine, ClipboardList, Building2, Menu, X } from 'lucide-react'
 import { GoogleLogin } from '@react-oauth/google'
 
@@ -1201,37 +1201,39 @@ function LoginLogo({ dark, size = 18 }) {
 function VistaPostPago() {
   const isMobile = useIsMobile()
   const [progreso, setProgreso] = useState(0)
-  const [estado,   setEstado]   = useState('activando') // 'activando' | 'ok' | 'error'
+  // Estados: 'pidiendo-email' (no hay email en localStorage → mostrar input), 'activando',
+  // 'ok' (activada), 'error' (falla en /confirmar-pago).
+  const [estado,   setEstado]   = useState('activando')
+  const [email,    setEmail]    = useState('')
+  const [enviando, setEnviando] = useState(false)
   const DURACION_MS = 10_000
 
-  // Al montar, llamamos al back con el preapproval_id (que MP puso en el query string) +
-  // el email del profesional (que guardamos al pre-registrarse en localStorage). El back valida
-  // con MP que el pago esté authorized y activa la cuenta.
+  // preapproval_id viene en la URL que MP usa para redirigir al back_url tras el pago.
+  const preapprovalId = useMemo(() => new URLSearchParams(window.location.search).get('preapproval_id'), [])
+
+  // Decide si arrancamos activando o si necesitamos pedirle el email al usuario.
+  // El email se guarda en localStorage al pre-registrarse — pero si pagó en otra sesión
+  // (típicamente incógnito) ese localStorage no existe y hay que pedirle el email manualmente.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const preapprovalId = params.get('preapproval_id')
-    let email = null
-    try { email = localStorage.getItem('postPagoEmail') } catch {}
-    if (!preapprovalId || !email) {
+    if (!preapprovalId) {
+      // No hay preapproval_id en el URL — no podemos hacer nada útil. Redirige al login.
       setEstado('error')
       return
     }
-    fetch(`${API_URL}/auth/confirmar-pago`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ email, preapprovalId }),
-    })
-      .then(res => res.ok ? res.json() : Promise.reject())
-      .then(data => {
-        setEstado(data?.ok ? 'ok' : 'error')
-        if (data?.ok) {
-          try { localStorage.removeItem('postPagoEmail') } catch {}
-        }
-      })
-      .catch(() => setEstado('error'))
+    let emailGuardado = null
+    try { emailGuardado = localStorage.getItem('postPagoEmail') } catch {}
+    if (emailGuardado) {
+      confirmarPago(emailGuardado)
+    } else {
+      setEstado('pidiendo-email')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // La barra de progreso solo arranca cuando ya estamos en 'activando' / 'ok' / 'error'.
+  // Mientras esperamos input de email, queda en 0 — no tiene sentido contar.
   useEffect(() => {
+    if (estado === 'pidiendo-email') return
     const inicio = Date.now()
     const tick = setInterval(() => {
       const transcurrido = Date.now() - inicio
@@ -1243,7 +1245,32 @@ function VistaPostPago() {
       }
     }, 80)
     return () => clearInterval(tick)
-  }, [])
+  }, [estado])
+
+  function confirmarPago(emailParaActivar) {
+    setEstado('activando')
+    setEnviando(true)
+    fetch(`${API_URL}/auth/confirmar-pago`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ email: emailParaActivar, preapprovalId }),
+    })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        setEstado(data?.ok ? 'ok' : 'error')
+        if (data?.ok) {
+          try { localStorage.removeItem('postPagoEmail') } catch {}
+        }
+      })
+      .catch(() => setEstado('error'))
+      .finally(() => setEnviando(false))
+  }
+
+  function handleSubmitEmail(e) {
+    e.preventDefault()
+    if (!email.trim()) return
+    confirmarPago(email.trim())
+  }
 
   return (
     <div style={{
@@ -1258,26 +1285,53 @@ function VistaPostPago() {
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
           <LoginLogo size={22} />
         </div>
-        <Badge>{estado === 'error' ? 'No pudimos activar' : 'Pago recibido'}</Badge>
-        <div style={{ fontSize: 18, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', marginTop: 6 }}>
-          {estado === 'error' ? 'Hubo un problema activando tu cuenta' : 'Bienvenido a la comunidad de HolaDocApp'}
-        </div>
-        <div style={{ fontSize: 13, color: T.gray3, marginTop: 8, lineHeight: 1.6 }}>
-          {estado === 'error'
-            ? 'No pudimos confirmar tu pago automáticamente. Vamos a redirigirte al login — si no podés entrar, contactanos para activarte manualmente.'
-            : 'Estamos activando tu cuenta. En unos segundos te vamos a redirigir al login para que entres con Google y empieces a usar la app.'}
-        </div>
 
-        {/* Barra de progreso */}
-        <div style={{ marginTop: 28, height: 6, width: '100%', background: T.gray1, borderRadius: 100, overflow: 'hidden' }}>
-          <div style={{
-            height: '100%', width: `${progreso}%`, background: estado === 'error' ? '#dc2626' : T.black,
-            borderRadius: 100, transition: 'width 0.08s linear',
-          }} />
-        </div>
-        <div style={{ marginTop: 10, fontFamily: T.mono, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>
-          {estado === 'ok' ? 'Cuenta activada' : estado === 'error' ? 'Redirigiendo' : 'Activando'} · {Math.round(progreso)}%
-        </div>
+        {estado === 'pidiendo-email' ? (
+          <>
+            <Badge>Confirmá tu email</Badge>
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', marginTop: 6 }}>
+              Una cosa más
+            </div>
+            <div style={{ fontSize: 13, color: T.gray3, marginTop: 8, lineHeight: 1.6 }}>
+              Ingresá el email con el que te registraste para vincular tu pago y activar tu cuenta.
+            </div>
+            <form onSubmit={handleSubmitEmail} style={{ marginTop: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input
+                type="email" autoFocus required value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="tu@email.com"
+                style={{ width: '100%', padding: '12px 14px', border: `1.5px solid ${T.gray1}`, borderRadius: 8, fontFamily: T.font, fontSize: 14, color: T.black, background: T.white, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
+              />
+              <button type="submit" disabled={enviando || !email.trim()}
+                style={{ padding: '12px', background: T.black, color: T.white, border: 'none', borderRadius: 10, fontFamily: T.font, fontWeight: 700, fontSize: 13.5, cursor: (enviando || !email.trim()) ? 'not-allowed' : 'pointer', opacity: (enviando || !email.trim()) ? 0.5 : 1 }}>
+                {enviando ? 'Activando…' : 'Activar mi cuenta'}
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <Badge>{estado === 'error' ? 'No pudimos activar' : 'Pago recibido'}</Badge>
+            <div style={{ fontSize: 18, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', marginTop: 6 }}>
+              {estado === 'error' ? 'Hubo un problema activando tu cuenta' : 'Bienvenido a la comunidad de HolaDocApp'}
+            </div>
+            <div style={{ fontSize: 13, color: T.gray3, marginTop: 8, lineHeight: 1.6 }}>
+              {estado === 'error'
+                ? 'No pudimos confirmar tu pago automáticamente. Vamos a redirigirte al login — si no podés entrar, contactanos para activarte manualmente.'
+                : 'Estamos activando tu cuenta. En unos segundos te vamos a redirigir al login para que entres con Google y empieces a usar la app.'}
+            </div>
+
+            {/* Barra de progreso */}
+            <div style={{ marginTop: 28, height: 6, width: '100%', background: T.gray1, borderRadius: 100, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', width: `${progreso}%`, background: estado === 'error' ? '#dc2626' : T.black,
+                borderRadius: 100, transition: 'width 0.08s linear',
+              }} />
+            </div>
+            <div style={{ marginTop: 10, fontFamily: T.mono, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>
+              {estado === 'ok' ? 'Cuenta activada' : estado === 'error' ? 'Redirigiendo' : 'Activando'} · {Math.round(progreso)}%
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
