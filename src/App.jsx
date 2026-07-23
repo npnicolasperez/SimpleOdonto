@@ -377,7 +377,6 @@ const NAV_ITEMS = [
   { key: 'dashboard',      label: 'Inicio',        group: 'Uso diario'    },
   { key: 'pacientes',      label: 'Pacientes',     group: 'Uso diario'    },
   { key: 'turnos',         label: 'Turnos',        group: 'Uso diario'    },
-  { key: 'estudios',       label: 'Estudios',      group: 'Uso diario'    },
   { key: 'finanzas',       label: 'Finanzas',      group: 'Uso diario'    },
   { key: 'ajustes',        label: 'Ajustes',       group: 'Configuración' },
   { key: 'especialidades', label: 'Especialidades', group: 'Configuración', adminOnly: true },
@@ -505,7 +504,6 @@ function MainLayout({ token, usuario, onLogout }) {
           {vista === 'dashboard'      && <VistaDashboard apiFetch={apiFetch} usuario={usuario} setVista={setVista} setTurnosFechaInicial={setTurnosFechaInicial} />}
           {vista === 'pacientes'      && <VistaPacientes apiFetch={apiFetch} onIrAConsultorios={() => { setAjustesTabInicial('consultorios'); setVista('ajustes') }} usuario={usuario} />}
           {vista === 'turnos'         && <VistaTurnos apiFetch={apiFetch} fechaInicial={turnosFechaInicial} />}
-          {vista === 'estudios'       && <VistaEstudios apiFetch={apiFetch} />}
           {vista === 'finanzas'       && <VistaFinanzas apiFetch={apiFetch} mesInicial={finanzasMesInicial} subVistaInicial={finanzasSubVistaInicial} onSubVistaConsumida={() => setFinanzasSubVistaInicial(null)} onIrAConsulta={(consultaId, pacienteId) => { setConsultaEditarInicial({ consultaId, pacienteId }); setFinanzasSubVistaInicial('movimientos'); setVista('editar-consulta') }} />}
           {vista === 'editar-consulta' && <VistaEditarConsultaDesdeFinanzas apiFetch={apiFetch} consultaEditarInicial={consultaEditarInicial} usuario={usuario} onVolver={() => { setConsultaEditarInicial(null); setVista('finanzas') }} />}
           {vista === 'ajustes'        && <VistaAjustes apiFetch={apiFetch} tabInicial={ajustesTabInicial} onTabInicialUsada={() => setAjustesTabInicial(null)} />}
@@ -615,11 +613,11 @@ function Input({ style: extraStyle, ...props }) {
       onFocus={e => { setFoc(true); props.onFocus?.(e) }}
       onBlur={e  => { setFoc(false); props.onBlur?.(e) }}
       style={{
-        height: 36, width: '100%', padding: '0 12px',
-        border: `1px solid ${foc ? T.black : T.gray1}`,
+        width: '100%', padding: '13px 16px',
+        border: `1px solid ${foc ? T.black : '#e0e0dc'}`,
         outline: 'none', background: T.white,
-        fontSize: 13, fontFamily: T.font, color: T.black,
-        borderRadius: 6,
+        fontSize: 15, fontFamily: T.font, color: T.black,
+        borderRadius: 10,
         boxSizing: 'border-box',
         transition: 'border-color 0.15s',
         ...extraStyle,
@@ -636,11 +634,11 @@ function Textarea({ style: extraStyle, ...props }) {
       onFocus={e => { setFoc(true); props.onFocus?.(e) }}
       onBlur={e  => { setFoc(false); props.onBlur?.(e) }}
       style={{
-        width: '100%', padding: '8px 12px',
-        border: `1px solid ${foc ? T.black : T.gray1}`,
+        width: '100%', padding: '13px 16px',
+        border: `1px solid ${foc ? T.black : '#e0e0dc'}`,
         outline: 'none', background: T.white,
-        fontSize: 13, fontFamily: T.font, color: T.black,
-        borderRadius: 6,
+        fontSize: 15, fontFamily: T.font, color: T.black,
+        borderRadius: 10,
         boxSizing: 'border-box', resize: 'vertical', lineHeight: 1.5,
         transition: 'border-color 0.15s',
         ...extraStyle,
@@ -651,7 +649,7 @@ function Textarea({ style: extraStyle, ...props }) {
 
 function FieldLabel({ children }) {
   return (
-    <label style={{ fontSize: 10, fontFamily: T.mono, fontWeight: 400, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, display: 'block', marginBottom: 6 }}>
+    <label style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 400, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', display: 'block', marginBottom: 7 }}>
       {children}
     </label>
   )
@@ -1720,7 +1718,7 @@ function VistaCompletarPerfil({ token, onLogin, onLogout }) {
     finally { setCargando(false) }
   }
 
-  const selectStyle = { height: 36, width: '100%', padding: '0 12px', border: `1px solid ${T.gray1}`, borderRadius: 6, outline: 'none', background: T.white, fontSize: 13, fontFamily: T.font, color: T.black, boxSizing: 'border-box', cursor: 'pointer', appearance: 'none' }
+  const selectStyle = { width: '100%', padding: '13px 16px', border: '1px solid #e0e0dc', borderRadius: 10, outline: 'none', background: T.white, fontSize: 15, fontFamily: T.font, color: T.black, boxSizing: 'border-box', cursor: 'pointer', appearance: 'none' }
 
   return (
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
@@ -1848,10 +1846,11 @@ function DashBarChart({ datos, isMobile, titulo = 'Ingresos últimos 12 meses', 
 
 function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) {
   const isMobile     = useIsMobile()
-  const [dash,       setDash]       = useState(null)
-  const [turnosHoy,  setTurnosHoy]  = useState([])
-  const [pendientesOs, setPendientesOs] = useState([]) // breakdown por OS/Particular
-  const [cargando,   setCargando]   = useState(true)
+  const [dash,        setDash]        = useState(null)
+  const [turnosHoy,   setTurnosHoy]   = useState([])
+  const [cargando,    setCargando]    = useState(true)  // carga inicial: oculta widgets
+  const [cargandoMes, setCargandoMes] = useState(false) // cambio de mes: solo afecta métricas
+  const cargadoRef = useRef(false)
   const [mesSel, setMesSel] = useState(() => {
     const d = new Date()
     return { año: d.getFullYear(), mes: d.getMonth() + 1 }
@@ -1872,29 +1871,14 @@ function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) 
     })
   }, [apiFetch])
 
-  // Dashboard + breakdown de pendientes (mismo mes). El breakdown se calcula del lado del front
-  // agrupando los ingresos PENDIENTES del mes por origen (Particular / cada OS).
   useEffect(() => {
-    setCargando(true)
+    if (!cargadoRef.current) setCargando(true)
+    else setCargandoMes(true)
     const mesParam = `${mesSel.año}-${pad(mesSel.mes)}`
-    Promise.all([
-      apiFetch(`/dashboard?mes=${mesParam}`),
-      apiFetch(`/finanzas/ingresos?mes=${mesParam}`),
-    ]).then(async ([resDash, resIng]) => {
-      if (resDash?.ok) setDash(await resDash.json())
-      if (resIng?.ok) {
-        const ingresos = await resIng.json()
-        const pendientes = ingresos.filter(i => i.estado === 'PENDIENTE')
-        const agrupado = {}
-        for (const i of pendientes) {
-          const key = i.tipoPago === 'OBRA_SOCIAL' && i.obraSocialNombre
-            ? i.obraSocialNombre
-            : i.tipoPago === 'PARTICULAR' ? 'Particular' : 'Otro'
-          agrupado[key] = (agrupado[key] || 0) + 1
-        }
-        setPendientesOs(Object.entries(agrupado).sort((a, b) => b[1] - a[1]))
-      }
+    apiFetch(`/dashboard?mes=${mesParam}`).then(async (res) => {
+      if (res?.ok) { setDash(await res.json()); cargadoRef.current = true }
       setCargando(false)
+      setCargandoMes(false)
     })
   }, [apiFetch, mesSel])
 
@@ -2026,94 +2010,118 @@ function VistaDashboard({ apiFetch, usuario, setVista, setTurnosFechaInicial }) 
           )}
         </div>
 
-        {/* ── Alertas: turnos sin confirmar + cobros pendientes ── */}
+        {/* ── Alertas: turnos próximos 7 días + cobros históricos OS ── */}
         {!cargando && dash != null && (dash.turnosPendientesManana > 0 || dash.cobrosPendientesCantidad > 0) && (
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, minmax(0, 1fr))', gap: 20 }}>
             {dash.turnosPendientesManana > 0 && (
               <button onClick={() => {
                 const manana = new Date(); manana.setDate(manana.getDate() + 1); manana.setHours(0,0,0,0)
                 setTurnosFechaInicial?.(manana)
                 setVista?.('turnos')
-              }} style={{ all: 'unset', cursor: 'pointer', background: T.white, borderRadius: 12, borderLeft: '4px solid #f97316', padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <span style={{ fontFamily: T.font, fontSize: 40, fontWeight: 700, color: T.black, letterSpacing: '-0.03em', lineHeight: 1, minWidth: 40, textAlign: 'center' }}>
+              }} style={{ all: 'unset', cursor: 'pointer', background: T.white, border: `1px solid ${T.gray1}`, borderLeft: '4px solid #d97742', borderRadius: 16, padding: '22px 24px', display: 'flex', alignItems: 'center', gap: 20 }}>
+                <span style={{ fontFamily: T.font, fontSize: 42, fontWeight: 800, color: T.black, letterSpacing: '-0.04em', lineHeight: 1, minWidth: 44, textAlign: 'center' }}>
                   {dash.turnosPendientesManana}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
-                    {dash.turnosPendientesManana === 1 ? 'Turno sin confirmar para mañana' : 'Turnos sin confirmar para mañana'}
+                  <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
+                    {dash.turnosPendientesManana === 1 ? 'Turno sin confirmar' : 'Turnos sin confirmar'}
                   </div>
                   <div style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, marginTop: 3 }}>
-                    Enviale un recordatorio a tu paciente
+                    Enviá un recordatorio a tu paciente
+                  </div>
+                  <div style={{ fontFamily: T.mono, fontSize: 8, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray3, marginTop: 6 }}>
+                    Próximos 7 días · independiente del mes
                   </div>
                 </div>
-                <span style={{ fontSize: 18, color: T.gray4 }}>→</span>
+                <span style={{ fontSize: 18, color: T.gray3 }}>→</span>
               </button>
             )}
             {dash.cobrosPendientesCantidad > 0 && (
               <button onClick={() => setVista?.('finanzas')}
-                style={{ all: 'unset', cursor: 'pointer', background: T.white, borderRadius: 12, borderLeft: '4px solid #f97316', padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-                <span style={{ fontFamily: T.font, fontSize: 40, fontWeight: 700, color: T.black, letterSpacing: '-0.03em', lineHeight: 1, minWidth: 40, textAlign: 'center' }}>
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(17,17,17,.07)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)' }}
+                style={{ all: 'unset', cursor: 'pointer', background: T.white, border: '1px solid #e0e0dc', borderLeft: '4px solid #d97742', borderRadius: 16, padding: '22px 26px', display: 'flex', alignItems: 'flex-start', gap: '1.4rem', transition: 'all .15s' }}>
+                <span style={{ fontFamily: T.font, fontSize: '2.8rem', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: T.black, flexShrink: 0, minWidth: 44 }}>
                   {dash.cobrosPendientesCantidad}
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
-                    Cobros pendientes de obra social
+                  <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, marginBottom: '0.35rem' }}>
+                    Cobros pendientes
                   </div>
-                  <div style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {pendientesOs.length > 0 ? pendientesOs.map(([k]) => k).join(' · ') : 'Ir a finanzas'}
-                  </div>
+                  {(() => {
+                    const entries = Object.entries(dash.pendientesOsNombres ?? {}).sort((a, b) => b[1] - a[1])
+                    return (<>
+                      <div style={{ fontFamily: T.mono, fontSize: '0.52rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#bbb', marginBottom: entries.length > 0 ? '0.85rem' : 0 }}>
+                        Total histórico · independiente del mes
+                      </div>
+                      {entries.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                          {entries.map(([nombre, cant], i) => {
+                            const paleta = ['#4a90d9', '#5baee0', '#7ec2e8', '#2e7fd6', '#3b6ea8']
+                            const color = nombre === 'Particular' ? '#111' : paleta[i % paleta.length]
+                            return (
+                              <div key={nombre} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <div style={{ width: 8, height: 8, borderRadius: 3, background: color, flexShrink: 0 }} />
+                                <span style={{ fontFamily: T.font, fontSize: '0.88rem', fontWeight: 700, color: '#111' }}>{cant}</span>
+                                <span style={{ fontFamily: T.font, fontSize: '0.85rem', color: '#555' }}>{nombre}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </>)
+                  })()}
                 </div>
-                <span style={{ fontSize: 18, color: T.gray4 }}>→</span>
+                <span style={{ color: '#ccc', fontSize: '1.3rem', marginTop: '0.2rem', flexShrink: 0 }}>→</span>
               </button>
             )}
           </div>
         )}
 
-        {/* ── Selector de mes ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
-          <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4 }}>Tu mes</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: '3px 8px' }}>
-            <button onClick={prevMes} style={{ all: 'unset', cursor: 'pointer', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.gray4, fontFamily: T.mono, fontSize: 13 }}>‹</button>
-            <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5, minWidth: 72, textAlign: 'center' }}>
-              {new Date(mesSel.año, mesSel.mes - 1, 1).toLocaleDateString('es-AR', { month: 'short' })} {mesSel.año}
-            </span>
-            <button onClick={nextMes} disabled={esMesActual} style={{ all: 'unset', cursor: esMesActual ? 'default' : 'pointer', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', color: esMesActual ? T.gray2 : T.gray4, fontFamily: T.mono, fontSize: 13 }}>›</button>
-          </div>
-          <div style={{ flex: 1, height: 1, background: T.gray1 }} />
-        </div>
-
-        {/* ── 4 KPIs del mes ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 12 }}>
-          <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', padding: '18px 22px' }}>
-            <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4 }}>Ingresos</span>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginTop: 8 }}>
-              <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 400, color: T.gray4, letterSpacing: '-0.02em', lineHeight: 1 }}>$</span>
-              <span style={{ fontFamily: T.font, fontSize: 26, fontWeight: 800, color: T.black, letterSpacing: '-0.03em', lineHeight: 1 }}>
-                {cargando ? '—' : fmtPesos(dash?.facturadoMes || 0).replace('$', '').trim()}
+        {/* ── Widget del mes: selector + 4 KPIs ── */}
+        <div style={{ background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 20, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.35rem 1.75rem', borderBottom: `1px solid #f0f0ec` }}>
+            <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray4 }}>Tu mes</span>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: '4px 6px', background: '#fafafa' }}>
+              <button onClick={prevMes} style={{ all: 'unset', cursor: 'pointer', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.gray4, fontFamily: T.mono, fontSize: 14 }}>‹</button>
+              <span style={{ fontFamily: T.mono, fontSize: 11, fontWeight: 500, letterSpacing: '0.06em', padding: '0 8px', color: T.black, minWidth: 88, textAlign: 'center', textTransform: 'uppercase' }}>
+                {new Date(mesSel.año, mesSel.mes - 1, 1).toLocaleDateString('es-AR', { month: 'short' })} {mesSel.año}
               </span>
+              <button onClick={nextMes} disabled={esMesActual} style={{ all: 'unset', cursor: esMesActual ? 'default' : 'pointer', width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: esMesActual ? T.gray2 : T.gray4, fontFamily: T.mono, fontSize: 14 }}>›</button>
             </div>
-            <span style={{ fontFamily: T.font, fontSize: 11, color: '#16a34a', fontWeight: 700, marginTop: 8, display: 'inline-block' }}>↑ vs {mesAnteriorNombre}</span>
           </div>
-          <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', padding: '18px 22px' }}>
-            <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4 }}>Consultas</span>
-            <div style={{ fontFamily: T.font, fontSize: 26, fontWeight: 800, color: T.black, letterSpacing: '-0.03em', lineHeight: 1, marginTop: 8 }}>
-              {cargando ? '—' : (dash?.consultasMes ?? 0)}
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', padding: isMobile ? '1.25rem' : '1.5rem 1.75rem', gap: isMobile ? '1.25rem' : 0 }}>
+            <div style={{ padding: isMobile ? 0 : '0 1.5rem 0 0', borderRight: isMobile ? 'none' : `1px solid #f0f0ec` }}>
+              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, marginBottom: 10 }}>Ingresos</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                <span style={{ fontFamily: T.font, fontSize: 18, fontWeight: 300, color: T.gray3, letterSpacing: '-0.02em', lineHeight: 1 }}>$</span>
+                <span style={{ fontFamily: T.font, fontSize: 32, fontWeight: 800, color: T.black, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                  {(cargando || cargandoMes) ? '—' : fmtPesos(dash?.facturadoMes || 0).replace('$', '').trim()}
+                </span>
+              </div>
+              <span style={{ fontFamily: T.font, fontSize: 11, color: '#16a34a', fontWeight: 700, marginTop: 6, display: 'inline-block' }}>↑ vs {mesAnteriorNombre}</span>
             </div>
-            <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, marginTop: 8, display: 'inline-block' }}>este mes</span>
-          </div>
-          <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', padding: '18px 22px' }}>
-            <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4 }}>Promedio x día</span>
-            <div style={{ fontFamily: T.font, fontSize: 26, fontWeight: 800, color: T.black, letterSpacing: '-0.03em', lineHeight: 1, marginTop: 8 }}>
-              {cargando ? '—' : (dash?.promedioConsultasPorDia != null ? dash.promedioConsultasPorDia.toFixed(1).replace('.', ',') : '—')}
+            <div style={{ padding: isMobile ? 0 : '0 1.5rem', borderRight: isMobile ? 'none' : `1px solid #f0f0ec` }}>
+              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, marginBottom: 10 }}>Consultas</div>
+              <div style={{ fontFamily: T.font, fontSize: 32, fontWeight: 800, color: T.black, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                {(cargando || cargandoMes) ? '—' : (dash?.consultasMes ?? 0)}
+              </div>
+              <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4, marginTop: 6, display: 'inline-block' }}>este mes</span>
             </div>
-            <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, marginTop: 8, display: 'inline-block' }}>consultas</span>
-          </div>
-          <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', padding: '18px 22px' }}>
-            <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4 }}>Pacientes</span>
-            <div style={{ fontFamily: T.font, fontSize: 26, fontWeight: 800, color: T.black, letterSpacing: '-0.03em', lineHeight: 1, marginTop: 8 }}>
-              {cargando ? '—' : (dash?.pacientesTotal ?? 0)}
+            <div style={{ padding: isMobile ? 0 : '0 1.5rem', borderRight: isMobile ? 'none' : `1px solid #f0f0ec` }}>
+              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, marginBottom: 10 }}>Promedio x día</div>
+              <div style={{ fontFamily: T.font, fontSize: 32, fontWeight: 800, color: T.black, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                {(cargando || cargandoMes) ? '—' : (dash?.promedioConsultasPorDia != null ? dash.promedioConsultasPorDia.toFixed(1).replace('.', ',') : '—')}
+              </div>
+              <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4, marginTop: 6, display: 'inline-block' }}>consultas</span>
             </div>
-            <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, marginTop: 8, display: 'inline-block' }}>activos</span>
+            <div style={{ padding: isMobile ? 0 : '0 0 0 1.5rem' }}>
+              <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray3, marginBottom: 10 }}>Pacientes</div>
+              <div style={{ fontFamily: T.font, fontSize: 32, fontWeight: 800, color: T.black, letterSpacing: '-0.03em', lineHeight: 1 }}>
+                {(cargando || cargandoMes) ? '—' : (dash?.pacientesTotal ?? 0)}
+              </div>
+              <span style={{ fontFamily: T.font, fontSize: 11, color: T.gray4, marginTop: 6, display: 'inline-block' }}>activos</span>
+            </div>
           </div>
         </div>
 
@@ -2162,22 +2170,26 @@ const AJUSTES_TABS = [
 
 function VistaAjustes({ apiFetch, tabInicial, onTabInicialUsada }) {
   const isMobile = useIsMobile()
-  const [tab,    setTab]    = useState(tabInicial || 'medios-pago')
-  const [counts, setCounts] = useState({}) // { 'medios-pago': 4, ... }
+  const [tab,     setTab]     = useState(tabInicial || 'medios-pago')
+  const [counts,  setCounts]  = useState({})
+  const [allData, setAllData] = useState({}) // datos precargados por tab key
 
   useEffect(() => {
     if (tabInicial) { setTab(tabInicial); onTabInicialUsada?.() }
   }, [tabInicial, onTabInicialUsada])
 
-  // Prefetch counts para las pills de cada tab (una sola vez al montar)
+  // Carga los 3 tabs en paralelo — una sola vez al montar
   useEffect(() => {
     let cancelado = false
     Promise.all(AJUSTES_TABS.map(t => apiFetch(t.endpoint).then(r => r?.ok ? r.json() : null)))
       .then(results => {
         if (cancelado) return
-        const c = {}
-        AJUSTES_TABS.forEach((t, i) => { if (Array.isArray(results[i])) c[t.key] = results[i].length })
+        const c = {}, d = {}
+        AJUSTES_TABS.forEach((t, i) => {
+          if (Array.isArray(results[i])) { c[t.key] = results[i].length; d[t.key] = results[i] }
+        })
         setCounts(c)
+        setAllData(d)
       })
     return () => { cancelado = true }
   }, [apiFetch])
@@ -2241,6 +2253,7 @@ function VistaAjustes({ apiFetch, tabInicial, onTabInicialUsada }) {
           key={activo.key}
           apiFetch={apiFetch}
           endpoint={activo.endpoint}
+          initialItems={allData[activo.key]}
           panelTitulo={activo.panelTitulo}
           panelTituloEditar={activo.panelTituloEditar}
           addLabel={activo.addLabel}
@@ -2295,10 +2308,10 @@ function NombreRow({ item, onEditar, onEliminar, isLast }) {
   )
 }
 
-function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, panelTituloEditar, addLabel, msgVacio, msgConfirmar, placeholder, searchPlaceholder, onCountChange, embedded = true }) {
+function VistaABMSimple({ apiFetch, endpoint, initialItems, titulo, panelTitulo, panelTituloEditar, addLabel, msgVacio, msgConfirmar, placeholder, searchPlaceholder, onCountChange, embedded = true }) {
   const isMobile = useIsMobile()
-  const [items,     setItems]     = useState([])
-  const [cargando,  setCargando]  = useState(true)
+  const [items,     setItems]     = useState(initialItems ?? [])
+  const [cargando,  setCargando]  = useState(initialItems == null)
   const [error,     setError]     = useState(null)
   const [panelOpen, setPanelOpen] = useState(false)
   const [editando,  setEditando]  = useState(null) // { id, nombre } | null
@@ -2321,7 +2334,10 @@ function VistaABMSimple({ apiFetch, endpoint, titulo, panelTitulo, panelTituloEd
     setCargando(false)
   }, [apiFetch, endpoint, onCountChange])
 
-  useEffect(() => { cargar() }, [cargar])
+  useEffect(() => {
+    if (initialItems != null) return // ya vienen precargados desde VistaAjustes
+    cargar()
+  }, [cargar, initialItems])
 
   function abrirNuevo()      { setEditando(null); setNombre(''); setFormErr(null); setPanelOpen(true) }
   function abrirEditar(item) { setEditando(item); setNombre(item.nombre); setFormErr(null); setPanelOpen(true) }
@@ -2477,25 +2493,25 @@ function PacientePicker({ pacientes, value, onChange, placeholder = 'Buscar por 
         onChange={e => { setQuery(e.target.value); onChange('') }}
         onBlur={() => setTimeout(() => setQuery(''), 150)}
         placeholder={selec ? `${selec.apellido}, ${selec.nombre}` : placeholder}
-        style={{ width: '100%', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '0 10px', fontFamily: T.font, fontSize: 13, color: T.black, outline: 'none', boxSizing: 'border-box', background: T.white }}
+        style={{ width: '100%', padding: '13px 16px', border: '1px solid #e0e0dc', borderRadius: 10, fontFamily: T.font, fontSize: 15, color: T.black, outline: 'none', boxSizing: 'border-box', background: T.white }}
       />
       {filtrados.length > 0 && (
-        <div style={{ position: 'absolute', top: 38, left: 0, right: 0, background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 6, maxHeight: 220, overflowY: 'auto', zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: T.white, border: '1px solid #e0e0dc', borderRadius: 10, maxHeight: 220, overflowY: 'auto', zIndex: 50, boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}>
           {filtrados.map(p => (
             <div key={p.id}
               onMouseDown={() => { onChange(p.id); setQuery('') }}
-              style={{ padding: '9px 12px', cursor: 'pointer', fontSize: 13, fontFamily: T.font, color: T.black, borderBottom: `1px solid ${T.gray1}` }}
+              style={{ padding: '12px 16px', cursor: 'pointer', fontSize: 14, fontFamily: T.font, color: T.black, borderBottom: '1px solid #f0f0ec' }}
               onMouseEnter={e => e.currentTarget.style.background = T.gray2}
               onMouseLeave={e => e.currentTarget.style.background = T.white}
             >
-              <span style={{ fontWeight: 500 }}>{p.apellido}, {p.nombre}</span>
-              {p.dni && <span style={{ fontSize: 11, color: T.gray4, marginLeft: 8 }}>DNI {p.dni}</span>}
+              <span style={{ fontWeight: 600 }}>{p.apellido}, {p.nombre}</span>
+              {p.dni && <span style={{ fontSize: 12, color: T.gray4, marginLeft: 8 }}>DNI {p.dni}</span>}
             </div>
           ))}
         </div>
       )}
       {query.length > 0 && filtrados.length === 0 && (
-        <div style={{ position: 'absolute', top: 38, left: 0, right: 0, background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 6, padding: '10px 12px', fontSize: 12, color: T.gray4, fontFamily: T.font, zIndex: 50 }}>
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: T.white, border: '1px solid #e0e0dc', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: T.gray4, fontFamily: T.font, zIndex: 50 }}>
           Sin resultados
         </div>
       )}
@@ -2556,18 +2572,144 @@ function VistaNuevoPaciente({ apiFetch, onVolver, onCreado }) {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '20px 24px 16px', flexShrink: 0 }}>
-        <BackBtn onClick={onVolver} />
-        <span style={{ fontFamily: T.font, fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>Nuevo paciente</span>
+      {/* ── Header sticky ── */}
+      <div style={{ flexShrink: 0, background: T.white, borderBottom: '1px solid #e0e0dc', padding: '1rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <button type="button" onClick={onVolver}
+            style={{ width: 44, height: 44, border: '1px solid #e0e0dc', borderRadius: 12, background: T.white, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 18, color: T.gray4, fontFamily: T.font }}>
+            ←
+          </button>
+          <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, color: T.black }}>Nuevo paciente</span>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button type="button" onClick={onVolver} disabled={guardando}
+            style={{ background: 'transparent', border: 'none', color: T.gray4, fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '10px 16px', fontFamily: T.font }}>
+            Cancelar
+          </button>
+          <button type="submit" form="form-nuevo-paciente" disabled={guardando}
+            style={{ background: T.black, color: T.white, border: 'none', borderRadius: 100, padding: '12px 28px', fontWeight: 700, fontSize: 14, cursor: guardando ? 'default' : 'pointer', fontFamily: T.font }}>
+            {guardando ? 'Guardando…' : 'Guardar paciente'}
+          </button>
+        </div>
       </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px' }}>
-        <form onSubmit={handleCrear} style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 24, maxWidth: 700, display: 'flex', flexDirection: 'column', gap: 24, boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-          <PacienteFormFields form={form} handleChange={e => setForm(p => ({ ...p, [e.target.name]: e.target.value }))} setField={(name, val) => setForm(p => ({ ...p, [name]: val }))} apiFetch={apiFetch} />
+
+      {/* ── Form body ── */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <form id="form-nuevo-paciente" onSubmit={handleCrear} style={{ maxWidth: 760, margin: '0 auto', padding: '2rem' }}>
+          <p style={{ fontFamily: T.mono, fontSize: 10, color: '#aaa', marginBottom: '1.5rem' }}>
+            <span style={{ color: '#d97742' }}>*</span> Campo obligatorio
+          </p>
+          <PacienteFormFields
+            form={form}
+            handleChange={e => setForm(p => ({ ...p, [e.target.name]: e.target.value }))}
+            setField={(name, val) => setForm(p => ({ ...p, [name]: val }))}
+            apiFetch={apiFetch}
+          />
           <ErrorMsg>{err}</ErrorMsg>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Btn variant="outline" type="button" onClick={onVolver} disabled={guardando}>Cancelar</Btn>
-            <Btn type="submit" disabled={guardando}>{guardando ? 'Registrando…' : 'Registrar paciente'}</Btn>
-          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function VistaEditarPaciente({ apiFetch, id, onVolver, onGuardado }) {
+  const [form,      setForm]      = useState(VACÍO_FORM)
+  const [cargando,  setCargando]  = useState(true)
+  const [guardando, setGuardando] = useState(false)
+  const [err,       setErr]       = useState(null)
+
+  useEffect(() => {
+    setCargando(true)
+    apiFetch(`/pacientes/${id}`).then(async res => {
+      if (res?.ok) {
+        const p = await res.json()
+        setForm({
+          nombre:               p.nombre        ?? '',
+          apellido:             p.apellido      ?? '',
+          dni:                  p.dni           ?? '',
+          fechaNac:             p.fechaNac      ?? '',
+          telefono:             p.telefono      ?? '',
+          email:                p.email         ?? '',
+          direccion:            p.direccion     ?? '',
+          obrasSociales:        (p.obrasSociales ?? []).map(o => ({
+            obraSocialId: o.obraSocialId,
+            nombre:       o.nombre,
+            nroAfiliado:  o.nroAfiliado ?? '',
+            plan:         o.plan        ?? '',
+            titular:      o.titular     ?? '',
+          })),
+          ocupacion:            p.ocupacion            ?? '',
+          grupoSanguineo:       p.grupoSanguineo       ?? '',
+          alergias:             p.alergias             ?? '',
+          medicaciones:         p.medicaciones         ?? '',
+          antecedentes:         p.antecedentes         ?? '',
+          antecedentesFamiliares: p.antecedentesFamiliares ?? '',
+          peso:                 p.peso   != null ? String(p.peso)   : '',
+          altura:               p.altura != null ? String(p.altura) : '',
+        })
+      }
+      setCargando(false)
+    })
+  }, [apiFetch, id])
+
+  async function handleGuardar(e) {
+    e.preventDefault()
+    if (!form.apellido.trim() || !form.nombre.trim()) { setErr('Apellido y nombre son requeridos'); return }
+    setErr(null); setGuardando(true)
+    const body = { nombre: form.nombre, apellido: form.apellido, dni: form.dni || null, fechaNac: form.fechaNac || null, telefono: form.telefono || null, email: form.email || null, direccion: form.direccion || null, obrasSociales: buildObrasSocialesBody(form.obrasSociales), ocupacion: form.ocupacion || null, grupoSanguineo: form.grupoSanguineo || null, alergias: form.alergias || null, medicaciones: form.medicaciones || null, antecedentes: form.antecedentes || null, antecedentesFamiliares: form.antecedentesFamiliares || null, peso: form.peso ? Number(form.peso) : null, altura: form.altura ? Number(form.altura) : null }
+    const res = await apiFetch(`/pacientes/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+    if (!res) { setGuardando(false); return }
+    if (res.ok) {
+      onGuardado?.()
+    } else {
+      const e = await res.json().catch(() => null)
+      setErr(e?.error || 'Error al guardar')
+      setGuardando(false)
+    }
+  }
+
+  if (cargando) return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.mono, fontSize: 11, color: T.gray4, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+      Cargando…
+    </div>
+  )
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
+      {/* ── Header sticky ── */}
+      <div style={{ flexShrink: 0, background: T.white, borderBottom: '1px solid #e0e0dc', padding: '1rem 2rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
+          <button type="button" onClick={onVolver}
+            style={{ width: 44, height: 44, border: '1px solid #e0e0dc', borderRadius: 12, background: T.white, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 18, color: T.gray4, fontFamily: T.font }}>
+            ←
+          </button>
+          <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, color: T.black }}>Editar paciente</span>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button type="button" onClick={onVolver} disabled={guardando}
+            style={{ background: 'transparent', border: 'none', color: T.gray4, fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '10px 16px', fontFamily: T.font }}>
+            Cancelar
+          </button>
+          <button type="submit" form="form-editar-paciente" disabled={guardando}
+            style={{ background: T.black, color: T.white, border: 'none', borderRadius: 100, padding: '12px 28px', fontWeight: 700, fontSize: 14, cursor: guardando ? 'default' : 'pointer', fontFamily: T.font }}>
+            {guardando ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Form body ── */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <form id="form-editar-paciente" onSubmit={handleGuardar} style={{ maxWidth: 760, margin: '0 auto', padding: '2rem' }}>
+          <p style={{ fontFamily: T.mono, fontSize: 10, color: '#aaa', marginBottom: '1.5rem' }}>
+            <span style={{ color: '#d97742' }}>*</span> Campo obligatorio
+          </p>
+          <PacienteFormFields
+            form={form}
+            handleChange={e => setForm(p => ({ ...p, [e.target.name]: e.target.value }))}
+            setField={(name, val) => setForm(p => ({ ...p, [name]: val }))}
+            apiFetch={apiFetch}
+          />
+          <ErrorMsg>{err}</ErrorMsg>
         </form>
       </div>
     </div>
@@ -2587,12 +2729,14 @@ function VistaPacientes({ apiFetch, onIrAConsultorios, usuario }) {
   function abrirEstudioExistente(id)   { setEstudioIdAbierto(id);   setSub('estudios') }
   function abrirNuevaConsulta()        { setConsultaActual(null);   setSub('nueva-consulta') }
   function abrirEditarConsulta(c)      { setConsultaActual(c);      setSub('nueva-consulta') }
+  function abrirEditarPaciente()       { setSub('editar-paciente') }
 
-  if (sub === 'lista')           return <ListaPacientes apiFetch={apiFetch} onDetalle={abrirDetalle} onNuevo={() => setSub('nuevo')} />
-  if (sub === 'nuevo')           return <VistaNuevoPaciente apiFetch={apiFetch} onVolver={() => setSub('lista')} onCreado={abrirDetalle} />
-  if (sub === 'detalle')         return <DetallePaciente apiFetch={apiFetch} id={pacienteId} onVolver={volver} onNuevoEstudio={abrirNuevoEstudio} onAbrirEstudio={abrirEstudioExistente} onIrAConsultorios={onIrAConsultorios} onIniciarConsulta={abrirNuevaConsulta} onEditarConsulta={abrirEditarConsulta} usuario={usuario} />
-  if (sub === 'estudios')        return <VistaEstudios apiFetch={apiFetch} pacienteIdInicial={pacienteId} estudioIdInicial={estudioIdAbierto} onVolver={volverADetalle} />
-  if (sub === 'nueva-consulta')  return <VistaNuevaConsulta apiFetch={apiFetch} pacienteId={pacienteId} onVolver={volverADetalle} usuario={usuario} consulta={consultaActual} />
+  if (sub === 'lista')            return <ListaPacientes apiFetch={apiFetch} onDetalle={abrirDetalle} onNuevo={() => setSub('nuevo')} />
+  if (sub === 'nuevo')            return <VistaNuevoPaciente apiFetch={apiFetch} onVolver={() => setSub('lista')} onCreado={abrirDetalle} />
+  if (sub === 'detalle')          return <DetallePaciente apiFetch={apiFetch} id={pacienteId} onVolver={volver} onNuevoEstudio={abrirNuevoEstudio} onAbrirEstudio={abrirEstudioExistente} onIrAConsultorios={onIrAConsultorios} onIniciarConsulta={abrirNuevaConsulta} onEditarConsulta={abrirEditarConsulta} onEditarPaciente={abrirEditarPaciente} usuario={usuario} />
+  if (sub === 'editar-paciente')  return <VistaEditarPaciente apiFetch={apiFetch} id={pacienteId} onVolver={volverADetalle} onGuardado={volverADetalle} />
+  if (sub === 'estudios')         return <VistaEstudios apiFetch={apiFetch} pacienteIdInicial={pacienteId} estudioIdInicial={estudioIdAbierto} onVolver={volverADetalle} />
+  if (sub === 'nueva-consulta')   return <VistaNuevaConsulta apiFetch={apiFetch} pacienteId={pacienteId} onVolver={volverADetalle} usuario={usuario} consulta={consultaActual} />
   return null
 }
 
@@ -3067,15 +3211,11 @@ function FilaPaciente({ paciente: p, onClick, onEliminar, apiFetch, compact = fa
 const hoyISO = () => new Date().toISOString().slice(0, 10)
 const VACÍO_CO_DET = { consultorioId: '', fecha: hoyISO(), descripcion: '', monto: '', tipoPago: 'PARTICULAR' }
 
-function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudio, onIrAConsultorios, onIniciarConsulta, onEditarConsulta, usuario }) {
+function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudio, onIrAConsultorios, onIniciarConsulta, onEditarConsulta, onEditarPaciente, usuario }) {
   const isMobile = useIsMobile()
   const [paciente,        setPaciente]        = useState(null)
   const [cargando,        setCargando]        = useState(true)
   const [error,           setError]           = useState(null)
-  const [panelEdit,       setPanelEdit]       = useState(false)
-  const [formEdit,        setFormEdit]        = useState(VACÍO_FORM)
-  const [guardando,       setGuardando]       = useState(false)
-  const [editErr,         setEditErr]         = useState(null)
   const [consultas,       setConsultas]       = useState([])
   const [cargandoCO,      setCargandoCO]      = useState(true)
   const { openConfirm, dialog }               = useConfirm()
@@ -3116,39 +3256,6 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
   useEffect(() => { cargar() }, [cargar])
   useEffect(() => { cargarConsultas() }, [cargarConsultas])
   useEffect(() => { cargarEstudiosPaciente() }, [cargarEstudiosPaciente])
-
-  function abrirEdit() {
-    if (!paciente) return
-    setFormEdit({
-      apellido: paciente.apellido ?? '', nombre: paciente.nombre ?? '', dni: paciente.dni ?? '',
-      fechaNac: paciente.fechaNac ?? '', telefono: paciente.telefono ?? '', email: paciente.email ?? '',
-      direccion: paciente.direccion ?? '',
-      obrasSociales: (paciente.obrasSociales ?? []).map(o => ({
-        obraSocialId:     o.obraSocialId ?? '',
-        obraSocialNombre: o.obraSocialNombre ?? '',
-        nroAfiliado:      o.nroAfiliado ?? '',
-        plan:             o.plan ?? '',
-        titular:          o.titular ?? '',
-      })),
-      ocupacion: paciente.ocupacion ?? '',
-      grupoSanguineo: paciente.grupoSanguineo ?? '', alergias: paciente.alergias ?? '',
-      medicaciones: paciente.medicaciones ?? '', antecedentes: paciente.antecedentes ?? '',
-      antecedentesFamiliares: paciente.antecedentesFamiliares ?? '',
-      peso: paciente.peso ?? '', altura: paciente.altura ?? '',
-    })
-    setEditErr(null)
-    setPanelEdit(true)
-  }
-
-  async function handleGuardarEdit(e) {
-    e.preventDefault(); setEditErr(null); setGuardando(true)
-    const body = { nombre: formEdit.nombre, apellido: formEdit.apellido, dni: formEdit.dni || null, fechaNac: formEdit.fechaNac || null, telefono: formEdit.telefono || null, email: formEdit.email || null, direccion: formEdit.direccion || null, obrasSociales: buildObrasSocialesBody(formEdit.obrasSociales), ocupacion: formEdit.ocupacion || null, grupoSanguineo: formEdit.grupoSanguineo || null, alergias: formEdit.alergias || null, medicaciones: formEdit.medicaciones || null, antecedentes: formEdit.antecedentes || null, antecedentesFamiliares: formEdit.antecedentesFamiliares || null, peso: formEdit.peso ? Number(formEdit.peso) : null, altura: formEdit.altura ? Number(formEdit.altura) : null }
-    const res = await apiFetch(`/pacientes/${id}`, { method: 'PUT', body: JSON.stringify(body) })
-    if (!res) return
-    if (res.ok) { setPanelEdit(false); cargar() }
-    else { const err = await res.json().catch(() => null); setEditErr(err?.error || 'Error al guardar') }
-    setGuardando(false)
-  }
 
   if (cargando) return <Cargando />
   if (error)    return <ErrorScreen msg={error} onVolver={onVolver} />
@@ -3238,7 +3345,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
         </div>
 
         <SidePanel open={datosOpen} onClose={() => setDatosOpen(false)} title="Datos del paciente" width={480}
-          footer={<Btn variant="outline" onClick={() => { setDatosOpen(false); abrirEdit(); }}>Editar paciente</Btn>}
+          footer={<Btn variant="outline" onClick={() => { setDatosOpen(false); onEditarPaciente?.() }}>Editar paciente</Btn>}
         >
           <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div style={{ background: T.white, borderRadius: 12, border: `1px solid ${T.gray1}`, padding: 16 }}>
@@ -3272,20 +3379,9 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
           </div>
         </SidePanel>
 
-        <SidePanel open={panelEdit} onClose={() => setPanelEdit(false)} title="Editar paciente" width={560}
-          footer={<>
-            <Btn variant="outline" onClick={() => setPanelEdit(false)} disabled={guardando}>Cancelar</Btn>
-            <Btn onClick={handleGuardarEdit} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar cambios'}</Btn>
-          </>}
-        >
-          <form onSubmit={handleGuardarEdit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-            <PacienteFormFields form={formEdit} handleChange={e => setFormEdit(p => ({ ...p, [e.target.name]: e.target.value }))} setField={(name, val) => setFormEdit(p => ({ ...p, [name]: val }))} apiFetch={apiFetch} />
-            <ErrorMsg>{editErr}</ErrorMsg>
-          </form>
-        </SidePanel>
         {dialog}
 
-        {!datosOpen && !panelEdit && (
+        {!datosOpen && (
           <FabAcciones acciones={[
             { label: 'Iniciar consulta', onClick: onIniciarConsulta, variant: 'primary' },
           ]} />
@@ -3393,7 +3489,7 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
             <span style={{ fontSize: 10, fontFamily: T.mono, textTransform: 'uppercase', letterSpacing: '0.1em', color: T.gray5 }}>
               Reg. {fmtFecha(p.dateCreated)}
             </span>
-            <Btn variant="outline" size="sm" onClick={abrirEdit}>Editar paciente</Btn>
+            <Btn variant="outline" size="sm" onClick={() => onEditarPaciente?.()}>Editar paciente</Btn>
           </div>
 
         </div>
@@ -3451,17 +3547,6 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
 
       </div>
 
-      <SidePanel open={panelEdit} onClose={() => setPanelEdit(false)} title="Editar paciente" width={560}
-        footer={<>
-          <Btn variant="outline" onClick={() => setPanelEdit(false)} disabled={guardando}>Cancelar</Btn>
-          <Btn onClick={handleGuardarEdit} disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar cambios'}</Btn>
-        </>}
-      >
-        <form onSubmit={handleGuardarEdit} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <PacienteFormFields form={formEdit} handleChange={e => setFormEdit(p => ({ ...p, [e.target.name]: e.target.value }))} setField={(name, val) => setFormEdit(p => ({ ...p, [name]: val }))} apiFetch={apiFetch} />
-          <ErrorMsg>{editErr}</ErrorMsg>
-        </form>
-      </SidePanel>
       {dialog}
     </div>
   )
@@ -3776,10 +3861,10 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
   const esOdontologo = usuario?.especialidadNombre?.toLowerCase().includes('odontolog')
 
   // Estilos del formulario — coinciden con el diseño del mockup
-  const fCard    = { background: T.white, borderRadius: 16, border: `1px solid ${T.gray1}`, boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: '1.75rem', marginBottom: '1.25rem' }
-  const fSecLbl  = { fontFamily: T.mono, fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, marginBottom: '1.5rem', display: 'block' }
-  const fLbl     = { display: 'block', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray5, marginBottom: 8 }
-  const fInp     = { width: '100%', padding: '0.85rem 1rem', border: `1px solid ${T.gray1}`, borderRadius: 10, fontFamily: T.font, fontSize: '0.92rem', background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box', transition: 'border-color .15s' }
+  const fCard    = { background: T.white, borderRadius: 16, border: '1px solid #e0e0dc', boxShadow: '0 1px 4px rgba(0,0,0,0.04)', padding: '1.75rem', marginBottom: '1.25rem' }
+  const fSecLbl  = { fontFamily: T.mono, fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#999', marginBottom: '1.5rem', display: 'block' }
+  const fLbl     = { display: 'block', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 7 }
+  const fInp     = { width: '100%', padding: '13px 16px', border: '1px solid #e0e0dc', borderRadius: 10, fontFamily: T.font, fontSize: 15, background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box', transition: 'border-color .15s' }
   const fSel     = { ...fInp, cursor: 'pointer', appearance: 'none' }
   const fDivider = { height: 1, background: '#f0f0ec', margin: '1.25rem 0' }
 
@@ -3811,10 +3896,6 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '10px 14px' : '1rem 2rem', borderBottom: `1px solid ${T.gray1}`, background: T.white, gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <BackBtn onClick={onVolver} />
-          <div>
-            <div style={{ fontFamily: T.font, fontSize: '1.05rem', fontWeight: 700, color: T.black }}>{modoEdicion ? 'Editar consulta' : 'Nueva consulta'}</div>
-            {p && <div style={{ fontFamily: T.font, fontSize: '0.8rem', color: T.gray3, marginTop: 2 }}>{p.apellido}, {p.nombre}</div>}
-          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {modoEdicion && (
@@ -3874,7 +3955,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
               <div>
                 <label style={fLbl}>Fecha <span style={{ color: '#d97742' }}>*</span></label>
                 <Input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
-                  style={{ padding: '0.85rem 1rem', borderRadius: 10, fontSize: '0.92rem', height: 'auto' }} />
+                  style={{}} />
               </div>
               <div>
                 <label style={fLbl}>Consultorio <span style={{ color: '#d97742' }}>*</span></label>
@@ -3890,7 +3971,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
               <label style={fLbl}>Motivo <span style={{ color: '#d97742' }}>*</span></label>
               <Input value={form.motivo} onChange={e => setForm(f => ({ ...f, motivo: e.target.value }))}
                 placeholder="Ej: Dolor de muela, Control, Limpieza, Extracción..."
-                style={{ padding: '0.85rem 1rem', borderRadius: 10, fontSize: '0.92rem', height: 'auto' }} />
+                style={{}} />
               <div style={{ fontSize: '0.72rem', color: T.gray5, marginTop: 6, fontFamily: T.font }}>
                 Razón por la que viene el paciente. Se mostrará como título en la historia clínica.
               </div>
@@ -3901,7 +3982,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
               <label style={fLbl}>Notas clínicas</label>
               <Textarea value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
                 placeholder="Observaciones, diagnóstico, tratamiento realizado, indicaciones, próximos pasos..."
-                style={{ padding: '0.85rem 1rem', borderRadius: 10, fontSize: '0.92rem', minHeight: 130 }} />
+                style={{ minHeight: 130 }} />
             </div>
 
             {/* Archivos adjuntos */}
@@ -3973,9 +4054,9 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                     <div>
                       <label style={fLbl}>Monto <span style={{ color: '#d97742' }}>*</span></label>
                       <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: T.gray5, fontSize: '0.92rem', pointerEvents: 'none' }}>$</span>
+                        <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.gray5, fontSize: 15, pointerEvents: 'none', fontFamily: T.font }}>$</span>
                         <Input type="number" min="0" step="0.01" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="0"
-                          style={{ padding: '0.85rem 1rem', paddingLeft: '1.75rem', borderRadius: 10, fontSize: '0.92rem', height: 'auto' }} />
+                          style={{ paddingLeft: 28 }} />
                       </div>
                     </div>
                     {mostrarMedioPago && (
@@ -4021,9 +4102,9 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label style={fLbl}>Coseguro (opcional)</label>
                   <div style={{ position: 'relative', maxWidth: 280 }}>
-                    <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: T.gray5, fontSize: '0.92rem', pointerEvents: 'none' }}>$</span>
+                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.gray5, fontSize: 15, pointerEvents: 'none', fontFamily: T.font }}>$</span>
                     <Input type="number" min="0" step="0.01" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="0"
-                      style={{ padding: '0.85rem 1rem', paddingLeft: '1.75rem', borderRadius: 10, fontSize: '0.92rem', height: 'auto' }} />
+                      style={{ paddingLeft: 28 }} />
                   </div>
                 </div>
                 {coseguroConMonto && (
@@ -4560,47 +4641,56 @@ function ObrasSocialesEditor({ apiFetch, lista, onChange }) {
     onChange(lista.filter((_, i) => i !== idx))
   }
 
+  const osInp = { height: 'auto', padding: '13px 16px', borderRadius: 10, fontSize: 15, border: '1px solid #e0e0dc' }
+  const osLbl = { display: 'block', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 7 }
+  const osFld = { marginBottom: '1rem' }
+
+  const BtnAdd = () => (
+    <button type="button" onClick={agregar}
+      style={{ width: '100%', padding: '0.85rem', border: '1.5px dashed #d0d0cc', borderRadius: 12, background: T.white, fontFamily: T.font, fontSize: 14, fontWeight: 600, color: T.gray4, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+      + Agregar otra obra social
+    </button>
+  )
+
   if (lista.length === 0) {
-    return (
-      <div style={{ background: T.gray2, border: `1px dashed ${T.gray1}`, borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4 }}>Sin obras sociales registradas</span>
-        <Btn size="sm" variant="outline" type="button" onClick={agregar}>+ Agregar obra social</Btn>
-      </div>
-    )
+    return <BtnAdd />
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
       {lista.map((os, idx) => (
-        <div key={idx} style={{ background: T.gray2, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray4 }}>
+        <div key={idx} style={{ background: '#fafafa', border: '1px solid #e0e0dc', borderRadius: 12, padding: '1.25rem', position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.1rem' }}>
+            <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: idx === 0 ? T.black : T.gray4, fontWeight: idx === 0 ? 600 : 400 }}>
               {idx === 0 ? 'Principal' : `Obra social ${idx + 1}`}
             </span>
-            <button type="button" onClick={() => quitar(idx)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.gray5, fontSize: 16, lineHeight: 1, padding: 4 }}
-              title="Quitar"
-            >✕</button>
+            <button type="button" onClick={() => quitar(idx)} title="Quitar"
+              style={{ width: 28, height: 28, border: 'none', background: 'transparent', color: '#bbb', cursor: 'pointer', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontFamily: T.font }}>
+              ✕
+            </button>
           </div>
-          <div>
-            <FieldLabel>Obra social / Prepaga *</FieldLabel>
+          <div style={osFld}>
+            <label style={osLbl}>Obra social / Prepaga <span style={{ color: '#d97742' }}>*</span></label>
             <ObraSocialSelector apiFetch={apiFetch} value={os.obraSocialId}
               onChange={e => update(idx, { obraSocialId: e.target.value })} />
           </div>
-          <div><FieldLabel>Nro. de afiliado</FieldLabel>
-            <Input value={os.nroAfiliado} onChange={e => update(idx, { nroAfiliado: e.target.value })} />
+          <div style={osFld}>
+            <label style={osLbl}>Nro. de afiliado</label>
+            <Input value={os.nroAfiliado} onChange={e => update(idx, { nroAfiliado: e.target.value })} style={osInp} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div><FieldLabel>Plan</FieldLabel>
-              <Input value={os.plan} onChange={e => update(idx, { plan: e.target.value })} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem' }}>
+            <div>
+              <label style={osLbl}>Plan</label>
+              <Input value={os.plan} onChange={e => update(idx, { plan: e.target.value })} style={osInp} />
             </div>
-            <div><FieldLabel>Titular</FieldLabel>
-              <Input value={os.titular} onChange={e => update(idx, { titular: e.target.value })} />
+            <div>
+              <label style={osLbl}>Titular</label>
+              <Input value={os.titular} onChange={e => update(idx, { titular: e.target.value })} style={osInp} />
             </div>
           </div>
         </div>
       ))}
-      <Btn size="sm" variant="outline" type="button" onClick={agregar}>+ Agregar otra obra social</Btn>
+      {lista.length < 2 && <BtnAdd />}
     </div>
   )
 }
@@ -4608,56 +4698,117 @@ function ObrasSocialesEditor({ apiFetch, lista, onChange }) {
 /* ─── PacienteFormFields (shared form sections) ──────────────── */
 
 function PacienteFormFields({ form, handleChange, setField, apiFetch }) {
+  const fCard  = { background: T.white, border: '1px solid #e0e0dc', borderRadius: 16, padding: '1.75rem', marginBottom: '1.25rem' }
+  const fCLbl  = { fontFamily: T.mono, fontSize: 9, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#999', marginBottom: '1.5rem', display: 'block' }
+  const fLbl   = { display: 'block', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 7 }
+  const fFld   = { marginBottom: '1.1rem' }
+  const fRow2  = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem', marginBottom: '1.1rem' }
+  const fRow3  = { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.1rem', marginBottom: '1.1rem' }
+  const fInp   = { height: 'auto', padding: '13px 16px', borderRadius: 10, fontSize: 15, border: '1px solid #e0e0dc' }
+  const fHint  = { fontFamily: T.font, fontSize: 11, color: '#aaa', marginTop: 6 }
+  const fAlert = { fontFamily: T.font, fontSize: 11, color: '#e05a4a', fontWeight: 600, marginTop: 6 }
+
   return (
     <>
-      <div>
-        <SectionTitle>Datos personales</SectionTitle>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div><FieldLabel>Apellido *</FieldLabel><Input required name="apellido" value={form.apellido} onChange={handleChange} /></div>
-          <div><FieldLabel>Nombre *</FieldLabel><Input required name="nombre" value={form.nombre} onChange={handleChange} /></div>
-          <div><FieldLabel>DNI</FieldLabel><Input name="dni" value={form.dni} onChange={handleChange} /></div>
-          <div><FieldLabel>Fecha de nacimiento</FieldLabel><Input type="date" name="fechaNac" value={form.fechaNac} onChange={handleChange} /></div>
+      {/* ── Datos personales ── */}
+      <div style={fCard}>
+        <span style={fCLbl}>Datos personales</span>
+        <div style={fRow2}>
+          <div>
+            <label style={fLbl}>Nombre <span style={{ color: '#d97742' }}>*</span></label>
+            <Input required name="nombre" value={form.nombre} onChange={handleChange} style={fInp} placeholder="Nicolás" />
+          </div>
+          <div>
+            <label style={fLbl}>Apellido <span style={{ color: '#d97742' }}>*</span></label>
+            <Input required name="apellido" value={form.apellido} onChange={handleChange} style={fInp} placeholder="Pérez" />
+          </div>
+        </div>
+        <div style={fRow2}>
+          <div>
+            <label style={fLbl}>DNI</label>
+            <Input name="dni" value={form.dni} onChange={handleChange} style={fInp} placeholder="38.984.356" />
+          </div>
+          <div>
+            <label style={fLbl}>Fecha de nacimiento</label>
+            <Input type="date" name="fechaNac" value={form.fechaNac} onChange={handleChange} style={fInp} />
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem' }}>
+          <div>
+            <label style={fLbl}>Ocupación</label>
+            <Input name="ocupacion" value={form.ocupacion} onChange={handleChange} style={fInp} placeholder="Técnico en programación" />
+          </div>
+          <div />
         </div>
       </div>
-      <div>
-        <SectionTitle>Contacto</SectionTitle>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div><FieldLabel>Teléfono</FieldLabel><Input name="telefono" value={form.telefono} onChange={handleChange} /></div>
-          <div><FieldLabel>Email</FieldLabel><Input type="email" name="email" value={form.email} onChange={handleChange} /></div>
-          <div style={{ gridColumn: '1 / -1' }}><FieldLabel>Dirección</FieldLabel><Input name="direccion" value={form.direccion} onChange={handleChange} /></div>
+
+      {/* ── Contacto ── */}
+      <div style={fCard}>
+        <span style={fCLbl}>Contacto</span>
+        <div style={fRow2}>
+          <div style={fFld}>
+            <label style={fLbl}>Teléfono / WhatsApp</label>
+            <Input name="telefono" value={form.telefono} onChange={handleChange} style={fInp} placeholder="0351 704-4827" />
+            <p style={fHint}>Se usa para recordatorios de turno</p>
+          </div>
+          <div style={fFld}>
+            <label style={fLbl}>Email</label>
+            <Input type="email" name="email" value={form.email} onChange={handleChange} style={fInp} placeholder="nicolas@email.com" />
+          </div>
+        </div>
+        <div>
+          <label style={fLbl}>Dirección</label>
+          <Input name="direccion" value={form.direccion} onChange={handleChange} style={fInp} placeholder="Martín Coronado 2668" />
         </div>
       </div>
-      <div>
-        <SectionTitle>Cobertura</SectionTitle>
+
+      {/* ── Cobertura médica ── */}
+      <div style={fCard}>
+        <span style={fCLbl}>Cobertura médica</span>
         <ObrasSocialesEditor
           apiFetch={apiFetch}
           lista={form.obrasSociales || []}
           onChange={(nueva) => setField('obrasSociales', nueva)}
         />
       </div>
-      <div>
-        <SectionTitle>Datos clínicos</SectionTitle>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div><FieldLabel>Ocupación</FieldLabel><Input name="ocupacion" value={form.ocupacion} onChange={handleChange} /></div>
-          <div><FieldLabel>Grupo sanguíneo</FieldLabel><Input name="grupoSanguineo" value={form.grupoSanguineo} onChange={handleChange} placeholder="Ej: A+" /></div>
-          <div><FieldLabel>Peso (kg)</FieldLabel><Input type="number" step="0.1" min="0" name="peso" value={form.peso} onChange={handleChange} /></div>
-          <div><FieldLabel>Altura (cm)</FieldLabel><Input type="number" min="0" name="altura" value={form.altura} onChange={handleChange} /></div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <FieldLabel>Alergias</FieldLabel>
-            <Textarea name="alergias" rows={2} value={form.alergias} onChange={handleChange} placeholder="Medicamentos, alimentos u otras alergias conocidas…" />
+
+      {/* ── Datos clínicos ── */}
+      <div style={fCard}>
+        <span style={fCLbl}>Datos clínicos</span>
+        <div style={{ background: '#fafafa', border: '1px solid #f0f0ec', borderRadius: 10, padding: '0.85rem 1.1rem', fontSize: 12, color: '#888', lineHeight: 1.55, marginBottom: '1.25rem', display: 'flex', alignItems: 'flex-start', gap: 8, fontFamily: T.font }}>
+          <span style={{ color: '#d97742', flexShrink: 0 }}>⚠</span>
+          <span>Alergias y medicaciones aparecen <strong>destacadas en cada consulta</strong>. Completalas ahora para no olvidarlas.</span>
+        </div>
+        <div style={fRow3}>
+          <div>
+            <label style={fLbl}>Grupo sanguíneo</label>
+            <Input name="grupoSanguineo" value={form.grupoSanguineo} onChange={handleChange} style={fInp} placeholder="Ej: A+" />
           </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <FieldLabel>Medicaciones</FieldLabel>
-            <Textarea name="medicaciones" rows={2} value={form.medicaciones} onChange={handleChange} placeholder="Medicamentos actuales y dosis…" />
+          <div>
+            <label style={fLbl}>Peso (kg)</label>
+            <Input type="number" step="0.1" min="0" name="peso" value={form.peso} onChange={handleChange} style={fInp} placeholder="80" />
           </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <FieldLabel>Antecedentes personales</FieldLabel>
-            <Textarea name="antecedentes" rows={3} value={form.antecedentes} onChange={handleChange} placeholder="Enfermedades, cirugías, tratamientos previos…" />
+          <div>
+            <label style={fLbl}>Altura (cm)</label>
+            <Input type="number" min="0" name="altura" value={form.altura} onChange={handleChange} style={fInp} placeholder="175" />
           </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <FieldLabel>Antecedentes familiares</FieldLabel>
-            <Textarea name="antecedentesFamiliares" rows={2} value={form.antecedentesFamiliares} onChange={handleChange} placeholder="Enfermedades hereditarias relevantes…" />
-          </div>
+        </div>
+        <div style={fFld}>
+          <label style={fLbl}>Alergias</label>
+          <Input name="alergias" value={form.alergias} onChange={handleChange} style={fInp} placeholder="Ej: Penicilina, ibuprofeno..." />
+          <p style={fAlert}>⚠ Esta información se mostrará como alerta en cada consulta</p>
+        </div>
+        <div style={fFld}>
+          <label style={fLbl}>Medicaciones actuales</label>
+          <Input name="medicaciones" value={form.medicaciones} onChange={handleChange} style={fInp} placeholder="Ej: Escitalopram 10mg" />
+        </div>
+        <div style={fFld}>
+          <label style={fLbl}>Antecedentes personales</label>
+          <Input name="antecedentes" value={form.antecedentes} onChange={handleChange} style={fInp} placeholder="Cirugías, enfermedades crónicas..." />
+        </div>
+        <div>
+          <label style={fLbl}>Antecedentes familiares</label>
+          <Input name="antecedentesFamiliares" value={form.antecedentesFamiliares} onChange={handleChange} style={fInp} placeholder="Enfermedades hereditarias relevantes..." />
         </div>
       </div>
     </>
@@ -6163,13 +6314,17 @@ function GoogleCalendarIcon({ size = 18 }) {
 }
 
 const ESTADO_TURNO_COLORS = {
-  PENDIENTE:  { bg: '#fef9c3', border: '#ca8a04', text: '#713f12' },
-  CONFIRMADO: { bg: '#dcfce7', border: '#16a34a', text: '#14532d' },
+  PENDIENTE:  { bg: '#fdf8d0', border: '#d4c45a', text: '#6b5c0a' },
+  CONFIRMADO: { bg: '#d4f0e0', border: '#7dd8a0', text: '#1a5c38' },
+  CANCELADO:  { bg: '#fde8e8', border: '#e8a0a0', text: '#7a1a1a' },
 }
 
 const VACÍO_TURNO = {
   pacienteId: '',
   nombrePacienteLibre: '',
+  nombreLib: '',
+  apellidoLib: '',
+  telefonoLib: '',
   consultorioId: '',
   fechaHora: '',
   duracionMinutos: 30,
@@ -6355,6 +6510,9 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
   const [consultorios,    setConsultorios]    = useState([])
   const [usarPacienteLib, setUsarPacienteLib] = useState(false)
   const { openConfirm, dialog: confirmDialog } = useConfirm()
+  const [popupTurno, setPopupTurno] = useState(null)
+  const [popupPos,   setPopupPos]   = useState({ x: 0, y: 0 })
+  const [cancelando, setCancelando] = useState(false)
 
   // Centra la grilla en la hora actual al terminar de cargar, al cambiar de día o cambiar de modo.
   useEffect(() => {
@@ -6476,16 +6634,20 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
   }
 
   function abrirEditar(turno) {
+    const esLib = !turno.pacienteId && !!turno.nombrePacienteLibre
     setForm({
       pacienteId:          turno.pacienteId ?? '',
       nombrePacienteLibre: turno.nombrePacienteLibre ?? '',
+      nombreLib:           esLib ? (turno.nombrePacienteLibre ?? '') : '',
+      apellidoLib:         '',
+      telefonoLib:         '',
       consultorioId:       turno.consultorioId ?? '',
       fechaHora:           formatFechaHoraInput(turno.fechaHora),
       duracionMinutos:     turno.duracionMinutos ?? 30,
       motivo:              turno.motivo ?? '',
       estado:              turno.estado ?? 'PENDIENTE',
     })
-    setUsarPacienteLib(!turno.pacienteId && !!turno.nombrePacienteLibre)
+    setUsarPacienteLib(esLib)
     setEditId(turno.id)
     setFormErr(null)
     setModalOpen(true)
@@ -6501,8 +6663,14 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
 
   async function handleGuardar(e) {
     e.preventDefault()
-    if (!usarPacienteLib && !form.pacienteId && !form.nombrePacienteLibre.trim()) {
-      setFormErr('Ingresá un paciente o el nombre del nuevo paciente'); return
+    const nombreLibCombinado = usarPacienteLib
+      ? [form.apellidoLib.trim(), form.nombreLib.trim()].filter(Boolean).join(', ') || null
+      : null
+    if (usarPacienteLib && !form.nombreLib.trim()) {
+      setFormErr('Ingresá el nombre del paciente'); return
+    }
+    if (!usarPacienteLib && !form.pacienteId) {
+      setFormErr('Seleccioná un paciente'); return
     }
     if (!form.fechaHora) { setFormErr('Ingresá fecha y hora'); return }
     if (!form.consultorioId) { setFormErr('Seleccioná un consultorio'); return }
@@ -6510,7 +6678,7 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
 
     const body = {
       pacienteId:          usarPacienteLib ? null : (form.pacienteId ? Number(form.pacienteId) : null),
-      nombrePacienteLibre: usarPacienteLib ? (form.nombrePacienteLibre || null) : null,
+      nombrePacienteLibre: nombreLibCombinado,
       consultorioId:       form.consultorioId ? Number(form.consultorioId) : null,
       fechaHora:           form.fechaHora + ':00',
       duracionMinutos:     Number(form.duracionMinutos),
@@ -6549,6 +6717,38 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
     if (res?.ok || res?.status === 204) setCalConectado(false)
   }
 
+  function mostrarPopup(e, t) {
+    e.stopPropagation()
+    setPopupTurno(t)
+    setPopupPos({ x: e.clientX, y: e.clientY })
+  }
+  function cerrarPopup() { setPopupTurno(null) }
+  async function handleConfirmarDesdePopup() {
+    if (!popupTurno) return
+    setCancelando(true)
+    const t = popupTurno
+    const body = {
+      pacienteId:          t.pacienteId || null,
+      nombrePacienteLibre: t.nombrePacienteLibre || null,
+      consultorioId:       t.consultorioId || null,
+      fechaHora:           t.fechaHora,
+      duracionMinutos:     t.duracionMinutos || 30,
+      motivo:              t.motivo || null,
+      estado:              'CONFIRMADO',
+    }
+    const res = await apiFetch(`/turnos/${t.id}`, { method: 'PUT', body: JSON.stringify(body) })
+    if (res?.ok) { cerrarPopup(); cargarTurnos() }
+    setCancelando(false)
+  }
+  async function handleCancelarDesdePopup() {
+    if (!popupTurno) return
+    setCancelando(true)
+    const t = popupTurno
+    const res = await apiFetch(`/turnos/${t.id}`, { method: 'DELETE' })
+    if (res?.ok || res?.status === 204) { cerrarPopup(); cargarTurnos() }
+    setCancelando(false)
+  }
+
   const diasRango = Array.from({ length: cantDiasRango }, (_, i) => addDays(rangoInicio, i))
 
   const esHoyEnVista = (() => {
@@ -6576,9 +6776,9 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
   }
 
   const selectStyle = {
-    height: 36, width: '100%', padding: '0 10px',
-    border: `1px solid ${T.gray1}`, borderRadius: 0,
-    fontFamily: T.font, fontSize: 13, color: T.black,
+    width: '100%', padding: '13px 16px',
+    border: '1px solid #e0e0dc', borderRadius: 10,
+    fontFamily: T.font, fontSize: 15, color: T.black,
     background: T.white, outline: 'none', appearance: 'none',
   }
 
@@ -6809,25 +7009,27 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div onClick={cerrarPopup} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
       {/* top bar */}
       <PageBar>
         <PageTitle>Turnos</PageTitle>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <img src="/google_calendar_icon.png" alt="Google Calendar" style={{ width: 18, height: 18, display: 'block' }} />
-            {calConectado != null && (
-              <div style={{ position: 'absolute', bottom: -2, right: -2, width: 8, height: 8, borderRadius: '50%', background: calConectado ? '#16a34a' : '#dc2626', border: `1.5px solid ${T.white}` }} />
-            )}
-          </div>
-          <span style={{ fontFamily: T.font, fontSize: 13, color: calConectado ? T.gray4 : '#dc2626' }}>
-            {calConectado ? 'Google Calendar conectado — turnos sincronizados automáticamente.' : 'Google Calendar no conectado'}
-          </span>
-          {calConectado
-            ? <Btn size="sm" variant="ghost" onClick={desconectarCalendar}>Desconectar</Btn>
-            : <Btn size="sm" variant="ghost" onClick={conectarCalendar}>Conectar</Btn>
-          }
+          {calConectado != null && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#f6f6f4', border: '1px solid #e8e8e4', borderRadius: 100, padding: '5px 14px 5px 10px' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <img src="/google_calendar_icon.png" alt="" style={{ width: 16, height: 16, display: 'block' }} />
+                <div style={{ position: 'absolute', bottom: -1, right: -1, width: 7, height: 7, borderRadius: '50%', background: calConectado ? '#22c55e' : '#ef4444', border: '1.5px solid #f6f6f4' }} />
+              </div>
+              <span style={{ fontFamily: T.font, fontSize: 12, color: '#666' }}>
+                {calConectado ? 'Sincronizado automáticamente' : 'No conectado'}
+              </span>
+              <button onClick={calConectado ? desconectarCalendar : conectarCalendar}
+                style={{ fontFamily: T.font, fontSize: 12, color: calConectado ? '#888' : T.black, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                {calConectado ? 'Desconectar' : 'Conectar'}
+              </button>
+            </div>
+          )}
           <Btn onClick={() => abrirNuevoConChequeoCal(new Date())}>+ Nuevo turno</Btn>
         </div>
       </PageBar>
@@ -6836,57 +7038,73 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* navegación + selector de vista — estilo Google Calendar (botón Hoy redondeado,
-            flechas circulares, mes grande con título "Mes Año", selector dropdown a la derecha). */}
+        {/* toolbar: nav + período + leyenda + vista pills */}
         <div style={{ padding: '10px 24px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
-          <button onClick={() => {
-              if (modoVista === 'mes') setMesAncla(new Date())
-              else if (modoVista === 'semana') setRangoInicio(startOfWeek(new Date()))
-              else { const d = new Date(); d.setHours(0,0,0,0); setRangoInicio(d) }
-            }}
-            disabled={esHoyEnVista}
-            onMouseEnter={e => { if (!esHoyEnVista) e.currentTarget.style.background = T.gray2 }}
-            onMouseLeave={e => { e.currentTarget.style.background = T.white }}
-            style={{ background: T.white, border: `1px solid ${T.gray1}`, cursor: esHoyEnVista ? 'default' : 'pointer', height: 36, padding: '0 18px', fontFamily: T.font, fontSize: 14, fontWeight: 500, color: esHoyEnVista ? T.gray3 : T.black, borderRadius: 100, transition: 'background 0.15s' }}>
-            Hoy
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* left: Hoy + arrows + period title */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+            <button onClick={() => {
+                if (modoVista === 'mes') setMesAncla(new Date())
+                else if (modoVista === 'semana') setRangoInicio(startOfWeek(new Date()))
+                else { const d = new Date(); d.setHours(0,0,0,0); setRangoInicio(d) }
+              }}
+              disabled={esHoyEnVista}
+              style={{ background: T.white, border: `1px solid ${T.gray1}`, cursor: esHoyEnVista ? 'default' : 'pointer', height: 34, padding: '0 16px', fontFamily: T.font, fontSize: 13, fontWeight: 500, color: esHoyEnVista ? T.gray3 : T.black, borderRadius: 100, flexShrink: 0 }}>
+              Hoy
+            </button>
             <button onClick={() => {
                 if (modoVista === 'mes') setMesAncla(a => new Date(a.getFullYear(), a.getMonth() - 1, 1))
                 else setRangoInicio(s => addDays(s, -cantDiasRango))
               }}
-              onMouseEnter={e => e.currentTarget.style.background = T.gray2}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               aria-label="Anterior"
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: T.gray5, lineHeight: 1, transition: 'background 0.15s' }}>
+              style={{ background: T.white, border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: T.gray5, flexShrink: 0 }}>
               ‹
             </button>
             <button onClick={() => {
                 if (modoVista === 'mes') setMesAncla(a => new Date(a.getFullYear(), a.getMonth() + 1, 1))
                 else setRangoInicio(s => addDays(s, cantDiasRango))
               }}
-              onMouseEnter={e => e.currentTarget.style.background = T.gray2}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
               aria-label="Siguiente"
-              style={{ background: 'transparent', border: 'none', cursor: 'pointer', width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: T.gray5, lineHeight: 1, transition: 'background 0.15s' }}>
+              style={{ background: T.white, border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 34, height: 34, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: T.gray5, flexShrink: 0 }}>
               ›
             </button>
+            <span style={{ fontFamily: T.font, fontSize: 20, color: T.black, fontWeight: 700, letterSpacing: '-0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textTransform: 'capitalize' }}>
+              {(() => {
+                if (modoVista === 'dia') {
+                  const d = diasRango[0] || rangoInicio
+                  return `${d.getDate()} de ${MESES_LABEL[d.getMonth()].toLowerCase()} de ${d.getFullYear()}`
+                }
+                if (modoVista === 'semana') {
+                  const d1 = diasRango[0] || rangoInicio
+                  return `Semana del ${d1.getDate()} de ${MESES_LABEL[d1.getMonth()].toLowerCase()} de ${d1.getFullYear()}`
+                }
+                return `${MESES_LABEL[mesAncla.getMonth()]} de ${mesAncla.getFullYear()}`
+              })()}
+            </span>
           </div>
-          <span style={{ fontFamily: T.font, fontSize: 22, color: T.black, letterSpacing: '-0.01em', fontWeight: 400, flex: 1, textTransform: 'capitalize' }}>
-            {(() => {
-              const refDate = modoVista === 'mes' ? mesAncla : (diasRango[Math.floor(diasRango.length / 2)] || rangoInicio)
-              return `${MESES_LABEL[refDate.getMonth()]} de ${refDate.getFullYear()}`
-            })()}
-          </span>
-          {/* selector de vista — dropdown estilo GCal */}
-          <div style={{ position: 'relative' }}>
-            <select value={modoVista} onChange={e => cambiarModoVista(e.target.value)}
-              style={{ height: 36, border: `1px solid ${T.gray1}`, borderRadius: 100, background: T.white, padding: '0 36px 0 18px', fontFamily: T.font, fontSize: 14, color: T.black, cursor: 'pointer', appearance: 'none', outline: 'none' }}>
-              <option value="semana">Semana</option>
-              <option value="dia">Día</option>
-              <option value="mes">Mes</option>
-            </select>
-            <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: T.gray5, fontSize: 10 }}>▼</span>
+          {/* right: legend + view pills */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {[['PENDIENTE','Pendiente'],['CONFIRMADO','Confirmado']].map(([estado, label]) => {
+                const col = ESTADO_TURNO_COLORS[estado]
+                return (
+                  <div key={estado} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: col.border, flexShrink: 0 }} />
+                    <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray5 }}>{label}</span>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', border: `1px solid ${T.gray1}`, borderRadius: 100, overflow: 'hidden' }}>
+              {[['dia','Día'],['semana','Semana'],['mes','Mes']].map(([val, label], i) => {
+                const active = modoVista === val
+                return (
+                  <button key={val} onClick={() => cambiarModoVista(val)}
+                    style={{ padding: '0 14px', height: 34, fontFamily: T.font, fontSize: 13, fontWeight: active ? 700 : 400, background: active ? T.black : T.white, color: active ? T.white : T.black, border: 'none', borderLeft: i > 0 ? `1px solid ${T.gray1}` : 'none', cursor: 'pointer', transition: 'all .15s' }}>
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
 
@@ -6923,8 +7141,8 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
                           const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
                           return (
                             <div key={t.id}
-                              onClick={e => { e.stopPropagation(); abrirEditar(t) }}
-                              style={{ background: col.bg, border: `1px solid ${col.border}`, borderRadius: 3, padding: '2px 5px', fontSize: 10, color: col.text, fontFamily: T.font, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', gap: 4 }}>
+                              onClick={e => mostrarPopup(e, t)}
+                              style={{ background: col.bg, border: `1px solid ${col.border}`, borderRadius: 3, padding: '2px 5px', fontSize: 10, color: col.text, fontFamily: T.font, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', gap: 4, cursor: 'pointer' }}>
                               <span style={{ fontWeight: 600, flexShrink: 0 }}>{formatHora(t.fechaHora)}</span>
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombrePaciente(t)}</span>
                             </div>
@@ -7024,10 +7242,10 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
                             : { left: `calc(${info.col * (100 / info.totalCols)}% + 2px)`, width: `calc(${100 / info.totalCols}% - 4px)` }
                           return (
                             <div key={t.id}
-                              onClick={e => { e.stopPropagation(); abrirEditar(t) }}
+                              onClick={e => mostrarPopup(e, t)}
                               style={{ position: 'absolute', top, height, ...positioning, background: col.bg, border: `1px solid ${col.border}`, borderRadius: 4, padding: '2px 6px', cursor: 'pointer', overflow: 'hidden', zIndex: 1, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, boxSizing: 'border-box' }}>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: col.text, fontFamily: T.font, lineHeight: 1.1, flexShrink: 0 }}>{formatHora(t.fechaHora)}</span>
-                              <span style={{ fontSize: 11, color: col.text, fontFamily: T.font, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{nombrePaciente(t)}</span>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: col.text, fontFamily: T.mono, lineHeight: 1.1, flexShrink: 0 }}>{formatHora(t.fechaHora)}</span>
+                              <span style={{ fontSize: 11, color: col.text, fontFamily: T.font, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{t.pacienteApellido || t.nombrePacienteLibre || 'Sin nombre'}</span>
                             </div>
                           )
                         })
@@ -7046,114 +7264,259 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
       </div>   {/* fin body (panel + calendario) */}
 
       {turnoModal()}
+      {turnoPopup()}
+      {confirmDialog}
     </div>
   )
 
   function turnoModal() {
     if (!modalOpen) return null
+    const mLbl = { display: 'block', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', marginBottom: 7 }
+    const pacSelec = pacientes.find(p => String(p.id) === String(form.pacienteId))
+
     return (
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 8 : 0 }}
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 8 : 24 }}
         onClick={cerrarModal}>
-        <div style={{ background: T.white, border: `1px solid ${T.gray1}`, width: 'min(520px, 100%)', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}
+        <div style={{ background: T.white, borderRadius: 20, width: 'min(560px, 100%)', maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 60px rgba(17,17,17,.18)' }}
           onClick={e => e.stopPropagation()}>
 
-          {/* modal header */}
-          <div style={{ padding: '18px 24px', borderBottom: `1px solid ${T.gray1}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 500, color: T.black }}>{editId ? 'Editar turno' : 'Nuevo turno'}</span>
-            <button onClick={cerrarModal} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: T.gray3, lineHeight: 1, padding: 4 }}>×</button>
+          {/* ── Header ── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem 1.75rem', borderBottom: '1px solid #f0f0ec', flexShrink: 0 }}>
+            <span style={{ fontFamily: T.font, fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.01em', color: T.black }}>{editId ? 'Editar turno' : 'Nuevo turno'}</span>
+            <button type="button" onClick={cerrarModal}
+              style={{ width: 32, height: 32, background: '#f6f6f4', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: '1.1rem', color: '#888', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+              ×
+            </button>
           </div>
 
-          {/* modal body */}
-          <form onSubmit={handleGuardar} style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* ── Body ── */}
+          <form onSubmit={handleGuardar} style={{ padding: '1.5rem 1.75rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
 
-            {/* paciente toggle */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 2 }}>
-              <button type="button" onClick={() => setUsarPacienteLib(false)}
-                style={{ flex: 1, height: 32, border: `1px solid ${!usarPacienteLib ? T.black : T.gray1}`, background: !usarPacienteLib ? T.black : T.white, color: !usarPacienteLib ? T.white : T.gray4, fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                Paciente registrado
-              </button>
-              <button type="button" onClick={() => setUsarPacienteLib(true)}
-                style={{ flex: 1, height: 32, border: `1px solid ${usarPacienteLib ? T.black : T.gray1}`, background: usarPacienteLib ? T.black : T.white, color: usarPacienteLib ? T.white : T.gray4, fontFamily: T.font, fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
-                Nuevo paciente
-              </button>
+            {/* Segmented toggle paciente */}
+            <div style={{ display: 'flex', border: '1.5px solid #e0e0dc', borderRadius: 10, overflow: 'hidden' }}>
+              {[{ val: false, label: 'Paciente registrado' }, { val: true, label: 'Nuevo paciente' }].map(({ val, label }, idx) => {
+                const active = usarPacienteLib === val
+                return (
+                  <button key={label} type="button" onClick={() => setUsarPacienteLib(val)}
+                    style={{ flex: 1, padding: '0.78rem 1rem', fontFamily: T.font, fontSize: '0.88rem', fontWeight: 600, cursor: 'pointer', color: active ? T.white : '#888', background: active ? T.black : T.white, border: 'none', borderRight: idx === 0 ? '1px solid #e0e0dc' : 'none', transition: 'all .15s', userSelect: 'none' }}>
+                    {label}
+                  </button>
+                )
+              })}
             </div>
 
-            {usarPacienteLib ? (
+            {/* Paciente registrado */}
+            {!usarPacienteLib && (
               <div>
-                <FieldLabel>Nombre del paciente</FieldLabel>
-                <Input name="nombrePacienteLibre" value={form.nombrePacienteLibre} onChange={handleChange} placeholder="Nombre y apellido…" />
-              </div>
-            ) : (
-              <div>
-                <FieldLabel>Paciente</FieldLabel>
-                <PacientePicker
-                  pacientes={pacientes}
-                  value={form.pacienteId}
-                  onChange={id => setForm(f => ({ ...f, pacienteId: id }))}
-                />
+                <label style={mLbl}>Paciente <span style={{ color: '#d97742' }}>*</span></label>
+                {pacSelec ? (
+                  <div style={{ background: '#f6f6f4', border: '1px solid #e0e0dc', borderRadius: 10, padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 10, background: T.black, color: T.white, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0, fontFamily: T.font }}>
+                      {pacSelec.nombre?.[0]}{pacSelec.apellido?.[0]}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: T.font, fontSize: '0.92rem', fontWeight: 700, color: T.black }}>{pacSelec.apellido}, {pacSelec.nombre}</div>
+                      <div style={{ fontFamily: T.font, fontSize: '0.72rem', color: '#888', marginTop: 2 }}>
+                        {[
+                          pacSelec.fechaNac && (() => { const e = new Date().getFullYear() - new Date(pacSelec.fechaNac).getFullYear(); return `${e} años` })(),
+                          pacSelec.obrasSociales?.[0]?.obraSocialNombre,
+                          pacSelec.dni && `DNI ${pacSelec.dni}`,
+                        ].filter(Boolean).join(' · ')}
+                      </div>
+                      {pacSelec.alergias && (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: '#fef2f0', color: '#e05a4a', fontSize: '0.66rem', fontWeight: 600, padding: '0.22rem 0.55rem', borderRadius: 100, marginTop: '0.35rem', fontFamily: T.font }}>
+                          ⚠ Alérgico a {pacSelec.alergias}
+                        </div>
+                      )}
+                    </div>
+                    <button type="button" onClick={() => setForm(f => ({ ...f, pacienteId: '' }))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: '1.1rem', lineHeight: 1, padding: 4, flexShrink: 0 }}
+                      title="Cambiar paciente">×</button>
+                  </div>
+                ) : (
+                  <PacientePicker
+                    pacientes={pacientes}
+                    value={form.pacienteId}
+                    onChange={id => setForm(f => ({ ...f, pacienteId: id }))}
+                  />
+                )}
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 14 }}>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <FieldLabel>Fecha *</FieldLabel>
-                  <Input type="date" value={(form.fechaHora || '').split('T')[0]} onChange={e => setForm(f => ({ ...f, fechaHora: e.target.value + 'T' + ((f.fechaHora || '').split('T')[1] || '09:00') }))} />
+            {/* Nuevo paciente inline */}
+            {usarPacienteLib && (
+              <div style={{ background: '#fafafa', border: '1px solid #e8e8e4', borderRadius: 12, padding: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                <div style={{ fontFamily: T.font, fontSize: '0.78rem', color: '#888' }}>
+                  ℹ Se creará un nuevo paciente al guardar. Podés completar sus datos después.
                 </div>
-                <div style={{ flex: '0 0 100px' }}>
-                  <FieldLabel>Hora *</FieldLabel>
-                  <Input type="time" value={(form.fechaHora || '').split('T')[1] || ''} onChange={e => setForm(f => ({ ...f, fechaHora: ((f.fechaHora || '').split('T')[0] || '') + 'T' + e.target.value }))} />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label style={mLbl}>Nombre <span style={{ color: '#d97742' }}>*</span></label>
+                    <Input value={form.nombreLib} onChange={e => setForm(f => ({ ...f, nombreLib: e.target.value }))} placeholder="Nicolás" />
+                  </div>
+                  <div>
+                    <label style={mLbl}>Apellido</label>
+                    <Input value={form.apellidoLib} onChange={e => setForm(f => ({ ...f, apellidoLib: e.target.value }))} placeholder="Pérez" />
+                  </div>
+                </div>
+                <div>
+                  <label style={mLbl}>Teléfono / WhatsApp</label>
+                  <Input value={form.telefonoLib} onChange={e => setForm(f => ({ ...f, telefonoLib: e.target.value }))} placeholder="0351 704-4827" />
                 </div>
               </div>
+            )}
+
+            <div style={{ height: 1, background: '#f0f0ec' }} />
+
+            {/* Fecha + Hora */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <FieldLabel>Duración (minutos)</FieldLabel>
-                <select name="duracionMinutos" value={form.duracionMinutos} onChange={handleChange} style={selectStyle}>
-                  {[15, 20, 30, 45, 60, 90, 120].map(m => <option key={m} value={m}>{m} min</option>)}
-                </select>
+                <label style={mLbl}>Fecha <span style={{ color: '#d97742' }}>*</span></label>
+                <Input type="date" value={(form.fechaHora || '').split('T')[0]} onChange={e => setForm(f => ({ ...f, fechaHora: e.target.value + 'T' + ((f.fechaHora || '').split('T')[1] || '09:00') }))} />
+              </div>
+              <div>
+                <label style={mLbl}>Hora <span style={{ color: '#d97742' }}>*</span></label>
+                <Input type="time" value={(form.fechaHora || '').split('T')[1] || ''} onChange={e => setForm(f => ({ ...f, fechaHora: ((f.fechaHora || '').split('T')[0] || '') + 'T' + e.target.value }))} />
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+            {/* Duración como pills */}
+            <div>
+              <label style={mLbl}>Duración</label>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {[30, 45, 60, 90].map(m => {
+                  const active = form.duracionMinutos === m
+                  return (
+                    <button key={m} type="button" onClick={() => setForm(f => ({ ...f, duracionMinutos: m }))}
+                      style={{ padding: '0.55rem 1rem', border: `1.5px solid ${active ? T.black : '#e0e0dc'}`, borderRadius: 100, fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', color: active ? T.white : '#888', background: active ? T.black : T.white, fontFamily: T.font, transition: 'all .15s', whiteSpace: 'nowrap' }}>
+                      {m} min
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Consultorio + Estado */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1rem' }}>
               <div>
-                <FieldLabel>Consultorio *</FieldLabel>
+                <label style={mLbl}>Consultorio <span style={{ color: '#d97742' }}>*</span></label>
                 <select name="consultorioId" value={form.consultorioId} onChange={handleChange} style={selectStyle}>
-                  <option value="">Seleccioná un consultorio…</option>
+                  <option value="">Seleccioná...</option>
                   {consultorios.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
               </div>
               <div>
-                <FieldLabel>Estado</FieldLabel>
-                <div style={{ display: 'flex', height: 36, border: `1px solid ${T.gray1}`, borderRadius: 6, overflow: 'hidden' }}>
-                  {[['PENDIENTE', 'Pendiente'], ['CONFIRMADO', 'Confirmado']].map(([val, label], idx) => (
-                    <button key={val} type="button"
-                      onClick={() => setForm(f => ({ ...f, estado: val }))}
-                      style={{ flex: 1, border: 'none', borderRight: idx === 0 ? `1px solid ${T.gray1}` : 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, fontWeight: 500, background: form.estado === val ? T.black : T.white, color: form.estado === val ? T.white : T.black, transition: 'background 0.15s, color 0.15s' }}>
-                      {label}
-                    </button>
-                  ))}
+                <label style={mLbl}>Estado</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {[['PENDIENTE', 'Pendiente'], ['CONFIRMADO', 'Confirmado']].map(([val, label]) => {
+                    const active = form.estado === val
+                    return (
+                      <button key={val} type="button" onClick={() => setForm(f => ({ ...f, estado: val }))}
+                        style={{ padding: '0.6rem 1.1rem', border: `1.5px solid ${active ? T.black : '#e0e0dc'}`, borderRadius: 100, fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer', background: active ? T.black : T.white, color: active ? T.white : '#888', fontFamily: T.font, transition: 'all .15s', whiteSpace: 'nowrap' }}>
+                        {label}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
 
+            {/* Motivo */}
             <div>
-              <FieldLabel>Motivo</FieldLabel>
-              <Textarea name="motivo" value={form.motivo} onChange={handleChange} rows={3} placeholder="Descripción del turno…" />
+              <label style={mLbl}>Motivo del turno</label>
+              <Textarea name="motivo" value={form.motivo} onChange={handleChange} style={{ height: 90, resize: 'none' }} placeholder="Ej: Control, Limpieza, Dolor de muela, Primera consulta…" />
             </div>
 
             {formErr && <ErrorMsg>{formErr}</ErrorMsg>}
+          </form>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, paddingTop: 4 }}>
-              <div>
-                {editId && (
-                  <Btn variant="destructive" type="button" onClick={handleEliminar} disabled={guardando}>Eliminar</Btn>
-                )}
+          {/* ── Footer ── */}
+          <div style={{ padding: '1.25rem 1.75rem', borderTop: '1px solid #f0f0ec', display: 'flex', justifyContent: editId ? 'space-between' : 'flex-end', alignItems: 'center', flexShrink: 0 }}>
+            {editId && (
+              <button type="button" onClick={handleEliminar} disabled={guardando}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: '0.85rem', fontWeight: 600, color: T.red, padding: 0 }}>
+                Eliminar turno
+              </button>
+            )}
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button type="button" onClick={cerrarModal} disabled={guardando}
+                style={{ background: T.white, border: '1.5px solid #e0e0dc', borderRadius: 100, padding: '0.82rem 1.5rem', fontFamily: T.font, fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer', color: '#888', transition: 'all .15s' }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={handleGuardar} disabled={guardando}
+                style={{ background: T.black, color: T.white, border: 'none', borderRadius: 100, padding: '0.82rem 2rem', fontFamily: T.font, fontWeight: 700, fontSize: '0.88rem', cursor: guardando ? 'default' : 'pointer', opacity: guardando ? 0.7 : 1, transition: 'all .15s' }}>
+                {guardando ? 'Guardando…' : editId ? 'Guardar cambios' : 'Crear turno'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  function turnoPopup() {
+    if (!popupTurno) return null
+    const t = popupTurno
+    const col = ESTADO_TURNO_COLORS[t.estado] ?? ESTADO_TURNO_COLORS.PENDIENTE
+    const iniciales = ((t.pacienteApellido || '')[0] || (t.pacienteNombre || t.nombrePacienteLibre || '')[0] || '?').toUpperCase()
+    const PW = 292
+    const vw = window.innerWidth, vh = window.innerHeight
+    let left = popupPos.x + 16, top = popupPos.y - 16
+    if (left + PW > vw - 16) left = popupPos.x - PW - 16
+    if (top + 320 > vh - 16) top = vh - 336
+    if (top < 8) top = 8
+    function Row({ label, children }) {
+      return (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#aaa', minWidth: 50, paddingTop: 2 }}>{label}</span>
+          <span style={{ fontFamily: T.font, fontSize: 13, color: T.black, wordBreak: 'break-word' }}>{children}</span>
+        </div>
+      )
+    }
+    return (
+      <div onClick={cerrarPopup} style={{ position: 'fixed', inset: 0, zIndex: 300 }}>
+        <div onClick={e => e.stopPropagation()} style={{
+          position: 'fixed', left, top, width: PW,
+          background: T.white, borderRadius: 16,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)', border: '1px solid #e8e8e4',
+          padding: '1.1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem',
+        }}>
+          {/* patient header */}
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: T.black, color: T.white, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, fontFamily: T.font, flexShrink: 0 }}>
+                {iniciales}
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <Btn variant="outline" type="button" onClick={cerrarModal} disabled={guardando}>Cancelar</Btn>
-                <Btn type="submit" disabled={guardando}>{guardando ? 'Guardando…' : editId ? 'Guardar' : 'Crear'}</Btn>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, color: T.black, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombrePaciente(t)}</div>
+                <span style={{ display: 'inline-block', marginTop: 3, padding: '2px 8px', borderRadius: 100, fontSize: 10, fontWeight: 600, fontFamily: T.font, background: col.bg, color: col.text, border: `1px solid ${col.border}` }}>{t.estado}</span>
               </div>
             </div>
-          </form>
+            <button onClick={cerrarPopup} style={{ width: 26, height: 26, background: '#f6f6f4', border: 'none', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.95rem', color: '#888', flexShrink: 0, lineHeight: 1 }}>×</button>
+          </div>
+          {/* details */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+            <Row label="Hora">{formatHora(t.fechaHora)}{t.duracionMinutos ? ` · ${t.duracionMinutos} min` : ''}</Row>
+            {t.consultorioNombre && <Row label="Lugar">{t.consultorioNombre}</Row>}
+            {t.motivo            && <Row label="Motivo">{t.motivo}</Row>}
+          </div>
+          {/* actions */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', borderTop: '1px solid #f0f0ec', paddingTop: '0.75rem' }}>
+            {t.estado === 'PENDIENTE' && (
+              <button onClick={handleConfirmarDesdePopup} disabled={cancelando}
+                style={{ width: '100%', padding: '0.6rem 1rem', background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0', borderRadius: 8, fontFamily: T.font, fontWeight: 700, fontSize: 13, cursor: cancelando ? 'default' : 'pointer', textAlign: 'left', opacity: cancelando ? 0.7 : 1 }}>
+                {cancelando ? 'Confirmando…' : '✓ Confirmar turno'}
+              </button>
+            )}
+            <button onClick={() => { cerrarPopup(); abrirEditar(t); cargarFormDeps() }}
+              style={{ width: '100%', padding: '0.6rem 1rem', background: T.black, color: T.white, border: 'none', borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 13, cursor: 'pointer', textAlign: 'left' }}>
+              Editar turno
+            </button>
+            <button onClick={handleCancelarDesdePopup} disabled={cancelando}
+              style={{ width: '100%', padding: '0.6rem 1rem', background: '#fff5f5', color: '#c0392b', border: '1px solid #fde0de', borderRadius: 8, fontFamily: T.font, fontWeight: 600, fontSize: 13, cursor: cancelando ? 'default' : 'pointer', textAlign: 'left', opacity: cancelando ? 0.7 : 1 }}>
+              {cancelando ? 'Eliminando…' : t.estado === 'CANCELADO' ? 'Eliminar turno' : 'Cancelar turno'}
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -7163,10 +7526,9 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
 /* ─── helpers ────────────────────────────────────────────────── */
 
 function BackBtn({ onClick }) {
-  const [hov, setHov] = useState(false)
   return (
-    <button onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: hov ? T.gray3 : T.black, padding: 0, lineHeight: 1, transition: 'color 0.15s', marginRight: 4 }}>
+    <button onClick={onClick} type="button"
+      style={{ width: 44, height: 44, border: '1px solid #e0e0dc', borderRadius: 12, background: T.white, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 18, color: T.gray4, fontFamily: T.font, flexShrink: 0 }}>
       ←
     </button>
   )
@@ -7199,7 +7561,7 @@ function mesStr(year, month) {
   return `${String(year)}-${String(month).padStart(2, '0')}`
 }
 
-const INGRESO_LIBRE_EMPTY = { descripcion: '', monto: '', tipoPago: '', medioPagoId: '', consultorioId: '' }
+const INGRESO_LIBRE_EMPTY = { descripcion: '', monto: '', tipoPago: 'OTRO', medioPagoId: '', consultorioId: '' }
 const EGRESO_EMPTY = { fecha: new Date().toISOString().slice(0, 10), monto: '', descripcion: '', consultorioId: '' }
 
 function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, onSubVistaConsumida }) {
@@ -7221,7 +7583,7 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
   const [consultorios, setConsultorios] = useState([])
   const [filtroCons,   setFiltroCons]   = useState('')
   const [filtroConsId, setFiltroConsId] = useState(null)
-  const [filtroTipo,   setFiltroTipo]   = useState(() => subVistaInicial === 'movimientos' ? 'pendiente' : null)
+  const [filtroTipo,   setFiltroTipo]   = useState(null)
   const [buscarMov,    setBuscarMov]    = useState('')
   const [movs,         setMovs]         = useState([])
   const [metaMov,      setMetaMov]      = useState(null)
@@ -7234,6 +7596,20 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
   const [cobros,       setCobros]       = useState([])
   const [cargandoCobros,setCargandoCobros] = useState(false)
   const [cobroDetalleId,setCobroDetalleId] = useState(null)
+  // Cobros pendientes — nuevo diseño
+  const [tabCobros,       setTabCobros]       = useState('os')
+  const [pendientesOs,    setPendientesOs]    = useState([])
+  const [pendientesPart,  setPendientesPart]  = useState([])
+  const [cargandoPendOs,  setCargandoPendOs]  = useState(false)
+  const [cargandoPendPart,setCargandoPendPart]= useState(false)
+  const [selectedOs,      setSelectedOs]      = useState(new Set())
+  const [filtroOsCobros,  setFiltroOsCobros]  = useState('')   // nombre OS
+  const [filtroConsCobros,setFiltroConsCobros]= useState('')   // nombre consultorio
+  const [formCobroOs,     setFormCobroOs]     = useState({ fecha: new Date().toISOString().slice(0,10), monto: '', descripcion: '' })
+  const [guardandoCobroOs,setGuardandoCobroOs]= useState(false)
+  const [expandedPart,    setExpandedPart]    = useState(new Set())
+  const [formsPart,       setFormsPart]       = useState({})   // { [ingresoId]: { fecha, monto, medioPagoId } }
+  const [guardandoPart,   setGuardandoPart]   = useState(new Set())
   // Avisar al parent que ya consumimos el subVistaInicial (para que lo limpie y no se reaplique en próximas visitas).
   useEffect(() => {
     if (subVistaInicial) onSubVistaConsumida?.()
@@ -7343,7 +7719,23 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
   useEffect(() => {
     if (subVista !== 'cobros') return
     cargarCobros()
-  }, [subVista, cargarCobros])
+    // Cargar pendientes para el nuevo diseño
+    setCargandoPendOs(true)
+    apiFetch('/finanzas/ingresos/pendientes-os').then(async r => {
+      if (r?.ok) setPendientesOs(await r.json())
+      setCargandoPendOs(false)
+    })
+    setCargandoPendPart(true)
+    apiFetch('/finanzas/ingresos/pendientes-particulares').then(async r => {
+      if (r?.ok) setPendientesPart(await r.json())
+      setCargandoPendPart(false)
+    })
+    setSelectedOs(new Set())
+    setFiltroOsCobros('')
+    setFiltroConsCobros('')
+    setExpandedPart(new Set())
+    setFormsPart({})
+  }, [subVista, cargarCobros, apiFetch])
 
   async function eliminarCobro(id) {
     const ok = await openConfirm(
@@ -7368,7 +7760,7 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
   }
 
   async function guardarIngresoLibre() {
-    if (!form.descripcion.trim() || !form.monto) return
+    if (!form.descripcion.trim() || !form.monto || !form.medioPagoId || !form.consultorioId) return
     setGuardando(true)
     const res = await apiFetch('/finanzas/ingresos', {
       method: 'POST',
@@ -7449,9 +7841,23 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
     if (i.tipoPago === 'OTRO')       return 'Otro'
     return 'Sin especificar'
   }
-  const breakdownOrigen = agrupar(confirmados, claveOrigen)
 
-  // Pendientes agrupados igual (Particular + cada OS) — para el card "Cobros pendientes".
+  // Variante solo para el gráfico "Ingresos por origen": dentro de cada OS distingue coseguro (cobrado
+  // al paciente en el momento de la consulta, origen !== 'cobro_os') de cobro real (el pago que registró
+  // la obra social vía "Registrar cobro", que llega como ingreso virtual con origen === 'cobro_os').
+  // Ambos comparten tipoPago=OBRA_SOCIAL en los datos, así que la única forma de diferenciarlos sin tocar
+  // el modelo es por 'origen' + que haya monto > 0. El widget "Cobros pendientes" NO usa esta variante:
+  // ahí solo importa de qué obra social es, no si ya se cobró el coseguro.
+  const claveOrigenConCoseguro = i => {
+    if (i.tipoPago === 'OBRA_SOCIAL' && i.obraSocialNombre) {
+      const esCoseguro = i.origen !== 'cobro_os' && Number(i.monto ?? 0) > 0
+      return esCoseguro ? `${i.obraSocialNombre} · Coseguro` : i.obraSocialNombre
+    }
+    return claveOrigen(i)
+  }
+  const breakdownOrigen = agrupar(confirmados, claveOrigenConCoseguro)
+
+  // Pendientes agrupados por origen simple (Particular + cada OS) — para el card "Cobros pendientes".
   const breakdownPendientes = agrupar(pendientes, claveOrigen)
 
   const egresosFiltrados  = egresos.filter(e => !filtroCons || e.consultorioNombre === filtroCons)
@@ -7502,29 +7908,319 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
   const navBtnStyle = { background: 'none', border: `1px solid ${T.gray1}`, cursor: 'pointer', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: T.gray4, borderRadius: 6 }
 
   if (subVista === 'cobros') {
+    const hoyStr = new Date().toISOString().slice(0, 10)
+
+    // OS tab: filter + group
+    const osFiltrados = pendientesOs.filter(p =>
+      (!filtroOsCobros   || p.obraSocialNombre  === filtroOsCobros)  &&
+      (!filtroConsCobros || p.consultorioNombre  === filtroConsCobros)
+    )
+    const osGroups = osFiltrados.reduce((acc, p) => {
+      const key = p.obraSocialNombre || 'Sin obra social'
+      if (!acc[key]) acc[key] = { obraSocialNombre: key, items: [] }
+      acc[key].items.push(p)
+      return acc
+    }, {})
+    const osGroupList = Object.values(osGroups)
+    const osNombresUniq      = [...new Set(pendientesOs.map(p => p.obraSocialNombre).filter(Boolean))]
+    const consNombresUniq    = [...new Set(pendientesOs.map(p => p.consultorioNombre).filter(Boolean))]
+
+    const toggleOsRow = (ingresoId) => {
+      setSelectedOs(prev => { const n = new Set(prev); n.has(ingresoId) ? n.delete(ingresoId) : n.add(ingresoId); return n })
+    }
+    const selectAllOs = () => setSelectedOs(new Set(osFiltrados.map(p => p.ingresoId)))
+
+    async function registrarCobroOs() {
+      if (selectedOs.size === 0 || !formCobroOs.fecha || !formCobroOs.monto) return
+      setGuardandoCobroOs(true)
+      // Group by (obraSocialId, consultorioId) → submit one cobro per group
+      const byGroup = {}
+      osFiltrados.filter(p => selectedOs.has(p.ingresoId)).forEach(p => {
+        const key = `${p.obraSocialNombre}__${p.consultorioId}`
+        if (!byGroup[key]) byGroup[key] = { obraSocialNombre: p.obraSocialNombre, consultorioId: p.consultorioId, ids: [] }
+        byGroup[key].ids.push(p.ingresoId)
+      })
+      // Need obraSocialId — find it from obrasSociales list
+      const osMap = {}; obrasSociales.forEach(os => { osMap[os.nombre] = os.id })
+      const groups = Object.values(byGroup)
+      let ok = true
+      for (const g of groups) {
+        const osId = osMap[g.obraSocialNombre]
+        if (!osId || !g.consultorioId) continue
+        const res = await apiFetch('/cobros-os', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ obraSocialId: osId, consultorioId: g.consultorioId, fecha: formCobroOs.fecha, montoRecibido: Number(formCobroOs.monto), descripcion: formCobroOs.descripcion || null, ingresoIds: g.ids }),
+        })
+        if (!res?.ok) { ok = false }
+      }
+      setGuardandoCobroOs(false)
+      if (ok) {
+        cargar(); cargarCobros()
+        const r1 = await apiFetch('/finanzas/ingresos/pendientes-os')
+        if (r1?.ok) setPendientesOs(await r1.json())
+        setSelectedOs(new Set())
+        setFormCobroOs({ fecha: hoyStr, monto: '', descripcion: '' })
+      }
+    }
+
+    async function confirmarParticular(ingresoId) {
+      const f = formsPart[ingresoId]
+      if (!f?.fecha || !f?.monto) return
+      setGuardandoPart(prev => new Set(prev).add(ingresoId))
+      const res = await apiFetch(`/finanzas/ingresos/${ingresoId}/confirmar-particular`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fecha: f.fecha, monto: Number(f.monto), medioPagoId: f.medioPagoId ? Number(f.medioPagoId) : null }),
+      })
+      setGuardandoPart(prev => { const n = new Set(prev); n.delete(ingresoId); return n })
+      if (res?.ok) {
+        cargar()
+        const r2 = await apiFetch('/finanzas/ingresos/pendientes-particulares')
+        if (r2?.ok) setPendientesPart(await r2.json())
+        setExpandedPart(prev => { const n = new Set(prev); n.delete(ingresoId); return n })
+      }
+    }
+
+    const fmtFechaCorta = (dateStr) => {
+      if (!dateStr) return '—'
+      const [, mo, d] = dateStr.split('-')
+      return `${parseInt(d,10).toString().padStart(2,'0')}/${mo}`
+    }
+
+    const selCount = selectedOs.size
+    const canRegistrarOs = selCount > 0 && formCobroOs.fecha && formCobroOs.monto
+
     return (
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
-        <PageBar>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-            <BackBtn onClick={() => setSubVista('dash')} />
-            <PageTitle>Cobros de OS · {MESES_LABEL[mes - 1]} {año}</PageTitle>
-          </div>
-          <Btn variant="outline" onClick={() => setSubVista('nuevo-cobro')} disabled={obrasSociales.length === 0}>+ Registrar cobro</Btn>
-        </PageBar>
-        <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 16px 24px' : '16px 24px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {cargandoCobros ? (
-            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
-          ) : cobros.length === 0 ? (
-            <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>No hay cobros de OS registrados este mes</div>
-          ) : (
-            cobros.map(c => (
-              <CobroOsCard key={c.id} c={c} fmtPesos={fmtPesos} onAbrir={() => setCobroDetalleId(c.id)} onEliminar={() => eliminarCobro(c.id)} />
-            ))
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2, position: 'relative' }}>
+
+        {/* Header */}
+        <div style={{ background: T.white, borderBottom: `1px solid ${T.gray1}`, padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+          <BackBtn onClick={() => setSubVista('dash')} />
+          <span style={{ fontFamily: T.font, fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em' }}>Cobros pendientes</span>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ background: T.white, borderBottom: `1px solid ${T.gray1}`, padding: '0 24px', display: 'flex', flexShrink: 0 }}>
+          {[
+            { key: 'os',         label: 'Obra social', count: pendientesOs.length },
+            { key: 'particular', label: 'Particular',  count: pendientesPart.length },
+          ].map(t => {
+            const sel = tabCobros === t.key
+            return (
+              <button key={t.key} onClick={() => setTabCobros(t.key)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '14px 18px', fontFamily: T.font, fontSize: 14, fontWeight: 600, color: sel ? T.black : T.gray4, borderBottom: sel ? `2px solid ${T.black}` : '2px solid transparent', marginBottom: -1, display: 'flex', alignItems: 'center', gap: 7 }}>
+                {t.label}
+                <span style={{ fontFamily: T.mono, fontSize: 10, background: sel ? T.black : T.gray2, color: sel ? T.white : T.gray4, border: `1px solid ${sel ? T.black : T.gray1}`, borderRadius: 100, padding: '2px 8px' }}>
+                  {t.count}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 16px 140px' : '24px 24px 140px' }}>
+
+          {/* ── OBRA SOCIAL TAB ── */}
+          {tabCobros === 'os' && (
+            <div>
+              {/* Filter bar */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#aaa' }}>Filtrar por</span>
+                <select value={filtroOsCobros} onChange={e => setFiltroOsCobros(e.target.value)}
+                  style={{ padding: '8px 28px 8px 14px', border: `1.5px solid ${filtroOsCobros ? T.black : T.gray1}`, borderRadius: 100, fontFamily: T.font, fontSize: 12, background: T.white, outline: 'none', color: T.black, cursor: 'pointer', appearance: 'none' }}>
+                  <option value="">Todas las obras sociales</option>
+                  {osNombresUniq.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <select value={filtroConsCobros} onChange={e => setFiltroConsCobros(e.target.value)}
+                  style={{ padding: '8px 28px 8px 14px', border: `1.5px solid ${filtroConsCobros ? T.black : T.gray1}`, borderRadius: 100, fontFamily: T.font, fontSize: 12, background: T.white, outline: 'none', color: T.black, cursor: 'pointer', appearance: 'none' }}>
+                  <option value="">Todos los consultorios</option>
+                  {consNombresUniq.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                {osFiltrados.length > 0 && (
+                  <button onClick={selectAllOs}
+                    style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray4, textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                    Seleccionar todas
+                  </button>
+                )}
+              </div>
+
+              {cargandoPendOs ? (
+                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+              ) : osFiltrados.length === 0 ? (
+                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>No hay cobros de OS pendientes</div>
+              ) : (
+                osGroupList.map(group => (
+                  <div key={group.obraSocialNombre} style={{ marginBottom: 24 }}>
+                    {/* Group header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', marginBottom: 10, borderBottom: `1px solid #e8e8e4` }}>
+                      <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700 }}>{group.obraSocialNombre}</span>
+                      <span style={{ fontFamily: T.mono, fontSize: 10, background: '#f0f4f9', color: '#4a7ab0', border: '1px solid #ccdaec', borderRadius: 100, padding: '3px 10px' }}>Obra social</span>
+                      <span style={{ fontFamily: T.font, fontSize: 12, color: '#aaa', marginLeft: 'auto' }}>{group.items.length} consulta{group.items.length !== 1 ? 's' : ''} pendiente{group.items.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    {/* Rows */}
+                    {group.items.map(p => {
+                      const sel = selectedOs.has(p.ingresoId)
+                      return (
+                        <div key={p.ingresoId} onClick={() => toggleOsRow(p.ingresoId)}
+                          style={{ background: sel ? '#fafafa' : T.white, border: `1.5px solid ${sel ? T.black : '#e0e0dc'}`, borderRadius: 12, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', userSelect: 'none', transition: 'all 0.12s' }}>
+                          {/* Checkbox */}
+                          <div style={{ width: 22, height: 22, border: `2px solid ${sel ? T.black : '#d0d0cc'}`, borderRadius: 6, background: sel ? T.black : T.white, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.12s' }}>
+                            {sel && <span style={{ color: T.white, fontSize: 11, fontWeight: 700, lineHeight: 1 }}>✓</span>}
+                          </div>
+                          {/* Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, marginBottom: 3 }}>{p.pacienteApellido}, {p.pacienteNombre}</div>
+                            {p.descripcion && <div style={{ fontFamily: T.font, fontSize: 12, color: '#555', marginBottom: 5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descripcion}</div>}
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                              {p.fecha && <span style={{ fontFamily: T.mono, fontSize: 10, color: '#aaa', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{fmtFechaCorta(p.fecha?.toString ? p.fecha.toString() : String(p.fecha))}</span>}
+                              {p.consultorioNombre && <span style={{ fontFamily: T.mono, fontSize: 10, color: '#aaa', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{p.consultorioNombre}</span>}
+                            </div>
+                          </div>
+                          {/* Coseguro */}
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            {p.monto != null && Number(p.monto) > 0
+                              ? <span style={{ fontFamily: T.mono, fontSize: 11, background: '#d4f0e0', color: '#1a6b3a', border: '1px solid #a8dcc0', borderRadius: 100, padding: '3px 10px', whiteSpace: 'nowrap' }}>coseguro {fmtPesos(p.monto)}</span>
+                              : <span style={{ fontFamily: T.font, fontSize: 12, color: '#ccc' }}>Sin coseguro</span>
+                            }
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* ── PARTICULAR TAB ── */}
+          {tabCobros === 'particular' && (
+            <div>
+              <div style={{ background: '#fff8f0', border: '1px solid #f0e0cc', borderRadius: 10, padding: '12px 16px', fontSize: 13, color: '#b07030', lineHeight: 1.55, marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                <span>⚡</span>
+                <span>Estas consultas quedaron pendientes de cobro. Expandí cada una para registrar el pago cuando lo recibas.</span>
+              </div>
+
+              {cargandoPendPart ? (
+                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
+              ) : pendientesPart.length === 0 ? (
+                <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>No hay cobros particulares pendientes</div>
+              ) : (
+                pendientesPart.map(p => {
+                  const isOpen = expandedPart.has(p.ingresoId)
+                  const f = formsPart[p.ingresoId] ?? {}
+                  const isGuardando = guardandoPart.has(p.ingresoId)
+                  const canGuardar = f.fecha && f.monto && !isGuardando
+                  const fechaStr = p.fecha ? String(p.fecha) : ''
+                  const [fy, fm, fd] = fechaStr.split('-')
+                  const fechaFmt = fechaStr ? `${fd}/${fm}/${fy}` : '—'
+                  return (
+                    <div key={p.ingresoId} style={{ background: T.white, border: `1.5px solid ${isOpen ? T.black : '#e0e0dc'}`, borderRadius: 12, marginBottom: 10, overflow: 'hidden' }}>
+                      {/* Head */}
+                      <div onClick={() => {
+                        setExpandedPart(prev => { const n = new Set(prev); n.has(p.ingresoId) ? n.delete(p.ingresoId) : n.add(p.ingresoId); return n })
+                        setFormsPart(prev => prev[p.ingresoId] ? prev : { ...prev, [p.ingresoId]: { fecha: hoyStr, monto: p.monto != null ? String(p.monto) : '', medioPagoId: '' } })
+                      }}
+                        style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, marginBottom: 3 }}>{p.pacienteApellido}, {p.pacienteNombre}</div>
+                          {p.descripcion && <div style={{ fontFamily: T.font, fontSize: 12, color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 4 }}>{p.descripcion}{p.consultorioNombre ? ` · ${p.consultorioNombre}` : ''}</div>}
+                          <div style={{ fontFamily: T.mono, fontSize: 10, color: '#aaa', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{fechaFmt}</div>
+                        </div>
+                        <div style={{ textAlign: 'right', marginRight: 8 }}>
+                          <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700 }}>{fmtPesos(p.monto)}</div>
+                          <div style={{ fontFamily: T.font, fontSize: 11, color: '#d97742', fontWeight: 600, marginTop: 2 }}>Monto original</div>
+                        </div>
+                        <span style={{ color: '#ccc', fontSize: 14, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.18s', display: 'inline-block' }}>›</span>
+                      </div>
+                      {/* Body */}
+                      {isOpen && (
+                        <div onClick={e => e.stopPropagation()} style={{ padding: '16px 18px', borderTop: `1px solid #f0f0ec`, background: '#fafafa', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Fecha del cobro *</label>
+                              <input type="date" value={f.fecha ?? ''}
+                                onChange={e => setFormsPart(prev => ({ ...prev, [p.ingresoId]: { ...prev[p.ingresoId], fecha: e.target.value } }))}
+                                style={{ padding: '10px 12px', border: '1.5px solid #e0e0dc', borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black }} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Monto cobrado *</label>
+                              <div style={{ position: 'relative' }}>
+                                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#aaa', pointerEvents: 'none' }}>$</span>
+                                <input type="number" value={f.monto ?? ''}
+                                  onChange={e => setFormsPart(prev => ({ ...prev, [p.ingresoId]: { ...prev[p.ingresoId], monto: e.target.value } }))}
+                                  style={{ width: '100%', padding: '10px 12px 10px 24px', border: '1.5px solid #e0e0dc', borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box' }} />
+                              </div>
+                              {p.monto != null && <span style={{ fontFamily: T.font, fontSize: 11, color: '#aaa' }}>Pre-cargado con <strong style={{ color: '#d97742' }}>{fmtPesos(p.monto)}</strong> · podés modificarlo</span>}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Medio de pago</label>
+                              <select value={f.medioPagoId ?? ''}
+                                onChange={e => setFormsPart(prev => ({ ...prev, [p.ingresoId]: { ...prev[p.ingresoId], medioPagoId: e.target.value } }))}
+                                style={{ padding: '10px 12px', border: '1.5px solid #e0e0dc', borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: f.medioPagoId ? T.black : T.gray4, cursor: 'pointer', appearance: 'none' }}>
+                                <option value="">Seleccionar…</option>
+                                {mediosPago.map(mp => <option key={mp.id} value={mp.id}>{mp.nombre}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <button onClick={() => confirmarParticular(p.ingresoId)} disabled={!canGuardar}
+                            style={{ background: canGuardar ? T.black : '#d0d0cc', color: T.white, border: 'none', borderRadius: 100, padding: '10px 22px', fontFamily: T.font, fontWeight: 700, fontSize: 14, cursor: canGuardar ? 'pointer' : 'not-allowed', alignSelf: 'flex-end' }}>
+                            {isGuardando ? 'Registrando…' : 'Registrar cobro'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
           )}
         </div>
-        {cobroDetalleId && (
-          <ModalCobroOsDetalle apiFetch={apiFetch} cobroId={cobroDetalleId} onCerrar={() => setCobroDetalleId(null)} fmtPesos={fmtPesos} />
+
+        {/* ── Sticky footer OS (aparece cuando hay seleccionados) ── */}
+        {tabCobros === 'os' && selCount > 0 && (
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: T.white, borderTop: `1px solid ${T.gray1}`, padding: '16px 24px', zIndex: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'auto 1fr 1fr 1fr auto', gap: 14, alignItems: 'start', maxWidth: 1100 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <span style={{ visibility: 'hidden', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em' }}>&nbsp;</span>
+                <div>
+                  <span style={{ fontFamily: T.font, fontSize: 17, fontWeight: 700, lineHeight: 1 }}>{selCount} consulta{selCount !== 1 ? 's' : ''}</span>
+                  <span style={{ fontFamily: T.font, fontSize: 12, color: T.gray4, marginLeft: 5 }}>seleccionada{selCount !== 1 ? 's' : ''}</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Fecha del cobro *</label>
+                <input type="date" value={formCobroOs.fecha}
+                  onChange={e => setFormCobroOs(f => ({ ...f, fecha: e.target.value }))}
+                  style={{ padding: '10px 12px', border: `1.5px solid ${T.gray1}`, borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box', height: 40 }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Monto recibido *</label>
+                <div style={{ position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#aaa', pointerEvents: 'none', fontSize: 14 }}>$</span>
+                  <input type="number" value={formCobroOs.monto}
+                    onChange={e => setFormCobroOs(f => ({ ...f, monto: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px 10px 24px', border: `1.5px solid ${T.gray1}`, borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box', height: 40 }} />
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Descripción (opcional)</label>
+                <input type="text" value={formCobroOs.descripcion}
+                  onChange={e => setFormCobroOs(f => ({ ...f, descripcion: e.target.value }))}
+                  style={{ padding: '10px 12px', border: `1.5px solid ${T.gray1}`, borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box', height: 40 }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <span style={{ visibility: 'hidden', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em' }}>&nbsp;</span>
+                <button onClick={registrarCobroOs} disabled={!canRegistrarOs}
+                  style={{ background: canRegistrarOs ? T.black : '#d0d0cc', color: T.white, border: 'none', borderRadius: 100, padding: '0 22px', height: 40, fontFamily: T.font, fontWeight: 700, fontSize: 14, cursor: canRegistrarOs ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap' }}>
+                  {guardandoCobroOs ? 'Registrando…' : `Registrar cobro · ${selCount} consulta${selCount !== 1 ? 's' : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
+
         {confirmDialog}
       </div>
     )
@@ -7580,60 +8276,172 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
   }
 
   if (subVista === 'movimientos') {
+    // Group movements by date (already sorted desc from backend); skip pending rows
+    const movGroups = (() => {
+      const groups = []
+      let cur = null
+      for (const m of movs.filter(m => m.tipo !== 'pendiente')) {
+        if (!cur || cur.fecha !== m.fecha) {
+          cur = { fecha: m.fecha, items: [] }
+          groups.push(cur)
+        }
+        cur.items.push(m)
+      }
+      return groups
+    })()
+
+    const fmtGrupoFecha = (fechaStr) => {
+      if (!fechaStr) return '—'
+      const [, mo, d] = fechaStr.split('-')
+      return `${parseInt(d, 10)} de ${MESES_LABEL[parseInt(mo, 10) - 1].toLowerCase()}`
+    }
+
+    const movIconStyle = (m) => {
+      if (m.origen === 'egreso') return { bg: '#fde8e8', color: '#9a2020' }
+      if (m.origen === 'consulta') return { bg: '#d4f0e0', color: '#1a6b3a' }
+      return { bg: '#e8f0fe', color: '#1a56b0' }
+    }
+    const movIcon = (m) => m.origen === 'egreso' ? '↓' : '↑'
+
+    const movBadge = (m) => {
+      if (m.origen === 'consulta') return { label: 'Consulta',       bg: '#d4f0e0', color: '#1a6b3a' }
+      if (m.origen === 'cobro_os') return { label: 'Cobro OS',       bg: '#e8f0fe', color: '#1a56b0' }
+      if (m.origen === 'egreso')   return { label: 'Egreso',         bg: '#fde8e8', color: '#9a2020' }
+      return                              { label: 'Ingreso manual',  bg: '#e8f0fe', color: '#1a56b0' }
+    }
+
+    const movTipoTexto = (m) => {
+      if (m.origen === 'egreso' || m.origen === 'cobro_os') return null
+      const base = m.obraSocialNombre ?? 'Particular'
+      return m.medioPagoNombre ? `${base} · ${m.medioPagoNombre}` : base
+    }
+
+    const movAmountStyle = (m) => {
+      if (m.tipo === 'egreso') return '#e05a4a'
+      if (m.tipo === 'pendiente') return '#b45309'
+      return '#1a7a40'
+    }
+
+    const movAmountText = (m) => {
+      if (m.tipo === 'pendiente' && m.monto == null) return 'Cobro pend.'
+      const signo = m.tipo === 'egreso' ? '−' : m.tipo === 'pendiente' ? '≈' : '+'
+      return `${signo} ${fmtPesos(m.monto)}`
+    }
+
+    const esEliminable = (m) => m.id != null && m.origen !== 'consulta' && m.origen !== 'cobro_os'
+
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
         <PageBar>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <BackBtn onClick={() => setSubVista('dash')} />
-            <PageTitle>Movimientos · {MESES_LABEL[mes - 1]} {año}</PageTitle>
+            <div>
+              <span style={{ fontFamily: T.font, fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', color: T.black }}>Movimientos</span>
+              <span style={{ fontFamily: T.font, fontSize: 17, fontWeight: 300, color: T.gray4, letterSpacing: '-0.02em' }}> · {MESES_LABEL[mes - 1]} {año}</span>
+            </div>
           </div>
         </PageBar>
         <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 16px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
 
-          <div style={{ padding: '4px 0 12px', display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', border: `1px solid ${T.gray1}`, height: 36, paddingLeft: 12, flex: 1, maxWidth: isMobile ? 'none' : 360, borderRadius: 8, background: T.white }}>
-                <span style={{ fontSize: 14, color: T.gray3, marginRight: 6, lineHeight: 1 }}>⌕</span>
-                <input value={buscarMov} onChange={e => setBuscarMov(e.target.value)} placeholder="Buscar por descripción o paciente…"
-                  style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily: T.font, color: T.black, letterSpacing: '0.04em', width: '100%' }} />
-              </div>
-              {metaMov && <span style={{ fontFamily: T.mono, fontSize: 10, color: T.gray4, letterSpacing: '0.06em', whiteSpace: 'nowrap', marginLeft: 'auto' }}>{metaMov.totalElements} movimientos</span>}
+          {/* ── Toolbar ── */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap', flexShrink: 0 }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1, maxWidth: isMobile ? 'none' : 400 }}>
+              <span style={{ position: 'absolute', left: 12, color: '#bbb', fontSize: 15, lineHeight: 1, pointerEvents: 'none' }}>⌕</span>
+              <input value={buscarMov} onChange={e => setBuscarMov(e.target.value)} placeholder="Buscar por paciente o descripción…"
+                style={{ width: '100%', padding: '10px 14px 10px 36px', border: `1px solid ${T.gray1}`, borderRadius: 10, fontFamily: T.font, fontSize: 13, background: T.white, outline: 'none', color: T.black, letterSpacing: '0.02em' }} />
             </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 6 }}>
               {[
-                { key: null,        label: 'Todos' },
-                { key: 'ingreso',   label: 'Ingresos' },
-                { key: 'egreso',    label: 'Egresos' },
-                { key: 'pendiente', label: 'Pendientes' },
+                { key: null,      label: 'Todos' },
+                { key: 'ingreso', label: 'Ingresos' },
+                { key: 'egreso',  label: 'Egresos' },
               ].map(({ key, label }) => {
                 const sel = filtroTipo === key
                 return (
                   <button key={key ?? 'todos'} onClick={() => setFiltroTipo(key)}
-                    style={{ fontFamily: T.font, fontSize: 12, fontWeight: sel ? 600 : 400, background: sel ? T.black : T.white, color: sel ? T.white : T.black, border: `1px solid ${sel ? T.black : T.gray1}`, borderRadius: 20, padding: '0 14px', height: 28, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    style={{ fontFamily: T.font, fontSize: 12, fontWeight: 600, background: sel ? T.black : T.white, color: sel ? T.white : T.gray4, border: `1.5px solid ${sel ? T.black : T.gray1}`, borderRadius: 100, padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.12s' }}>
                     {label}
                   </button>
                 )
               })}
             </div>
+            {metaMov && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray4, letterSpacing: '0.06em', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{metaMov.totalElements} movimientos</span>}
           </div>
 
+          {/* ── List ── */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {cargandoMovs ? (
               <div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>Cargando…</div>
-            ) : movs.length === 0 ? (
+            ) : movGroups.length === 0 ? (
               <div style={{ padding: '4rem', textAlign: 'center', fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: T.gray5, fontFamily: T.font }}>{buscarMov ? 'Sin resultados' : 'Sin movimientos'}</div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {movs.map((m, idx) => (
-                  <MovimientoCard key={idx} m={m} onEliminar={() => eliminarMovimiento(m)} onIrAConsulta={onIrAConsulta} />
+              <div>
+                {movGroups.map(group => (
+                  <div key={group.fecha} style={{ marginBottom: 20 }}>
+                    {/* Date label with extending line */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                      <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#aaa', whiteSpace: 'nowrap', flexShrink: 0 }}>{fmtGrupoFecha(group.fecha)}</span>
+                      <div style={{ flex: 1, height: 1, background: '#e8e8e4' }} />
+                    </div>
+                    {/* Rows */}
+                    {group.items.map((m, idx) => {
+                      const iconSt  = movIconStyle(m)
+                      const badge   = movBadge(m)
+                      const tipoTxt = movTipoTexto(m)
+                      const eliminable = esEliminable(m)
+                      const irAConsulta = m.tipo === 'pendiente' && m.origen === 'consulta' && m.consultaId != null && onIrAConsulta
+                      return (
+                        <div key={idx}
+                          onClick={irAConsulta ? () => onIrAConsulta(m.consultaId, m.pacienteId) : undefined}
+                          style={{ background: T.white, border: `1px solid #e0e0dc`, borderRadius: 12, padding: '14px 18px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 14, cursor: irAConsulta ? 'pointer' : 'default' }}>
+                          {/* Icon */}
+                          <div style={{ width: 36, height: 36, borderRadius: 10, background: iconSt.bg, color: iconSt.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 }}>
+                            {movIcon(m)}
+                          </div>
+                          {/* Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 600, color: T.black, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 4 }}>
+                              {m.descripcion}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ fontFamily: T.mono, fontSize: 9, padding: '2px 8px', borderRadius: 100, background: badge.bg, color: badge.color, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 500 }}>
+                                {badge.label}
+                              </span>
+                              {tipoTxt && (
+                                <span style={{ fontFamily: T.mono, fontSize: 10, color: '#aaa', letterSpacing: '0.06em' }}>{tipoTxt}</span>
+                              )}
+                              {m.consultorioNombre && (
+                                <span style={{ fontFamily: T.mono, fontSize: 10, color: '#bbb', letterSpacing: '0.04em', textTransform: 'uppercase' }}>{m.consultorioNombre}</span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Amount */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                            <span style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: movAmountStyle(m), whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                              {movAmountText(m)}
+                            </span>
+                            {eliminable && (
+                              <button onClick={e => { e.stopPropagation(); eliminarMovimiento(m) }}
+                                title={`Eliminar ${m.origen === 'egreso' ? 'egreso' : 'ingreso'}`}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: T.gray3, display: 'flex', alignItems: 'center', opacity: 0.5 }}
+                                onMouseEnter={e => { e.currentTarget.style.color = '#e05a4a'; e.currentTarget.style.opacity = 1 }}
+                                onMouseLeave={e => { e.currentTarget.style.color = T.gray3; e.currentTarget.style.opacity = 0.5 }}>
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 ))}
-              </div>
-            )}
-            {!cargandoMovs && !metaMov?.last && movs.length > 0 && (
-              <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
-                <Btn variant="outline" onClick={() => cargarMovs(buscarMov, (metaMov?.number ?? 0) + 1)} disabled={cargandoMasMov}>
-                  {cargandoMasMov ? 'Cargando…' : 'Cargar más'}
-                </Btn>
+                {!cargandoMovs && !metaMov?.last && movs.length > 0 && (
+                  <div style={{ padding: '8px 0 16px', display: 'flex', justifyContent: 'center' }}>
+                    <Btn variant="outline" onClick={() => cargarMovs(buscarMov, (metaMov?.number ?? 0) + 1)} disabled={cargandoMasMov}>
+                      {cargandoMasMov ? 'Cargando…' : 'Cargar más'}
+                    </Btn>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -7766,65 +8574,48 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
         </div>
       </div>
 
-      {/* ── Card Cobros pendientes: warning icon + breakdown horizontal con dots ── */}
+      {/* ── Widget Cobros pendientes ── */}
       <div style={{ padding: isMobile ? '0 16px 12px' : '0 24px 12px', flexShrink: 0 }}>
-        <div style={{ background: T.white, border: `1px solid ${T.gray1}`, borderLeft: `4px solid #b45309`, borderRadius: 12, padding: isMobile ? '18px 20px' : '22px 26px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 16 : 24, alignItems: isMobile ? 'stretch' : 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#b45309', fontSize: 11 }}>⚠</span>
-              <span style={{ fontFamily: T.mono, fontSize: 9.5, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#b45309', fontWeight: 600 }}>
-                Cobros pendientes
-              </span>
+        {!cargando && pendientes.length === 0 ? (
+          <div style={{ background: T.white, border: '1px solid #e0e0dc', borderLeft: '4px solid #e0e0dc', borderRadius: 16, padding: isMobile ? '18px 20px' : '22px 26px', display: 'flex', alignItems: 'flex-start', gap: '1.4rem', opacity: 0.6 }}>
+            <span style={{ fontFamily: T.font, fontSize: '2.8rem', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: '#ccc', flexShrink: 0, minWidth: 44 }}>0</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: '#aaa', marginBottom: '0.25rem' }}>Sin cobros pendientes</div>
+              <div style={{ fontFamily: T.mono, fontSize: '0.52rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#bbb' }}>Todo al día ✓</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 8 }}>
-              <span style={{ fontFamily: T.font, fontSize: 34, fontWeight: 700, lineHeight: 1.05, letterSpacing: '-0.03em', color: T.black }}>
-                {cargando ? '—' : pendientes.length}
-              </span>
-              <span style={{ fontFamily: T.font, fontSize: 13, color: T.gray4 }}>
-                {pendientes.length === 1 ? 'consulta sin cobrar' : 'consultas sin cobrar'}
-              </span>
-            </div>
-            {!cargando && breakdownPendientes.length > 0 && (
-              <>
-                <div style={{ marginTop: 14, borderTop: `1px solid ${T.gray1}`, paddingTop: 12, display: 'flex', flexWrap: 'wrap', gap: '8px 24px' }}>
+          </div>
+        ) : (
+          <button onClick={() => setSubVista('cobros')}
+            onMouseEnter={e => { if (obrasSociales.length > 0) { e.currentTarget.style.boxShadow = '0 4px 20px rgba(17,17,17,.07)'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)' }}
+            style={{ all: 'unset', width: '100%', boxSizing: 'border-box', cursor: obrasSociales.length === 0 ? 'default' : 'pointer', background: T.white, border: '1px solid #e0e0dc', borderLeft: '4px solid #d97742', borderRadius: 16, padding: isMobile ? '18px 20px' : '22px 26px', display: 'flex', alignItems: 'flex-start', gap: '1.4rem', transition: 'all .15s' }}>
+            <span style={{ fontFamily: T.font, fontSize: '2.8rem', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: cargando ? '#ccc' : T.black, flexShrink: 0, minWidth: 44 }}>
+              {cargando ? '—' : pendientes.length}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, marginBottom: '0.35rem' }}>Cobros pendientes</div>
+              <div style={{ fontFamily: T.mono, fontSize: '0.52rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#bbb', marginBottom: !cargando && breakdownPendientes.length > 0 ? '0.85rem' : 0 }}>
+                {MESES_LABEL[mes - 1]} {año} · solo este mes
+              </div>
+              {!cargando && breakdownPendientes.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                   {breakdownPendientes.map(([key, val], i) => {
-                    // Paleta consistente para dots — negro para Particular, colores por índice para OSs.
-                    const paleta = ['#111827', '#f97316', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6']
-                    const color = key === 'Particular' ? '#111827' : paleta[(i + 1) % paleta.length]
+                    const paleta = ['#4a90d9', '#5baee0', '#7ec2e8', '#2e7fd6', '#3b6ea8']
+                    const color = key === 'Particular' ? '#111' : paleta[i % paleta.length]
                     return (
-                      <div key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: color, flexShrink: 0 }} />
-                        <span style={{ fontFamily: T.font, fontSize: 13, color: T.black }}>{key}</span>
-                        <span style={{ fontFamily: T.font, fontSize: 13, fontWeight: 700, color: T.black }}>{val.cantidad}</span>
+                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 3, background: color, flexShrink: 0 }} />
+                        <span style={{ fontFamily: T.font, fontSize: '0.88rem', fontWeight: 700, color: '#111' }}>{val.cantidad}</span>
+                        <span style={{ fontFamily: T.font, fontSize: '0.85rem', color: '#555' }}>{key}</span>
                       </div>
                     )
                   })}
                 </div>
-              </>
-            )}
-            {!cargando && breakdownPendientes.length === 0 && (
-              <div style={{ marginTop: 8, fontFamily: T.font, fontSize: 12, color: T.gray4 }}>Sin cobros pendientes este mes.</div>
-            )}
-          </div>
-          <button onClick={() => setSubVista('nuevo-cobro')} disabled={obrasSociales.length === 0}
-            style={{
-              flexShrink: 0,
-              fontFamily: T.font, fontSize: 13.5, fontWeight: 700,
-              letterSpacing: '-0.005em',
-              background: obrasSociales.length === 0 ? T.gray7 : T.black,
-              color: obrasSociales.length === 0 ? T.gray3 : T.white,
-              border: 'none', borderRadius: 100,
-              padding: isMobile ? '14px 22px' : '16px 30px',
-              cursor: obrasSociales.length === 0 ? 'not-allowed' : 'pointer',
-              boxShadow: obrasSociales.length === 0 ? 'none' : '0 4px 14px rgba(0,0,0,0.18)',
-              transition: 'transform 0.15s, box-shadow 0.15s',
-            }}
-            onMouseEnter={e => { if (!e.currentTarget.disabled) e.currentTarget.style.transform = 'translateY(-1px)' }}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-          >
-            + Registrar cobro
+              )}
+            </div>
+            <span style={{ color: '#ccc', fontSize: '1.3rem', marginTop: '0.2rem', flexShrink: 0 }}>→</span>
           </button>
-        </div>
+        )}
       </div>
 
       {/* ── Breakdowns por origen y medio de pago (donuts con total arriba a la derecha) ── */}
@@ -7900,25 +8691,13 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
                      style={{ fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '8px 12px', outline: 'none', color: T.black }} />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Tipo</label>
-                <select value={form.tipoPago} onChange={e => setForm(f => ({ ...f, tipoPago: e.target.value }))}
-                        style={{ fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '8px 12px', outline: 'none', color: T.black, background: T.white }}>
-                  <option value="">Sin especificar</option>
-                  {Object.entries(TIPO_PAGO).map(([val, label]) => (
-                    <option key={val} value={val}>{label}</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Medio de pago</label>
-                <select value={form.medioPagoId} onChange={e => setForm(f => ({ ...f, medioPagoId: e.target.value }))}
-                        style={{ fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '8px 12px', outline: 'none', color: T.black, background: T.white }}>
-                  <option value="">Sin especificar</option>
-                  {mediosPago.map(mp => <option key={mp.id} value={mp.id}>{mp.nombre}</option>)}
-                </select>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Medio de pago *</label>
+              <select value={form.medioPagoId} onChange={e => setForm(f => ({ ...f, medioPagoId: e.target.value }))}
+                      style={{ fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '8px 12px', outline: 'none', color: T.black, background: T.white }}>
+                <option value="">Seleccionar…</option>
+                {mediosPago.map(mp => <option key={mp.id} value={mp.id}>{mp.nombre}</option>)}
+              </select>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -7935,8 +8714,8 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
                       style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, background: 'none', border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '8px 18px', cursor: 'pointer', color: T.gray4 }}>
                 Cancelar
               </button>
-              <button onClick={guardarIngresoLibre} disabled={guardando || !form.descripcion.trim() || !form.monto || !form.consultorioId}
-                      style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, background: T.black, color: T.white, border: 'none', borderRadius: 8, padding: '8px 20px', cursor: 'pointer', opacity: (guardando || !form.descripcion.trim() || !form.monto || !form.consultorioId) ? 0.5 : 1 }}>
+              <button onClick={guardarIngresoLibre} disabled={guardando || !form.descripcion.trim() || !form.monto || !form.medioPagoId || !form.consultorioId}
+                      style={{ fontFamily: T.font, fontSize: 13, fontWeight: 600, background: T.black, color: T.white, border: 'none', borderRadius: 8, padding: '8px 20px', cursor: 'pointer', opacity: (guardando || !form.descripcion.trim() || !form.monto || !form.medioPagoId || !form.consultorioId) ? 0.5 : 1 }}>
                 {guardando ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
@@ -8222,17 +9001,17 @@ function VistaNuevoCobroOs({ apiFetch, obrasSociales, consultorios, mediosPago, 
             <div style={{ maxWidth: 720, margin: '0 auto' }}>
               <div style={{ background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 12, padding: '14px 18px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
                 <div>
-                  <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Obra social *</label>
+                  <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Obra social *</label>
                   <select value={form.obraSocialId} onChange={e => setForm(f => ({ ...f, obraSocialId: e.target.value }))}
-                    style={{ width: '100%', height: 40, marginTop: 4, fontFamily: T.font, fontSize: 14, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '0 12px', outline: 'none', color: form.obraSocialId ? T.black : T.gray5, background: T.white }}>
+                    style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: form.obraSocialId ? T.black : T.gray5, background: T.white, boxSizing: 'border-box', appearance: 'none' }}>
                     <option value="">Seleccionar…</option>
                     {obrasSociales.map(os => <option key={os.id} value={os.id}>{os.nombre}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Consultorio *</label>
+                  <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Consultorio *</label>
                   <select value={form.consultorioId} onChange={e => setForm(f => ({ ...f, consultorioId: e.target.value }))}
-                    style={{ width: '100%', height: 40, marginTop: 4, fontFamily: T.font, fontSize: 14, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '0 12px', outline: 'none', color: form.consultorioId ? T.black : T.gray5, background: T.white }}>
+                    style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: form.consultorioId ? T.black : T.gray5, background: T.white, boxSizing: 'border-box', appearance: 'none' }}>
                     <option value="">Seleccionar…</option>
                     {(consultorios || []).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                   </select>
@@ -8312,30 +9091,30 @@ function VistaNuevoCobroOs({ apiFetch, obrasSociales, consultorios, mediosPago, 
 
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'minmax(140px, 1fr) minmax(140px, 1fr) minmax(160px, 1fr) minmax(180px, 1.4fr)', gap: 10 }}>
                   <div>
-                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Fecha *</label>
+                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Fecha *</label>
                     <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
-                      style={{ width: '100%', height: 38, marginTop: 4, fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '0 10px', outline: 'none', color: T.black }} />
+                      style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: T.black, boxSizing: 'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Monto *</label>
+                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Monto *</label>
                     <input type="number" min="0" step="0.01" value={form.montoRecibido}
                       onChange={e => setForm(f => ({ ...f, montoRecibido: e.target.value }))}
                       placeholder="0"
-                      style={{ width: '100%', height: 38, marginTop: 4, fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '0 10px', outline: 'none', color: T.black }} />
+                      style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: T.black, boxSizing: 'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Medio</label>
+                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Medio</label>
                     <select value={form.medioPagoId} onChange={e => setForm(f => ({ ...f, medioPagoId: e.target.value }))}
-                      style={{ width: '100%', height: 38, marginTop: 4, fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '0 10px', outline: 'none', color: form.medioPagoId ? T.black : T.gray5, background: T.white }}>
+                      style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: form.medioPagoId ? T.black : T.gray5, background: T.white, boxSizing: 'border-box', appearance: 'none' }}>
                       <option value="">Sin especificar</option>
                       {mediosPago.map(mp => <option key={mp.id} value={mp.id}>{mp.nombre}</option>)}
                     </select>
                   </div>
                   <div style={{ gridColumn: isMobile ? '1 / -1' : 'auto' }}>
-                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Notas</label>
+                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Notas</label>
                     <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))}
                       placeholder="Ej: comprobante 1234"
-                      style={{ width: '100%', height: 38, marginTop: 4, fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '0 10px', outline: 'none', color: T.black }} />
+                      style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: T.black, boxSizing: 'border-box' }} />
                   </div>
                 </div>
 
