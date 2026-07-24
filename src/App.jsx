@@ -1689,7 +1689,7 @@ function VistaLogin({ onLogin }) {
 /* ─── VistaCompletarPerfil ───────────────────────────────────── */
 
 function VistaCompletarPerfil({ token, onLogin, onLogout }) {
-  const [form,           setForm]           = useState({ especialidadId: '', matricula: '' })
+  const [form,           setForm]           = useState({ especialidadId: '' })
   const [especialidades, setEspecialidades] = useState([])
   const [cargando,       setCargando]       = useState(false)
   const [error,          setError]          = useState(null)
@@ -1709,7 +1709,7 @@ function VistaCompletarPerfil({ token, onLogin, onLogout }) {
       const res = await fetchTracked(`${API_URL}/auth/completar-perfil`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ especialidadId: Number(form.especialidadId), matricula: form.matricula || null })
+        body: JSON.stringify({ especialidadId: Number(form.especialidadId) })
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Error al guardar el perfil'); return }
@@ -1734,10 +1734,6 @@ function VistaCompletarPerfil({ token, onLogin, onLogout }) {
               <option value="">Seleccionar…</option>
               {especialidades.map(e => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
-          </div>
-          <div>
-            <FieldLabel>Matrícula</FieldLabel>
-            <Input name="matricula" value={form.matricula} onChange={handleChange} />
           </div>
           <ErrorMsg>{error}</ErrorMsg>
           <div style={{ marginTop: 4 }}>
@@ -2273,37 +2269,50 @@ function VistaAjustes({ apiFetch, tabInicial, onTabInicialUsada }) {
  */
 function NombreRow({ item, onEditar, onEliminar, isLast }) {
   const [hov, setHov] = useState(false)
+  const readonly = item.sistema === true
   return (
     <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
         padding: '20px 24px',
         borderBottom: isLast ? 'none' : `1px solid ${T.gray1}`,
-        background: hov ? T.gray2 : T.white,
+        background: hov && !readonly ? T.gray2 : T.white,
         transition: 'background 0.1s',
       }}
     >
-      <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {item.nombre}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {item.nombre}
+        </div>
+        {readonly && (
+          <span title="No se puede editar ni eliminar" style={{ display: 'inline-flex', color: T.gray3, flexShrink: 0 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </span>
+        )}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, opacity: hov ? 1 : 0, transition: 'opacity 0.15s' }}>
-        <button onClick={onEditar}
-          onMouseEnter={e => { e.stopPropagation(); e.currentTarget.style.color = T.black }}
-          onMouseLeave={e => e.currentTarget.style.color = T.gray4}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.gray4, padding: 4, display: 'flex', transition: 'color 0.15s' }}
-          title="Editar"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
-        <button onClick={onEliminar}
-          onMouseEnter={e => { e.stopPropagation(); e.currentTarget.style.color = T.red }}
-          onMouseLeave={e => e.currentTarget.style.color = T.gray4}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.gray4, padding: 4, display: 'flex', transition: 'color 0.15s' }}
-          title="Eliminar"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-        </button>
-      </div>
+      {!readonly && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, opacity: hov ? 1 : 0, transition: 'opacity 0.15s' }}>
+          <button onClick={onEditar}
+            onMouseEnter={e => { e.stopPropagation(); e.currentTarget.style.color = T.black }}
+            onMouseLeave={e => e.currentTarget.style.color = T.gray4}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.gray4, padding: 4, display: 'flex', transition: 'color 0.15s' }}
+            title="Editar"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button onClick={onEliminar}
+            onMouseEnter={e => { e.stopPropagation(); e.currentTarget.style.color = T.red }}
+            onMouseLeave={e => e.currentTarget.style.color = T.gray4}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.gray4, padding: 4, display: 'flex', transition: 'color 0.15s' }}
+            title="Eliminar"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
