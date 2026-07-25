@@ -1,0 +1,6 @@
+# Bloqueamos toda la sección /bienvenida/ para que Google no indexe la guía
+# de uso (la URL se comparte por mail a leads, no queremos que aparezca en
+# resultados de búsqueda).
+User-agent: *
+Disallow: /bienvenida/
+Disallow: /post-pago

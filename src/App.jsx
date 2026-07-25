@@ -72,6 +72,12 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api'
 // Cloudflare Turnstile — sitekey pública (va en el HTML, no es secreta).
 const TURNSTILE_SITEKEY = import.meta.env.VITE_TURNSTILE_SITEKEY ?? '0x4AAAAAADaI7NQj1V3qw4BK'
 
+// Token de la URL de la guía pública. Vive en /bienvenida/{TOKEN}. No es secreto duro
+// (se comparte por mail), pero al ser un UUID no es adivinable + Google no lo indexa por
+// robots.txt. Para rotarlo: setear VITE_GUIA_TOKEN en Railway (front) + GUIA_TOKEN en el
+// back (con el mismo valor) y redeploy.
+const GUIA_TOKEN = import.meta.env.VITE_GUIA_TOKEN ?? '2f89a8b7-fde0-4fff-af9e-f63adcad8c68'
+
 /* ─── global request loading state (top progress bar) ──────────── */
 // Contador de requests activas. Notifica solo si la operación tarda más de 250ms,
 // para evitar parpadeos en requests rápidas.
@@ -362,6 +368,14 @@ export default function App() {
   // Se detecta por path porque no usamos React Router; sale del flujo normal de auth.
   if (window.location.pathname === '/post-pago') {
     return <><TopLoader /><VistaPostPago /></>
+  }
+
+  // Página pública de guía / documentación — accesible sin login, solo lectura.
+  // La URL incluye un token (UUID) para que no sea adivinable. El token vive en
+  // VITE_GUIA_TOKEN (Railway) con fallback local. El link se genera en el back y se
+  // envía al lead a mano por mail. Además /robots.txt bloquea el path para Google.
+  if (window.location.pathname === `/bienvenida/${GUIA_TOKEN}`) {
+    return <><TopLoader /><VistaGuia /></>
   }
 
   let content
@@ -1367,18 +1381,199 @@ function VistaPostPago() {
   )
 }
 
+/* ─── VistaGuia (pública, sin login, sin API calls) ──────────────
+ * Documentación de uso del sistema. Cada sección tiene un placeholder de imagen
+ * para que le agregues los screenshots reales editando el `src` del <img>.
+ * El link a esta página lo mandás manualmente por mail a los leads que llenan
+ * el form "Solicitar guía".
+ */
+function VistaGuia() {
+  const isMobile = useIsMobile()
+
+  const SECCIONES = [
+    {
+      id: 'inicio',
+      titulo: 'Inicio',
+      descripcion: 'Al abrir la app vas al Inicio: un panel diario con los turnos de hoy, alertas de turnos sin confirmar y cobros pendientes, y los KPIs del mes (ingresos, consultas, promedio por día, pacientes activos).',
+      screenshot: 'PLACEHOLDER — Captura del Inicio con la tarjeta negra "Tu agenda de hoy"',
+    },
+    {
+      id: 'pacientes',
+      titulo: 'Pacientes',
+      descripcion: 'El listado muestra cada paciente con su DNI, edad, obra social y última visita. Podés buscar por nombre o DNI, y al tocar una tarjeta se abre la ficha completa con historia clínica, consultas, estudios y odontograma.',
+      screenshot: 'PLACEHOLDER — Captura del listado de pacientes',
+    },
+    {
+      id: 'ficha-paciente',
+      titulo: 'Ficha del paciente',
+      descripcion: 'Dentro de la ficha vas a encontrar: datos personales editables, historia clínica en timeline (una fila por evento — consulta, estudio, ingreso), y accesos rápidos para iniciar una consulta, subir un estudio o registrar un cobro.',
+      screenshot: 'PLACEHOLDER — Captura de la ficha del paciente',
+    },
+    {
+      id: 'turnos',
+      titulo: 'Turnos',
+      descripcion: 'La agenda semanal muestra los turnos por consultorio. Cada turno tiene estado (pendiente, confirmado, cancelado) y podés sincronizarlos con Google Calendar. Los turnos aparecen también en la ficha del paciente.',
+      screenshot: 'PLACEHOLDER — Captura de la agenda de turnos',
+    },
+    {
+      id: 'consultas',
+      titulo: 'Iniciar consulta',
+      descripcion: 'Desde la ficha del paciente, "Iniciar consulta" abre un formulario donde cargás motivo, descripción, monto, tipo de pago (Particular u Obra social) y opcionalmente pedís firma al paciente. Al guardar, se crea automáticamente el ingreso asociado.',
+      screenshot: 'PLACEHOLDER — Captura del formulario de nueva consulta',
+    },
+    {
+      id: 'estudios',
+      titulo: 'Estudios y radiografías',
+      descripcion: 'Podés subir estudios (radiografías, ortopantomografías, etc.) desde la ficha del paciente. La app te deja calibrar la imagen con una regla, dibujar sobre ella con herramientas de medición y guardar mediciones para el seguimiento.',
+      screenshot: 'PLACEHOLDER — Captura del editor de estudios',
+    },
+    {
+      id: 'finanzas',
+      titulo: 'Finanzas',
+      descripcion: 'Panel financiero con balance mensual, ingresos por origen (consulta / cobro de obra social / ingreso manual), egresos y donuts por medio de pago. Todo filtrable por consultorio y por mes.',
+      screenshot: 'PLACEHOLDER — Captura del dashboard de finanzas',
+    },
+    {
+      id: 'cobros-os',
+      titulo: 'Cobros de obra social',
+      descripcion: 'Cuando una obra social te paga por lote, seleccionás las consultas pendientes de esa OS del período y registrás el cobro con el monto real recibido. La app marca esas consultas como confirmadas y el pendiente desaparece del panel.',
+      screenshot: 'PLACEHOLDER — Captura del flujo de registrar cobro OS',
+    },
+    {
+      id: 'movimientos',
+      titulo: 'Movimientos',
+      descripcion: 'Listado completo de todos los movimientos del mes — ingresos y egresos — con búsqueda y filtros. Cada fila muestra origen, medio de pago, consultorio y monto.',
+      screenshot: 'PLACEHOLDER — Captura de la vista de movimientos',
+    },
+    {
+      id: 'ajustes',
+      titulo: 'Ajustes (catálogos)',
+      descripcion: 'En Ajustes configurás los catálogos que usás en el día a día: medios de pago (Efectivo y Transferencia vienen por defecto), obras sociales y consultorios. Podés agregar, editar y eliminar los que crees vos.',
+      screenshot: 'PLACEHOLDER — Captura de la pantalla de Ajustes',
+    },
+  ]
+
+  return (
+    <div style={{ minHeight: '100vh', background: T.gray2, fontFamily: T.font, color: T.black }}>
+      {/* Header */}
+      <header style={{ background: T.white, borderBottom: `1px solid ${T.gray1}`, padding: isMobile ? '18px 20px' : '24px 40px' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Logo size={16} />
+          </div>
+          <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4 }}>
+            Guía de uso
+          </span>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <section style={{ padding: isMobile ? '40px 20px 24px' : '64px 40px 40px' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 12 }}>
+            Documentación · Sin login
+          </div>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 32 : 44, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+            Cómo funciona HolaDoc
+          </h1>
+          <p style={{ margin: '16px 0 0', fontSize: 16, color: T.gray4, lineHeight: 1.6, maxWidth: 560 }}>
+            Recorrido visual por las principales funcionalidades del sistema — Inicio, Pacientes, Turnos,
+            Estudios, Finanzas y Ajustes. No hace falta que te registres; podés compartir este link
+            libremente.
+          </p>
+        </div>
+      </section>
+
+      {/* Table of contents */}
+      <section style={{ padding: isMobile ? '0 20px 24px' : '0 40px 32px' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto', background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 14, padding: isMobile ? '18px 20px' : '22px 28px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+          <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4, marginBottom: 12 }}>
+            Contenido
+          </div>
+          <ol style={{ margin: 0, padding: '0 0 0 20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '8px 24px', fontSize: 14 }}>
+            {SECCIONES.map((s, i) => (
+              <li key={s.id} style={{ listStyle: 'decimal', color: T.gray4 }}>
+                <a href={`#${s.id}`} style={{ color: T.black, textDecoration: 'none', fontWeight: 600 }}
+                  onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                  onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
+                  {s.titulo}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      {/* Secciones */}
+      <main style={{ padding: isMobile ? '16px 20px 60px' : '24px 40px 96px' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? 40 : 56 }}>
+          {SECCIONES.map((s, i) => (
+            <article key={s.id} id={s.id} style={{ scrollMarginTop: 24 }}>
+              <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>
+                {String(i + 1).padStart(2, '0')}
+              </div>
+              <h2 style={{ margin: 0, fontSize: isMobile ? 24 : 30, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                {s.titulo}
+              </h2>
+              <p style={{ margin: '12px 0 20px', fontSize: 15, lineHeight: 1.7, color: T.gray4 }}>
+                {s.descripcion}
+              </p>
+              {/* Placeholder de imagen — reemplazar el `src` del <img> cuando tengas la captura,
+                  o cambiar todo este bloque por <img src="/guia/{id}.png" alt="..." /> */}
+              <figure style={{ margin: 0 }}>
+                <div style={{
+                  background: T.white,
+                  border: `1px dashed ${T.gray3}`,
+                  borderRadius: 12,
+                  aspectRatio: '16/10',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: T.gray4, fontFamily: T.mono, fontSize: 11,
+                  letterSpacing: '0.06em', textAlign: 'center', padding: 20,
+                }}>
+                  <span>{s.screenshot}</span>
+                </div>
+                <figcaption style={{ marginTop: 8, fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray5 }}>
+                  Figura {i + 1} · {s.titulo}
+                </figcaption>
+              </figure>
+            </article>
+          ))}
+
+          {/* CTA final */}
+          <div style={{ background: T.black, color: T.white, borderRadius: 14, padding: isMobile ? '28px 22px' : '36px 40px', textAlign: 'center' }}>
+            <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+              ¿Querés probarlo con tu consultorio?
+            </div>
+            <p style={{ margin: '10px auto 20px', maxWidth: 420, fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
+              Solicitá acceso desde el login. Es rápido y te contactamos por mail.
+            </p>
+            <a href="/" style={{ display: 'inline-block', background: T.white, color: T.black, padding: '11px 22px', borderRadius: 100, textDecoration: 'none', fontWeight: 700, fontSize: 13.5 }}>
+              Ir al login →
+            </a>
+          </div>
+        </div>
+      </main>
+
+      <footer style={{ padding: '24px 20px', textAlign: 'center', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.08em', color: T.gray6, borderTop: `1px solid ${T.gray1}` }}>
+        holadocapp.com · para profesionales de la salud
+      </footer>
+    </div>
+  )
+}
+
 function VistaLogin({ onLogin }) {
   const isMobile = useIsMobile()
   const [cargando,        setCargando]        = useState(false)
   const [error,           setError]           = useState(null)
-  const [modo,            setModo]            = useState('login') // 'login' | 'registro' | 'exito'
+  const [modo,            setModo]            = useState('login') // 'login' | 'registro' | 'exito' | 'guia' | 'guia-exito'
   const [form,            setForm]            = useState({ nombre: '', apellido: '', email: '', confirmarEmail: '' })
+  const [guiaForm,        setGuiaForm]        = useState({ email: '', whatsapp: '' })
   const [turnstileToken,  setTurnstileToken]  = useState(null)
   const turnstileRef      = useRef(null)
   const turnstileWidgetId = useRef(null)
 
   useEffect(() => {
-    if (modo !== 'registro') return
+    if (modo !== 'registro' && modo !== 'guia') return
     let cancelled = false
     const tryRender = () => {
       if (cancelled) return
@@ -1445,6 +1640,31 @@ function VistaLogin({ onLogin }) {
       // forma de mapear pago → profesional es vía este localStorage).
       try { localStorage.setItem('postPagoEmail', form.email.trim()) } catch {}
       setModo('exito')
+    } catch { setError('No se pudo conectar con el servidor') }
+    finally { setCargando(false) }
+  }
+
+  async function handleSolicitarGuia(e) {
+    e.preventDefault()
+    if (!guiaForm.email.trim() || !guiaForm.whatsapp.trim()) { setError('Completá email y WhatsApp'); return }
+    if (!turnstileToken) { setError('Completá la verificación anti-bot'); return }
+    setError(null); setCargando(true)
+    try {
+      const res = await fetchTracked(`${API_URL}/auth/solicitar-guia`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ email: guiaForm.email.trim(), whatsapp: guiaForm.whatsapp.trim(), turnstileToken }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error || 'No pudimos enviar tu solicitud')
+        if (window.turnstile && turnstileWidgetId.current !== null) {
+          window.turnstile.reset(turnstileWidgetId.current)
+        }
+        setTurnstileToken(null)
+        return
+      }
+      setModo('guia-exito')
     } catch { setError('No se pudo conectar con el servidor') }
     finally { setCargando(false) }
   }
@@ -1577,13 +1797,17 @@ function VistaLogin({ onLogin }) {
               {modo === 'exito' && <Badge>Registro recibido</Badge>}
               <div style={{ fontSize: 16, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
                 {modo === 'login'    && 'Bienvenido/a'}
-                {modo === 'registro' && 'Solicitá acceso'}
-                {modo === 'exito'    && 'Revisá tu casilla'}
+                {modo === 'registro'   && 'Solicitá acceso'}
+                {modo === 'exito'      && 'Revisá tu casilla'}
+                {modo === 'guia'       && 'Solicitá la guía'}
+                {modo === 'guia-exito' && 'Te la mandamos por mail'}
               </div>
               <div style={{ fontSize: 12.5, color: T.gray3, marginTop: 5, lineHeight: 1.55 }}>
-                {modo === 'login'    && 'Ingresá con tu cuenta de Google para acceder a tu consultorio.'}
-                {modo === 'registro' && 'Completá el formulario y te contactamos para darte acceso anticipado.'}
-                {modo === 'exito'    && 'Te enviamos un mail con el link para activar tu suscripción mensual. Cuando termines el pago, te redirigimos al login para que entres con Google.'}
+                {modo === 'login'      && 'Ingresá con tu cuenta de Google para acceder a tu consultorio.'}
+                {modo === 'registro'   && 'Completá el formulario y te contactamos para darte acceso anticipado.'}
+                {modo === 'exito'      && 'Te enviamos un mail con el link para activar tu suscripción mensual. Cuando termines el pago, te redirigimos al login para que entres con Google.'}
+                {modo === 'guia'       && 'Dejanos tu contacto y te enviamos una guía visual de cómo funciona HolaDoc, sin compromiso.'}
+                {modo === 'guia-exito' && 'Recibimos tu pedido. Te vamos a mandar la guía por mail o WhatsApp en las próximas horas.'}
               </div>
             </div>
 
@@ -1656,10 +1880,61 @@ function VistaLogin({ onLogin }) {
                   {cargando ? 'Enviando…' : 'Solicitar acceso'}
                 </button>
 
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 12px', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5 }}>
+                  <div style={{ flex: 1, height: 1, background: T.gray1 }} />
+                  o
+                  <div style={{ flex: 1, height: 1, background: T.gray1 }} />
+                </div>
+
+                <button type="button" onClick={() => { setModo('guia'); setError(null); setGuiaForm({ email: form.email || '', whatsapp: '' }) }}
+                  style={{ width: '100%', padding: '11px', background: T.white, color: T.black, border: `1.5px solid ${T.gray1}`, borderRadius: 10, fontFamily: T.font, fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor = T.black}
+                  onMouseLeave={e => e.currentTarget.style.borderColor = T.gray1}>
+                  Solicitar guía de uso
+                </button>
+
                 <button type="button" onClick={() => { setModo('login'); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', margin: '14px 0 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
                   ← Volver al inicio
                 </button>
               </form>
+            )}
+
+            {modo === 'guia' && (
+              <form onSubmit={handleSolicitarGuia}>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={labelStyle}>Email</label>
+                  <input style={inputStyle} type="email" value={guiaForm.email} onChange={e => setGuiaForm(f => ({ ...f, email: e.target.value }))} placeholder="maria@consultorio.com" required onFocus={e => e.target.style.borderColor = T.black} onBlur={e => e.target.style.borderColor = T.gray1} />
+                </div>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={labelStyle}>WhatsApp</label>
+                  <input style={inputStyle} type="tel" value={guiaForm.whatsapp} onChange={e => setGuiaForm(f => ({ ...f, whatsapp: e.target.value }))} placeholder="+54 351 555 5555" required onFocus={e => e.target.style.borderColor = T.black} onBlur={e => e.target.style.borderColor = T.gray1} />
+                </div>
+
+                <div ref={turnstileRef} style={{ display: 'flex', justifyContent: 'center', marginBottom: 12, minHeight: 65 }} />
+
+                {error && <div style={{ marginBottom: 10 }}><ErrorMsg>{error}</ErrorMsg></div>}
+
+                <button type="submit" disabled={cargando || !turnstileToken} style={{ width: '100%', padding: '13px', background: T.black, color: T.white, border: 'none', borderRadius: 10, fontFamily: T.font, fontWeight: 700, fontSize: 13.5, cursor: (cargando || !turnstileToken) ? 'not-allowed' : 'pointer', opacity: (cargando || !turnstileToken) ? 0.5 : 1, transition: 'opacity 0.15s' }}>
+                  {cargando ? 'Enviando…' : 'Enviarme la guía'}
+                </button>
+
+                <button type="button" onClick={() => { setModo('registro'); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', margin: '14px 0 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
+                  ← Volver
+                </button>
+              </form>
+            )}
+
+            {modo === 'guia-exito' && (
+              <div style={{ marginTop: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: '50%', background: T.black, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+                </div>
+                <button type="button" onClick={() => { setModo('login'); setGuiaForm({ email: '', whatsapp: '' }); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
+                  ← Volver al inicio
+                </button>
+              </div>
             )}
 
             {modo === 'exito' && (
@@ -8352,29 +8627,31 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
         </PageBar>
         <div style={{ flex: 1, overflow: 'hidden', padding: isMobile ? '12px 16px 16px' : '16px 24px 24px', display: 'flex', flexDirection: 'column' }}>
 
-          {/* ── Toolbar ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, flexWrap: 'wrap', flexShrink: 0 }}>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: 1, maxWidth: isMobile ? 'none' : 400 }}>
+          {/* ── Toolbar (mobile: input arriba, filtros+count abajo) ── */}
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 10, marginBottom: 20, flexShrink: 0 }}>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flex: isMobile ? 'none' : 1, maxWidth: isMobile ? 'none' : 400, width: '100%' }}>
               <span style={{ position: 'absolute', left: 12, color: '#bbb', fontSize: 15, lineHeight: 1, pointerEvents: 'none' }}>⌕</span>
               <input value={buscarMov} onChange={e => setBuscarMov(e.target.value)} placeholder="Buscar por paciente o descripción…"
-                style={{ width: '100%', padding: '10px 14px 10px 36px', border: `1px solid ${T.gray1}`, borderRadius: 10, fontFamily: T.font, fontSize: 13, background: T.white, outline: 'none', color: T.black, letterSpacing: '0.02em' }} />
+                style={{ width: '100%', padding: '10px 14px 10px 36px', border: `1px solid ${T.gray1}`, borderRadius: 10, fontFamily: T.font, fontSize: 13, background: T.white, outline: 'none', color: T.black, letterSpacing: '0.02em', boxSizing: 'border-box' }} />
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {[
-                { key: null,      label: 'Todos' },
-                { key: 'ingreso', label: 'Ingresos' },
-                { key: 'egreso',  label: 'Egresos' },
-              ].map(({ key, label }) => {
-                const sel = filtroTipo === key
-                return (
-                  <button key={key ?? 'todos'} onClick={() => setFiltroTipo(key)}
-                    style={{ fontFamily: T.font, fontSize: 12, fontWeight: 600, background: sel ? T.black : T.white, color: sel ? T.white : T.gray4, border: `1.5px solid ${sel ? T.black : T.gray1}`, borderRadius: 100, padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.12s' }}>
-                    {label}
-                  </button>
-                )
-              })}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: isMobile ? 'space-between' : 'flex-start', flex: isMobile ? 'none' : 'initial' }}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[
+                  { key: null,      label: 'Todos' },
+                  { key: 'ingreso', label: 'Ingresos' },
+                  { key: 'egreso',  label: 'Egresos' },
+                ].map(({ key, label }) => {
+                  const sel = filtroTipo === key
+                  return (
+                    <button key={key ?? 'todos'} onClick={() => setFiltroTipo(key)}
+                      style={{ fontFamily: T.font, fontSize: 12, fontWeight: 600, background: sel ? T.black : T.white, color: sel ? T.white : T.gray4, border: `1.5px solid ${sel ? T.black : T.gray1}`, borderRadius: 100, padding: '6px 14px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.12s' }}>
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+              {metaMov && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray4, letterSpacing: '0.06em', marginLeft: isMobile ? 0 : 'auto', whiteSpace: 'nowrap' }}>{metaMov.totalElements} movimientos</span>}
             </div>
-            {metaMov && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.gray4, letterSpacing: '0.06em', marginLeft: 'auto', whiteSpace: 'nowrap' }}>{metaMov.totalElements} movimientos</span>}
           </div>
 
           {/* ── List ── */}
