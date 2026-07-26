@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
 import { Upload, LayoutList, LayoutGrid, Users, ScanLine, ClipboardList, Building2, Menu, X } from 'lucide-react'
 import { GoogleLogin } from '@react-oauth/google'
 
@@ -78,6 +78,9 @@ const TURNSTILE_SITEKEY = import.meta.env.VITE_TURNSTILE_SITEKEY ?? '0x4AAAAAADa
 // back (con el mismo valor) y redeploy.
 const GUIA_TOKEN = import.meta.env.VITE_GUIA_TOKEN ?? '2f89a8b7-fde0-4fff-af9e-f63adcad8c68'
 
+// Chunk separado — solo se descarga cuando el user visita /bienvenida/{GUIA_TOKEN}.
+const VistaGuia = lazy(() => import('./VistaGuia.jsx'))
+
 /* ─── global request loading state (top progress bar) ──────────── */
 // Contador de requests activas. Notifica solo si la operación tarda más de 250ms,
 // para evitar parpadeos en requests rápidas.
@@ -120,7 +123,7 @@ function TopLoader() {
 
 /* ─── responsive helpers ─────────────────────────────────────── */
 const MOBILE_BREAKPOINT = 1024
-function useIsMobile() {
+export function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT
   )
@@ -213,7 +216,7 @@ function FabAcciones({ acciones = [] }) {
 }
 
 /* ─── design tokens ──────────────────────────────────────────── */
-const T = {
+export const T = {
   font:    "'DM Sans', sans-serif",
   mono:    "'DM Mono', monospace",
   serif:   "'Playfair Display', serif",
@@ -374,8 +377,18 @@ export default function App() {
   // La URL incluye un token (UUID) para que no sea adivinable. El token vive en
   // VITE_GUIA_TOKEN (Railway) con fallback local. El link se genera en el back y se
   // envía al lead a mano por mail. Además /robots.txt bloquea el path para Google.
+  //
+  // VistaGuia se carga con React.lazy — su código va en un chunk separado que solo
+  // se descarga cuando alguien entra a esta URL. Cero impacto en el bundle principal.
   if (window.location.pathname === `/bienvenida/${GUIA_TOKEN}`) {
-    return <><TopLoader /><VistaGuia /></>
+    return (
+      <>
+        <TopLoader />
+        <Suspense fallback={<div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9a9a9a', fontFamily: T.font }}>Cargando…</div>}>
+          <VistaGuia />
+        </Suspense>
+      </>
+    )
   }
 
   let content
@@ -1193,7 +1206,7 @@ function TableHead({ cols, extraCol = true, gap = 0 }) {
 
 /* ─── Logo wordmark ──────────────────────────────────────────── */
 
-function Logo({ size = 16 }) {
+export function Logo({ size = 16 }) {
   const iS = Math.round(size * 1.55)
   const rS = Math.round(iS * 0.3)
   const fS = Math.round(iS * 0.56)
@@ -1381,185 +1394,6 @@ function VistaPostPago() {
   )
 }
 
-/* ─── VistaGuia (pública, sin login, sin API calls) ──────────────
- * Documentación de uso del sistema. Cada sección tiene un placeholder de imagen
- * para que le agregues los screenshots reales editando el `src` del <img>.
- * El link a esta página lo mandás manualmente por mail a los leads que llenan
- * el form "Solicitar guía".
- */
-function VistaGuia() {
-  const isMobile = useIsMobile()
-
-  const SECCIONES = [
-    {
-      id: 'inicio',
-      titulo: 'Inicio',
-      descripcion: 'Al abrir la app vas al Inicio: un panel diario con los turnos de hoy, alertas de turnos sin confirmar y cobros pendientes, y los KPIs del mes (ingresos, consultas, promedio por día, pacientes activos).',
-      screenshot: 'PLACEHOLDER — Captura del Inicio con la tarjeta negra "Tu agenda de hoy"',
-    },
-    {
-      id: 'pacientes',
-      titulo: 'Pacientes',
-      descripcion: 'El listado muestra cada paciente con su DNI, edad, obra social y última visita. Podés buscar por nombre o DNI, y al tocar una tarjeta se abre la ficha completa con historia clínica, consultas, estudios y odontograma.',
-      screenshot: 'PLACEHOLDER — Captura del listado de pacientes',
-    },
-    {
-      id: 'ficha-paciente',
-      titulo: 'Ficha del paciente',
-      descripcion: 'Dentro de la ficha vas a encontrar: datos personales editables, historia clínica en timeline (una fila por evento — consulta, estudio, ingreso), y accesos rápidos para iniciar una consulta, subir un estudio o registrar un cobro.',
-      screenshot: 'PLACEHOLDER — Captura de la ficha del paciente',
-    },
-    {
-      id: 'turnos',
-      titulo: 'Turnos',
-      descripcion: 'La agenda semanal muestra los turnos por consultorio. Cada turno tiene estado (pendiente, confirmado, cancelado) y podés sincronizarlos con Google Calendar. Los turnos aparecen también en la ficha del paciente.',
-      screenshot: 'PLACEHOLDER — Captura de la agenda de turnos',
-    },
-    {
-      id: 'consultas',
-      titulo: 'Iniciar consulta',
-      descripcion: 'Desde la ficha del paciente, "Iniciar consulta" abre un formulario donde cargás motivo, descripción, monto, tipo de pago (Particular u Obra social) y opcionalmente pedís firma al paciente. Al guardar, se crea automáticamente el ingreso asociado.',
-      screenshot: 'PLACEHOLDER — Captura del formulario de nueva consulta',
-    },
-    {
-      id: 'estudios',
-      titulo: 'Estudios y radiografías',
-      descripcion: 'Podés subir estudios (radiografías, ortopantomografías, etc.) desde la ficha del paciente. La app te deja calibrar la imagen con una regla, dibujar sobre ella con herramientas de medición y guardar mediciones para el seguimiento.',
-      screenshot: 'PLACEHOLDER — Captura del editor de estudios',
-    },
-    {
-      id: 'finanzas',
-      titulo: 'Finanzas',
-      descripcion: 'Panel financiero con balance mensual, ingresos por origen (consulta / cobro de obra social / ingreso manual), egresos y donuts por medio de pago. Todo filtrable por consultorio y por mes.',
-      screenshot: 'PLACEHOLDER — Captura del dashboard de finanzas',
-    },
-    {
-      id: 'cobros-os',
-      titulo: 'Cobros de obra social',
-      descripcion: 'Cuando una obra social te paga por lote, seleccionás las consultas pendientes de esa OS del período y registrás el cobro con el monto real recibido. La app marca esas consultas como confirmadas y el pendiente desaparece del panel.',
-      screenshot: 'PLACEHOLDER — Captura del flujo de registrar cobro OS',
-    },
-    {
-      id: 'movimientos',
-      titulo: 'Movimientos',
-      descripcion: 'Listado completo de todos los movimientos del mes — ingresos y egresos — con búsqueda y filtros. Cada fila muestra origen, medio de pago, consultorio y monto.',
-      screenshot: 'PLACEHOLDER — Captura de la vista de movimientos',
-    },
-    {
-      id: 'ajustes',
-      titulo: 'Ajustes (catálogos)',
-      descripcion: 'En Ajustes configurás los catálogos que usás en el día a día: medios de pago (Efectivo y Transferencia vienen por defecto), obras sociales y consultorios. Podés agregar, editar y eliminar los que crees vos.',
-      screenshot: 'PLACEHOLDER — Captura de la pantalla de Ajustes',
-    },
-  ]
-
-  return (
-    <div style={{ minHeight: '100vh', background: T.gray2, fontFamily: T.font, color: T.black }}>
-      {/* Header */}
-      <header style={{ background: T.white, borderBottom: `1px solid ${T.gray1}`, padding: isMobile ? '18px 20px' : '24px 40px' }}>
-        <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Logo size={16} />
-          </div>
-          <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4 }}>
-            Guía de uso
-          </span>
-        </div>
-      </header>
-
-      {/* Hero */}
-      <section style={{ padding: isMobile ? '40px 20px 24px' : '64px 40px 40px' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
-          <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 12 }}>
-            Documentación · Sin login
-          </div>
-          <h1 style={{ margin: 0, fontSize: isMobile ? 32 : 44, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-            Cómo funciona HolaDoc
-          </h1>
-          <p style={{ margin: '16px 0 0', fontSize: 16, color: T.gray4, lineHeight: 1.6, maxWidth: 560 }}>
-            Recorrido visual por las principales funcionalidades del sistema — Inicio, Pacientes, Turnos,
-            Estudios, Finanzas y Ajustes. No hace falta que te registres; podés compartir este link
-            libremente.
-          </p>
-        </div>
-      </section>
-
-      {/* Table of contents */}
-      <section style={{ padding: isMobile ? '0 20px 24px' : '0 40px 32px' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto', background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 14, padding: isMobile ? '18px 20px' : '22px 28px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-          <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4, marginBottom: 12 }}>
-            Contenido
-          </div>
-          <ol style={{ margin: 0, padding: '0 0 0 20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '8px 24px', fontSize: 14 }}>
-            {SECCIONES.map((s, i) => (
-              <li key={s.id} style={{ listStyle: 'decimal', color: T.gray4 }}>
-                <a href={`#${s.id}`} style={{ color: T.black, textDecoration: 'none', fontWeight: 600 }}
-                  onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
-                  onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
-                  {s.titulo}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </section>
-
-      {/* Secciones */}
-      <main style={{ padding: isMobile ? '16px 20px 60px' : '24px 40px 96px' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? 40 : 56 }}>
-          {SECCIONES.map((s, i) => (
-            <article key={s.id} id={s.id} style={{ scrollMarginTop: 24 }}>
-              <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>
-                {String(i + 1).padStart(2, '0')}
-              </div>
-              <h2 style={{ margin: 0, fontSize: isMobile ? 24 : 30, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                {s.titulo}
-              </h2>
-              <p style={{ margin: '12px 0 20px', fontSize: 15, lineHeight: 1.7, color: T.gray4 }}>
-                {s.descripcion}
-              </p>
-              {/* Placeholder de imagen — reemplazar el `src` del <img> cuando tengas la captura,
-                  o cambiar todo este bloque por <img src="/guia/{id}.png" alt="..." /> */}
-              <figure style={{ margin: 0 }}>
-                <div style={{
-                  background: T.white,
-                  border: `1px dashed ${T.gray3}`,
-                  borderRadius: 12,
-                  aspectRatio: '16/10',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: T.gray4, fontFamily: T.mono, fontSize: 11,
-                  letterSpacing: '0.06em', textAlign: 'center', padding: 20,
-                }}>
-                  <span>{s.screenshot}</span>
-                </div>
-                <figcaption style={{ marginTop: 8, fontFamily: T.mono, fontSize: 9, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray5 }}>
-                  Figura {i + 1} · {s.titulo}
-                </figcaption>
-              </figure>
-            </article>
-          ))}
-
-          {/* CTA final */}
-          <div style={{ background: T.black, color: T.white, borderRadius: 14, padding: isMobile ? '28px 22px' : '36px 40px', textAlign: 'center' }}>
-            <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.3 }}>
-              ¿Querés probarlo con tu consultorio?
-            </div>
-            <p style={{ margin: '10px auto 20px', maxWidth: 420, fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-              Solicitá acceso desde el login. Es rápido y te contactamos por mail.
-            </p>
-            <a href="/" style={{ display: 'inline-block', background: T.white, color: T.black, padding: '11px 22px', borderRadius: 100, textDecoration: 'none', fontWeight: 700, fontSize: 13.5 }}>
-              Ir al login →
-            </a>
-          </div>
-        </div>
-      </main>
-
-      <footer style={{ padding: '24px 20px', textAlign: 'center', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.08em', color: T.gray6, borderTop: `1px solid ${T.gray1}` }}>
-        holadocapp.com · para profesionales de la salud
-      </footer>
-    </div>
-  )
-}
 
 function VistaLogin({ onLogin }) {
   const isMobile = useIsMobile()
@@ -1803,7 +1637,7 @@ function VistaLogin({ onLogin }) {
                 {modo === 'guia-exito' && 'Te la mandamos por mail'}
               </div>
               <div style={{ fontSize: 12.5, color: T.gray3, marginTop: 5, lineHeight: 1.55 }}>
-                {modo === 'login'      && 'Ingresá con tu cuenta de Google para acceder a tu consultorio.'}
+                {modo === 'login'      && 'Elegí cómo querés empezar.'}
                 {modo === 'registro'   && 'Completá el formulario y te contactamos para darte acceso anticipado.'}
                 {modo === 'exito'      && 'Te enviamos un mail con el link para activar tu suscripción mensual. Cuando termines el pago, te redirigimos al login para que entres con Google.'}
                 {modo === 'guia'       && 'Dejanos tu contacto y te enviamos una guía visual de cómo funciona HolaDoc, sin compromiso.'}
@@ -1814,32 +1648,56 @@ function VistaLogin({ onLogin }) {
             {/* Contenido por modo */}
             {modo === 'login' && (
               <>
-                <Divider>Acceso seguro</Divider>
-                <div style={{ display: 'flex', justifyContent: 'center', minHeight: 44 }}>
-                  {cargando
-                    ? <span style={{ fontSize: 12, color: T.gray5, fontFamily: T.mono, letterSpacing: '0.1em', alignSelf: 'center' }}>Conectando…</span>
-                    : <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError('Error al iniciar sesión con Google')} locale="es" text="signin_with" size="large" width="320" />
-                  }
-                </div>
-                {error && <div style={{ marginTop: 12, textAlign: 'center' }}><ErrorMsg>{error}</ErrorMsg></div>}
-
-                <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 7 }}>
-                  {['Turnos sincronizados con Google Calendar', 'Historia clínica completa de cada paciente', 'Finanzas en tiempo real · Por consultorio'].map(t => (
-                    <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: T.gray3 }}>
-                      <div style={{ width: 4, height: 4, borderRadius: '50%', background: T.gray1, flexShrink: 0 }} />
-                      {t}
-                    </div>
-                  ))}
+                {/* ── 1. Login con Google (para usuarios existentes) ── */}
+                <div style={{ marginTop: 24 }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5, textAlign: 'center', marginBottom: 12 }}>
+                    Ya tengo cuenta
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', minHeight: 44 }}>
+                    {cargando
+                      ? <span style={{ fontSize: 12, color: T.gray5, fontFamily: T.mono, letterSpacing: '0.1em', alignSelf: 'center' }}>Conectando…</span>
+                      : <GoogleLogin onSuccess={handleGoogleSuccess} onError={() => setError('Error al iniciar sesión con Google')} locale="es" text="signin_with" size="large" width="320" />
+                    }
+                  </div>
+                  {error && <div style={{ marginTop: 12, textAlign: 'center' }}><ErrorMsg>{error}</ErrorMsg></div>}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 14, fontFamily: T.mono, fontSize: 9, letterSpacing: '0.08em', color: T.gray6 }}>
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1L1.5 3v3c0 2.76 1.96 5.34 4.5 6 2.54-.66 4.5-3.24 4.5-6V3L6 1z" stroke="#bbb" strokeWidth="1" fill="none"/></svg>
-                  Acceso seguro · Sin contraseñas
+                {/* ── 2. Registrarse (para nuevos usuarios) ── */}
+                <div style={{ marginTop: 28, paddingTop: 24, borderTop: `1px solid ${T.gray1}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', textAlign: 'center' }}>
+                    ¿No tenés cuenta?
+                  </div>
+                  <div style={{ fontSize: 12, color: T.gray4, textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
+                    Registrate y empezá a usar HolaDoc en tu consultorio.
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+                    <button type="button" onClick={() => { setModo('registro'); setError(null) }}
+                      style={{ width: 320, maxWidth: '100%', padding: '13px', background: T.black, color: T.white, border: `1.5px solid ${T.black}`, borderRadius: 10, fontFamily: T.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.18)' }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)' }}>
+                      Registrarme
+                    </button>
+                  </div>
                 </div>
 
-                <button type="button" onClick={() => { setModo('registro'); setError(null) }} style={{ display: 'block', width: '100%', textAlign: 'center', marginTop: 18, background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12.5, color: T.gray3 }}>
-                  ¿No tenés acceso todavía? <u style={{ textUnderlineOffset: 3 }}>Solicitá uno acá</u>
-                </button>
+                {/* ── 3. Solicitar guía (para curiosos sin compromiso) ── */}
+                <div style={{ marginTop: 28, paddingTop: 24, borderTop: `1px solid ${T.gray1}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', textAlign: 'center' }}>
+                    ¿Querés conocer HolaDoc sin compromiso?
+                  </div>
+                  <div style={{ fontSize: 12, color: T.gray4, textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
+                    Te enviamos una guía visual con capturas y explicaciones — sin registrarte.
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
+                    <button type="button" onClick={() => { setModo('guia'); setError(null); setGuiaForm({ email: '', whatsapp: '' }) }}
+                      style={{ width: 320, maxWidth: '100%', padding: '13px', background: T.white, color: T.black, border: `1.5px solid ${T.black}`, borderRadius: 10, fontFamily: T.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s, color 0.15s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = T.black; e.currentTarget.style.color = T.white }}
+                      onMouseLeave={e => { e.currentTarget.style.background = T.white; e.currentTarget.style.color = T.black }}>
+                      Solicitar guía
+                    </button>
+                  </div>
+                </div>
+
               </>
             )}
 
@@ -1880,19 +1738,6 @@ function VistaLogin({ onLogin }) {
                   {cargando ? 'Enviando…' : 'Solicitar acceso'}
                 </button>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '18px 0 12px', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5 }}>
-                  <div style={{ flex: 1, height: 1, background: T.gray1 }} />
-                  o
-                  <div style={{ flex: 1, height: 1, background: T.gray1 }} />
-                </div>
-
-                <button type="button" onClick={() => { setModo('guia'); setError(null); setGuiaForm({ email: form.email || '', whatsapp: '' }) }}
-                  style={{ width: '100%', padding: '11px', background: T.white, color: T.black, border: `1.5px solid ${T.gray1}`, borderRadius: 10, fontFamily: T.font, fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'border-color 0.15s' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = T.black}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = T.gray1}>
-                  Solicitar guía de uso
-                </button>
-
                 <button type="button" onClick={() => { setModo('login'); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', margin: '14px 0 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
                   ← Volver al inicio
                 </button>
@@ -1918,8 +1763,8 @@ function VistaLogin({ onLogin }) {
                   {cargando ? 'Enviando…' : 'Enviarme la guía'}
                 </button>
 
-                <button type="button" onClick={() => { setModo('registro'); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', margin: '14px 0 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
-                  ← Volver
+                <button type="button" onClick={() => { setModo('login'); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', margin: '14px 0 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
+                  ← Volver al inicio
                 </button>
               </form>
             )}
@@ -5748,11 +5593,29 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
       if (!primerPunto) { setPrimerPunto({ x, y }) }
       else {
         const px = Math.hypot(x - primerPunto.x, y - primerPunto.y)
-        setEscala(parseFloat((px / 10).toFixed(4)))
+        const nuevaEscala = parseFloat((px / 10).toFixed(4))
+        setEscala(nuevaEscala)
         setCalibrado(true)
         setPrimerPunto(null)
         setHerramienta('longitud')
         completar()
+        // Persistimos la calibración de inmediato — el autosave debounced sólo escucha
+        // cambios de `trazos` y `descripcion`, así que sin este PUT explícito la escala se
+        // perdería si el usuario vuelve atrás sin hacer otra acción.
+        if (estudioId && canvasRef.current) {
+          const canvas = canvasRef.current
+          if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null }
+          setEstadoGuardado('guardando')
+          apiFetch(`/estudios/${estudioId}`, {
+            method: 'PUT',
+            body: JSON.stringify({
+              trazos: normalizarTrazos(trazos, canvas.width, canvas.height),
+              escala: nuevaEscala,
+              pacienteId: pacienteIdInicial ?? null,
+              descripcion,
+            }),
+          }).then(res => setEstadoGuardado(res?.ok ? 'guardado' : null))
+        }
       }
     }
   }
