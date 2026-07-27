@@ -1725,7 +1725,7 @@ function VistaLogin({ onLogin }) {
                     value={form.email}
                     onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                     placeholder="maria.lopez@gmail.com"
-                    pattern=".+@gmail\\.com"
+                    pattern=".+@gmail\.com"
                     title="Ingresá una cuenta @gmail.com"
                     required
                     onFocus={e => e.target.style.borderColor = T.black}
