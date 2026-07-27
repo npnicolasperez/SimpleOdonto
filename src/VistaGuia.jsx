@@ -1,7 +1,7 @@
 import { T, useIsMobile, Logo } from './App.jsx'
 import {
   MockupInicio, MockupPacientes, MockupFichaPaciente, MockupTurnos,
-  MockupIniciarConsulta, MockupMovimientos, MockupAjustes,
+  MockupIniciarConsulta, MockupAjustes,
 } from './VistaGuiaMockups.jsx'
 
 /**
@@ -110,7 +110,7 @@ export default function VistaGuia() {
     {
       id: 'ficha-paciente',
       titulo: 'Ficha del paciente',
-      descripcion: 'La ficha es el hub de todo lo relacionado a un paciente. Arriba tenés los datos personales editables (DNI, edad, teléfono, email, obra social, etc.) y debajo, una pestaña por tipo de contenido: Historia clínica, Consultas, Estudios y Odontograma.',
+      descripcion: 'La ficha es el hub de todo lo relacionado a un paciente y se abre en dos columnas: a la izquierda los datos personales editables (DNI, edad, teléfono, email, obra social, etc.) junto con el saldo pendiente y el próximo turno; a la derecha, una pestaña por tipo de contenido — Historia clínica, Odontograma y Estudios. Arriba del todo, los accesos rápidos para iniciar una consulta o subir un estudio nuevo.',
       mockup: <MockupFichaPaciente />,
       bloques: [
         {
@@ -119,7 +119,7 @@ export default function VistaGuia() {
         },
         {
           subtitulo: 'Acciones rápidas',
-          texto: 'Desde la ficha podés iniciar una nueva consulta, subir un estudio o registrar un cobro directo — sin volver a buscar el paciente. Los botones están arriba a la derecha.',
+          texto: 'Desde la ficha tenés dos accesos directos arriba a la derecha: "Iniciar consulta" y "+ Nuevo estudio". Sirven para arrancar el flujo sin volver a la lista a buscar el paciente.',
         },
         {
           subtitulo: 'Odontograma',
@@ -139,7 +139,7 @@ export default function VistaGuia() {
         },
         {
           subtitulo: 'Sincronización con Google Calendar',
-          texto: 'Podés conectar tu Google Calendar y todos los turnos que cargues acá se replican automáticamente en tu calendario personal — con recordatorios y notificaciones. Los cambios son bidireccionales: si movés un turno desde Google Calendar, se refleja en la app.',
+          texto: 'Podés conectar tu Google Calendar y todos los turnos que cargues acá se replican automáticamente en tu calendario personal — con recordatorios y notificaciones.',
         },
         {
           subtitulo: 'Contexto en el Inicio',
@@ -191,20 +191,12 @@ export default function VistaGuia() {
           subtitulo: 'La regla mental',
           texto: 'Pensalo así: "Cobrar ahora" = plata en tu bolsillo hoy, cuenta al mes. "Dejar pendiente" = pagaré, no cuenta hasta que lo cobres. Y todo lo de obra social queda pendiente por definición del lado de la OS — el toggle solo decide si además hubo coseguro en el momento.',
         },
-        {
-          subtitulo: 'Firma del paciente',
-          texto: 'Opcionalmente podés pedir la firma del paciente al final de la consulta — sirve como constancia de conformidad con el tratamiento y el costo. Se puede firmar directo en la pantalla o mandar un link para que firme desde su celular.',
-        },
-        {
-          subtitulo: 'Qué pasa cuando guardás',
-          texto: 'Al guardar la consulta el sistema automáticamente: (1) la agrega a la historia clínica del paciente, (2) crea el ingreso financiero con el estado correcto (confirmado o pendiente según el tipo de pago), y (3) si estaba asociada a un turno del día, marca ese turno como completado. Todo se refleja al instante en Inicio, Finanzas y Movimientos.',
-        },
       ],
     },
     {
       id: 'estudios',
       titulo: 'Estudios y radiografías',
-      descripcion: 'Podés subir radiografías (periapicales, ortopantomografías, telerradiografías, etc.) desde la ficha del paciente y trabajar sobre ellas con herramientas de trazado y medición. Todo lo que dibujás y medís queda guardado con la imagen — al abrirla de nuevo, ves lo mismo que dejaste.',
+      descripcion: 'Un ejemplo concreto para odontólogos: podés hacer un análisis cefalométrico completo sobre una telerradiografía lateral desde acá mismo — sin salir del sistema, sin exportar la imagen a otro programa. Más allá de ese caso puntual, podés subir cualquier radiografía (periapicales, ortopantomografías, telerradiografías, etc.) desde la ficha del paciente y trabajar sobre ella con herramientas de trazado y medición milimétrica. Todo lo que dibujás y medís queda guardado con la imagen — al abrirla de nuevo, ves lo mismo que dejaste.',
       // Sin `screenshot` ni `mockup` a nivel sección — la primera imagen aparece en el
       // primer bloque ("Subir un estudio") ya como screenshot real del editor.
       bloques: [
@@ -280,9 +272,10 @@ export default function VistaGuia() {
           imagenMaxWidth: 340,
         },
         {
-          subtitulo: 'Zoom, pan y precisión',
-          texto: 'Podés hacer zoom con la rueda del mouse (o pinch en tablet) y mover la imagen arrastrando con el mouse cuando no hay herramienta activa. Los trazos se guardan en coordenadas relativas: si dibujás algo al 50% de zoom y después vas al 300%, la posición del trazo sigue exactamente en el lugar anatómico correcto.',
-          imagen: 'PLACEHOLDER — Captura del mismo estudio a distinto zoom mostrando que los trazos mantienen su posición',
+          subtitulo: 'Ejemplo real: análisis cefalométrico',
+          texto: 'Combinando las herramientas anteriores (calibración + líneas + medir ángulos + medir longitudes + notas) podés hacer un análisis cefalométrico completo sobre una telerradiografía lateral: trazás los planos anatómicos de referencia, marcás los ángulos entre ellos y anotás los valores obtenidos junto con la interpretación clínica en el panel de descripción. Todo en la misma pantalla, sin salir del estudio.',
+          imagenSrc: '/guia/ejemplo.png',
+          imagenAlt: 'Ejemplo real de análisis cefalométrico realizado sobre una telerradiografía lateral, con planos anatómicos trazados y sus ángulos correspondientes',
         },
         {
           subtitulo: 'Guardado automático y reapertura',
@@ -294,7 +287,8 @@ export default function VistaGuia() {
       id: 'finanzas',
       titulo: 'Finanzas',
       descripcion: 'Este es el corazón financiero del sistema. Todo lo que pasa en el consultorio — una consulta particular, un coseguro cobrado, un cobro batch de una obra social, un egreso — impacta acá automáticamente. No hay doble carga: la consulta que registrás en la ficha del paciente ya es un ingreso en Finanzas.',
-      screenshot: 'PLACEHOLDER — Captura del dashboard de Finanzas con hero card negro + KPIs + donuts',
+      screenshotSrc: '/guia/finanzas.png',
+      screenshotAlt: 'Dashboard de Finanzas con hero card negro de balance, KPIs, cobros pendientes y gráficos',
       bloques: [
         {
           subtitulo: 'La lógica: cuándo la plata "cuenta"',
@@ -308,25 +302,28 @@ export default function VistaGuia() {
         {
           subtitulo: 'Dashboard financiero — hero card',
           texto: 'La primera tarjeta grande (negra) es el balance del mes elegido. Muestra el balance neto (ingresos confirmados − egresos), un indicador de variación contra el mes anterior en verde/rojo, y dos botones para cargar rápido un ingreso manual (regalo, préstamo, etc.) o un egreso (alquiler, insumos, honorarios).',
-          imagen: 'PLACEHOLDER — Captura del hero card negro de Finanzas con balance + variación',
+          imagenSrc: '/guia/balance.png',
+          imagenAlt: 'Hero card negro de Finanzas mostrando el balance del mes con variación contra el mes anterior',
         },
         {
           subtitulo: 'KPIs del mes',
           texto: 'Debajo del hero tenés 3 tarjetas blancas: Ingreso cobrado (todo lo confirmado en el mes), Egreso (gastos cargados) y Consulta promedio (monto medio por consulta atendida). Sirven para leer el mes de un vistazo — sin abrir la lista de movimientos.',
         },
         {
-          subtitulo: 'Cobros pendientes de obra social',
-          texto: 'Uno de los widgets más útiles: agrupa todas las consultas OS pendientes por obra social y te dice cuánto te debe cada una. Ej. "Swiss Medical: $180.000 · 12 consultas · OSDE: $95.000 · 7 consultas". Podés clickear cada OS para ver el detalle de qué consultas quedan y registrar el cobro cuando llegue.',
-          imagen: 'PLACEHOLDER — Captura del widget "Cobros pendientes de OS" con las OS listadas y sus totales',
+          subtitulo: 'Cobros pendientes particulares y de obra social',
+          texto: 'Uno de los widgets más útiles: agrupa todas las consultas pendientes de cobro, tanto particulares (pacientes que te quedaron debiendo) como de obra social (aranceles que la OS todavía no pagó). Te muestra cuánto te deben en total y agrupado por origen — ej. "Particular: $45.000 · 3 pacientes · Swiss Medical: $180.000 · 12 consultas · OSDE: $95.000 · 7 consultas". Podés clickear cada grupo para ver el detalle y registrar el cobro cuando llegue.',
+          imagenSrc: '/guia/cobrosPendientes.png',
+          imagenAlt: 'Widget de cobros pendientes agrupados por particulares y por obra social con los totales de cada uno',
         },
         {
-          subtitulo: 'Ingresos por origen — donut',
-          texto: 'El donut chart muestra de dónde viene tu plata en el mes. Distingue: consultas particulares, coseguros de OS, cobros batch de OS, e ingresos manuales. Esto te ayuda a entender qué porcentaje de tu facturación viene de particulares vs. obras sociales.',
+          subtitulo: 'Ingresos por origen',
+          texto: 'El gráfico muestra de dónde viene tu plata en el mes. Distingue: consultas particulares, coseguros de OS, cobros batch de OS, e ingresos manuales. Esto te ayuda a entender qué porcentaje de tu facturación viene de particulares vs. obras sociales.',
+          imagenSrc: '/guia/ingresoOrigen.png',
+          imagenAlt: 'Gráfico de ingresos por origen del mes distinguiendo consultas particulares, coseguros, cobros de OS e ingresos manuales',
         },
         {
           subtitulo: 'Filtros y vista anual',
           texto: 'Podés cambiar el mes que estás mirando, filtrar por consultorio (si tenés más de uno, ves la performance de cada uno por separado) y también hay una vista anual con un gráfico de barras mensuales para detectar tendencias — meses fuertes, caídas estacionales, crecimiento año contra año.',
-          imagen: 'PLACEHOLDER — Captura del gráfico anual de barras',
         },
         {
           subtitulo: 'Cómo esto organiza tu economía',
@@ -338,7 +335,8 @@ export default function VistaGuia() {
       id: 'cobros-os',
       titulo: 'Cobros de obra social',
       descripcion: 'Las obras sociales no te pagan consulta por consulta — te pagan por lote, típicamente una vez por mes (o quincena, según el convenio). Este flujo es para registrar ese cobro cuando llega y hacer que todas las consultas pendientes de esa OS se marquen como cobradas de una.',
-      screenshot: 'PLACEHOLDER — Captura del selector de consultas pendientes de OS + monto recibido',
+      screenshotSrc: '/guia/cobrosPendientes2.png',
+      screenshotAlt: 'Pantalla de cobros pendientes de obra social con las consultas seleccionables y la barra inferior para registrar el cobro',
       bloques: [
         {
           subtitulo: 'Cuándo lo usás',
@@ -364,7 +362,8 @@ export default function VistaGuia() {
       id: 'movimientos',
       titulo: 'Movimientos',
       descripcion: 'La vista más detallada de Finanzas — cada línea es una transacción real de plata (o pendiente). Sirve para auditar, buscar algo puntual, o corregir un error de carga.',
-      mockup: <MockupMovimientos />,
+      screenshotSrc: '/guia/movimientos.png',
+      screenshotAlt: 'Pantalla de Movimientos con búsqueda, filtros Todos/Ingresos/Egresos y las transacciones agrupadas por fecha',
       bloques: [
         {
           subtitulo: 'Qué ves en la lista',
@@ -404,52 +403,159 @@ export default function VistaGuia() {
 
   return (
     <div style={{ minHeight: '100vh', background: T.gray2, fontFamily: T.font, color: T.black }}>
-      {/* Header */}
-      <header style={{ background: T.white, borderBottom: `1px solid ${T.gray1}`, padding: isMobile ? '18px 20px' : '24px 40px' }}>
+      {/* Header sticky con backdrop-blur */}
+      <header style={{
+        position: 'sticky', top: 0, zIndex: 10,
+        background: 'rgba(255,255,255,0.85)',
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+        borderBottom: `1px solid ${T.gray1}`,
+        padding: isMobile ? '14px 20px' : '18px 40px',
+      }}>
         <div style={{ maxWidth: 960, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Logo size={16} />
           </div>
-          <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4 }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: T.mono, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4 }}>
+            <span aria-hidden style={{ width: 5, height: 5, borderRadius: '50%', background: T.black }} />
             Guía de uso
           </span>
         </div>
       </header>
 
-      {/* Hero */}
-      <section style={{ padding: isMobile ? '40px 20px 24px' : '64px 40px 40px' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
-          <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 12 }}>
-            Documentación · Sin login
+      {/* Hero — con dot pattern sutil de fondo (marca visual del brand) */}
+      <section style={{ position: 'relative', padding: isMobile ? '48px 20px 32px' : '80px 40px 56px', overflow: 'hidden' }}>
+        {/* Dot pattern de fondo */}
+        <div aria-hidden style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle, #d4d4d0 1px, transparent 1px)', backgroundSize: '28px 28px', opacity: 0.55, pointerEvents: 'none' }} />
+        {/* Ícono grande decorativo hD */}
+        <div aria-hidden style={{ position: 'absolute', top: isMobile ? -30 : -50, right: isMobile ? -30 : -60, width: isMobile ? 180 : 260, height: isMobile ? 180 : 260, background: T.black, borderRadius: isMobile ? 52 : 78, opacity: 0.05, pointerEvents: 'none' }} />
+
+        <div style={{ position: 'relative', maxWidth: 720, margin: '0 auto' }}>
+          {/* Chip decorativo con el ícono negro */}
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: '5px 12px 5px 6px', marginBottom: 18, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <span style={{ width: 20, height: 20, borderRadius: 6, background: T.black, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontFamily: T.font, fontSize: 11, fontWeight: 700, color: T.white, letterSpacing: '-0.03em', lineHeight: 1 }}>D</span>
+            </span>
+            <span style={{ fontFamily: T.mono, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4 }}>Documentación</span>
           </div>
-          <h1 style={{ margin: 0, fontSize: isMobile ? 32 : 44, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-            Cómo funciona HolaDoc
+          <h1 style={{ margin: 0, fontSize: isMobile ? 34 : 48, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.05 }}>
+            Cómo funciona{' '}
+            <span style={{ position: 'relative', display: 'inline-block' }}>
+              HolaDoc
+              <span aria-hidden style={{ position: 'absolute', left: 0, right: 0, bottom: -2, height: 8, background: T.black, opacity: 0.08, borderRadius: 4, zIndex: -1 }} />
+            </span>
           </h1>
-          <p style={{ margin: '16px 0 0', fontSize: 16, color: T.gray4, lineHeight: 1.6, maxWidth: 560 }}>
-            Recorrido visual por las principales funcionalidades del sistema — Inicio, Pacientes, Turnos,
-            Estudios, Finanzas y Ajustes. No hace falta que te registres; podés compartir este link
-            libremente.
+          <p style={{ margin: '18px 0 0', fontSize: 16, color: T.gray4, lineHeight: 1.65, maxWidth: 560 }}>
+            Recorrido visual por las principales funcionalidades del sistema. No hace falta que te
+            registres; podés compartir este link libremente.
           </p>
         </div>
       </section>
 
-      {/* Table of contents */}
-      <section style={{ padding: isMobile ? '0 20px 24px' : '0 40px 32px' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto', background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 14, padding: isMobile ? '18px 20px' : '22px 28px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-          <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4, marginBottom: 12 }}>
-            Contenido
+      {/* ¿Qué es HolaDoc? */}
+      <section style={{ padding: isMobile ? '8px 20px 24px' : '8px 40px 32px' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 12 }}>
+            ¿Qué es HolaDoc?
           </div>
-          <ol style={{ margin: 0, padding: '0 0 0 20px', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '8px 24px', fontSize: 14 }}>
-            {SECCIONES.map((s) => (
-              <li key={s.id} style={{ listStyle: 'decimal', color: T.gray4 }}>
-                <a href={`#${s.id}`} style={{ color: T.black, textDecoration: 'none', fontWeight: 600 }}
-                  onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
-                  onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
-                  {s.titulo}
-                </a>
-              </li>
+          <p style={{ margin: 0, fontSize: 15.5, color: T.gray4, lineHeight: 1.75 }}>
+            HolaDoc es un <strong style={{ color: T.black, fontWeight: 700 }}>sistema de gestión para
+            consultorios de profesionales de la salud</strong> — pensado para profesionales que
+            trabajan de manera independiente o con un equipo chico. Reemplaza la agenda de papel,
+            las planillas de Excel y los sistemas fragmentados por{' '}
+            <strong style={{ color: T.black, fontWeight: 700 }}>una sola herramienta donde vive todo
+            el consultorio</strong>: pacientes, turnos, historia clínica, estudios y finanzas.
+            Algunas especialidades — como odontología — tienen funcionalidades extras específicas
+            (por ejemplo, el odontograma interactivo).
+          </p>
+          <p style={{ margin: '14px 0 0', fontSize: 15.5, color: T.gray4, lineHeight: 1.75 }}>
+            La filosofía es simple: cargás una vez y el sistema arma solo el resto. Registrás una
+            consulta y automáticamente aparece en la historia clínica del paciente, se marca el
+            turno como completado y se genera el ingreso financiero con el estado correcto. Al final
+            del mes tenés balance, ingresos por origen y cobros pendientes agrupados por obra social
+            — sin planilla aparte, sin doble carga.
+          </p>
+
+          {/* 4 puntos clave */}
+          <div style={{ marginTop: 24, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+            {[
+              { titulo: 'Historia clínica y estudios', texto: 'Ficha completa de cada paciente con timeline de consultas, radiografías con mediciones milimétricas y odontograma interactivo.' },
+              { titulo: 'Turnos + Google Calendar',    texto: 'Agenda semanal con estados (pendiente / confirmado / cancelado). Sincronizada automáticamente con tu Google Calendar personal.' },
+              { titulo: 'Finanzas en tiempo real',     texto: 'Distinción clara entre pagos particulares y por obra social, con coseguros, cobros pendientes y batch de OS.' },
+              { titulo: 'Multi-consultorio',           texto: 'Si atendés en más de un lugar, HolaDoc separa la performance financiera de cada consultorio automáticamente.' },
+            ].map((c, i) => (
+              <div key={i} style={{ background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 12, padding: '16px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+                <div style={{ fontFamily: T.font, fontSize: 13.5, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', marginBottom: 6 }}>
+                  {c.titulo}
+                </div>
+                <div style={{ fontFamily: T.font, fontSize: 13, color: T.gray4, lineHeight: 1.6 }}>
+                  {c.texto}
+                </div>
+              </div>
             ))}
-          </ol>
+          </div>
+        </div>
+      </section>
+
+      {/* Table of contents — grid de cards con número negro + chevron + hover */}
+      <section style={{ padding: isMobile ? '0 20px 32px' : '0 40px 48px' }}>
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: T.black }} />
+            <span style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.black, fontWeight: 700 }}>
+              Contenido · {SECCIONES.length} secciones
+            </span>
+            <div style={{ flex: 1, height: 1, background: T.gray1 }} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10 }}>
+            {SECCIONES.map((s, idx) => {
+              const numBloques = s.bloques?.length ?? 0
+              return (
+                <a key={s.id} href={`#${s.id}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 12,
+                    padding: '12px 14px 12px 12px',
+                    textDecoration: 'none', color: T.black,
+                    transition: 'all 0.15s',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = T.black
+                    e.currentTarget.style.transform = 'translateY(-1px)'
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = T.gray1
+                    e.currentTarget.style.transform = 'translateY(0)'
+                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)'
+                  }}>
+                  {/* Badge con número */}
+                  <div style={{
+                    width: 34, height: 34, borderRadius: 8,
+                    background: T.black, color: T.white,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: T.mono, fontSize: 12, fontWeight: 700, letterSpacing: '0.02em',
+                    flexShrink: 0,
+                  }}>
+                    {String(idx + 1).padStart(2, '0')}
+                  </div>
+                  {/* Título + subtitulo */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: T.font, fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', color: T.black, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {s.titulo}
+                    </div>
+                    {numBloques > 0 && (
+                      <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.1em', textTransform: 'uppercase', color: T.gray4, marginTop: 3 }}>
+                        {numBloques} {numBloques === 1 ? 'subsección' : 'subsecciones'}
+                      </div>
+                    )}
+                  </div>
+                  {/* Chevron */}
+                  <span style={{ fontFamily: T.font, fontSize: 16, color: T.gray4, flexShrink: 0 }}>→</span>
+                </a>
+              )
+            })}
+          </div>
         </div>
       </section>
 
@@ -457,11 +563,24 @@ export default function VistaGuia() {
       <main style={{ padding: isMobile ? '16px 20px 60px' : '24px 40px 96px' }}>
         <div style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? 40 : 56 }}>
           {SECCIONES.map((s, i) => (
-            <article key={s.id} id={s.id} style={{ scrollMarginTop: 24 }}>
-              <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>
-                {String(i + 1).padStart(2, '0')}
+            <article key={s.id} id={s.id} style={{
+              scrollMarginTop: 24,
+              paddingTop: i === 0 ? 0 : (isMobile ? 32 : 48),
+              borderTop: i === 0 ? 'none' : `1px solid ${T.gray1}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 9,
+                  background: T.black, color: T.white,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: T.mono, fontSize: 13, fontWeight: 700, letterSpacing: '0.02em',
+                  flexShrink: 0,
+                }}>
+                  {String(i + 1).padStart(2, '0')}
+                </div>
+                <div style={{ height: 1, flex: 1, background: T.gray1 }} />
               </div>
-              <h2 style={{ margin: 0, fontSize: isMobile ? 24 : 30, fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+              <h2 style={{ margin: 0, fontSize: isMobile ? 26 : 32, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1.15 }}>
                 {s.titulo}
               </h2>
               <p style={{ margin: '12px 0 20px', fontSize: 15, lineHeight: 1.7, color: T.gray4 }}>

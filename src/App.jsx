@@ -4283,9 +4283,27 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
             </div>
           )}
 
-          {/* ── Card: Firma del paciente ── */}
-          <div style={{ ...fCard, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <span style={fSecLbl}>Firma del paciente (opcional)</span>
+          {/* ── Card: Firma del paciente ──
+              TEMPORALMENTE DESHABILITADO — la funcionalidad queda intacta en código para
+              cuando la reactivemos. Solo se oculta el interactivo con pointerEvents:none +
+              opacity, y se agrega un chip "Próximamente". Se saca en una versión futura. */}
+          <div style={{ ...fCard, display: 'flex', flexDirection: 'column', gap: 12, position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <span style={fSecLbl}>Firma del paciente (opcional)</span>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                fontFamily: T.mono, fontSize: 9.5, fontWeight: 700,
+                letterSpacing: '0.14em', textTransform: 'uppercase',
+                color: '#92400e', background: '#fef3c7',
+                border: '1px solid #fbbf24',
+                borderRadius: 100, padding: '3px 10px',
+                transform: 'translateY(-1px)',
+              }}>
+                <span aria-hidden style={{ width: 5, height: 5, borderRadius: '50%', background: '#f59e0b' }} />
+                Próximamente
+              </span>
+            </div>
+            <div aria-disabled="true" style={{ opacity: 0.45, pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 12 }}>
               {firmaInfo.firmada && idActual ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
                   <div style={{ width: 36, height: 36, borderRadius: '50%', background: T.black, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -4310,14 +4328,13 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                     {!idActual && ' La consulta se guarda automáticamente al solicitar la firma.'}
                   </div>
                   <div>
-                    <Btn onClick={handleSolicitarFirma} disabled={firmaSolicitando}>
-                      {firmaSolicitando
-                        ? 'Guardando…'
-                        : (idActual ? 'Solicitar firma del paciente' : 'Guardar y solicitar firma')}
+                    <Btn onClick={handleSolicitarFirma} disabled>
+                      {idActual ? 'Solicitar firma del paciente' : 'Guardar y solicitar firma'}
                     </Btn>
                   </div>
                 </>
               )}
+            </div>
           </div>
 
         </form>
@@ -7752,7 +7769,7 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
   const [selectedOs,      setSelectedOs]      = useState(new Set())
   const [filtroOsCobros,  setFiltroOsCobros]  = useState('')   // nombre OS
   const [filtroConsCobros,setFiltroConsCobros]= useState('')   // nombre consultorio
-  const [formCobroOs,     setFormCobroOs]     = useState({ fecha: new Date().toISOString().slice(0,10), monto: '', descripcion: '' })
+  const [formCobroOs,     setFormCobroOs]     = useState({ fecha: new Date().toISOString().slice(0,10), monto: '', medioPagoId: '', descripcion: '' })
   const [guardandoCobroOs,setGuardandoCobroOs]= useState(false)
   const [expandedPart,    setExpandedPart]    = useState(new Set())
   const [formsPart,       setFormsPart]       = useState({})   // { [ingresoId]: { fecha, monto, medioPagoId } }
@@ -7765,10 +7782,19 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
   const { openConfirm, dialog: confirmDialog } = useConfirm()
 
   async function eliminarMovimiento(m) {
-    const tipo = m.origen === 'egreso' ? 'egreso' : 'ingreso'
-    const ok = await openConfirm(`¿Eliminar este ${tipo}? Esta acción no se puede deshacer.`)
+    let mensaje, path
+    if (m.origen === 'cobro_os') {
+      mensaje = '¿Eliminar este cobro de obra social? Las consultas asociadas van a volver a estado PENDIENTE.'
+      path    = `/cobros-os/${m.id}`
+    } else if (m.origen === 'egreso') {
+      mensaje = '¿Eliminar este egreso? Esta acción no se puede deshacer.'
+      path    = `/finanzas/egresos/${m.id}`
+    } else {
+      mensaje = '¿Eliminar este ingreso? Esta acción no se puede deshacer.'
+      path    = `/finanzas/ingresos/${m.id}`
+    }
+    const ok = await openConfirm(mensaje)
     if (!ok) return
-    const path = m.origen === 'egreso' ? `/finanzas/egresos/${m.id}` : `/finanzas/ingresos/${m.id}`
     const res = await apiFetch(path, { method: 'DELETE' })
     if (res && (res.ok || res.status === 204)) {
       cargarMovs(buscarMov, 0)
@@ -8078,7 +8104,7 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
     const selectAllOs = () => setSelectedOs(new Set(osFiltrados.map(p => p.ingresoId)))
 
     async function registrarCobroOs() {
-      if (selectedOs.size === 0 || !formCobroOs.fecha || !formCobroOs.monto) return
+      if (selectedOs.size === 0 || !formCobroOs.fecha || !formCobroOs.monto || !formCobroOs.medioPagoId) return
       setGuardandoCobroOs(true)
       // Group by (obraSocialId, consultorioId) → submit one cobro per group
       const byGroup = {}
@@ -8097,7 +8123,7 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
         const res = await apiFetch('/cobros-os', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ obraSocialId: osId, consultorioId: g.consultorioId, fecha: formCobroOs.fecha, montoRecibido: Number(formCobroOs.monto), descripcion: formCobroOs.descripcion || null, ingresoIds: g.ids }),
+          body: JSON.stringify({ obraSocialId: osId, consultorioId: g.consultorioId, fecha: formCobroOs.fecha, montoRecibido: Number(formCobroOs.monto), medioPagoId: Number(formCobroOs.medioPagoId), descripcion: formCobroOs.descripcion || null, ingresoIds: g.ids }),
         })
         if (!res?.ok) { ok = false }
       }
@@ -8107,7 +8133,7 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
         const r1 = await apiFetch('/finanzas/ingresos/pendientes-os')
         if (r1?.ok) setPendientesOs(await r1.json())
         setSelectedOs(new Set())
-        setFormCobroOs({ fecha: hoyStr, monto: '', descripcion: '' })
+        setFormCobroOs({ fecha: hoyStr, monto: '', medioPagoId: '', descripcion: '' })
       }
     }
 
@@ -8136,7 +8162,7 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
     }
 
     const selCount = selectedOs.size
-    const canRegistrarOs = selCount > 0 && formCobroOs.fecha && formCobroOs.monto
+    const canRegistrarOs = selCount > 0 && formCobroOs.fecha && formCobroOs.monto && formCobroOs.medioPagoId
 
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2, position: 'relative' }}>
@@ -8328,7 +8354,7 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
         {/* ── Sticky footer OS (aparece cuando hay seleccionados) ── */}
         {tabCobros === 'os' && selCount > 0 && (
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: T.white, borderTop: `1px solid ${T.gray1}`, padding: '16px 24px', zIndex: 20 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'auto 1fr 1fr 1fr auto', gap: 14, alignItems: 'start', maxWidth: 1100 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'auto 1fr 1fr 1fr 1fr auto', gap: 14, alignItems: 'start', maxWidth: 1200 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <span style={{ visibility: 'hidden', fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em' }}>&nbsp;</span>
                 <div>
@@ -8350,6 +8376,15 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
                     onChange={e => setFormCobroOs(f => ({ ...f, monto: e.target.value }))}
                     style={{ width: '100%', padding: '10px 12px 10px 24px', border: `1.5px solid ${T.gray1}`, borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box', height: 40 }} />
                 </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Medio de pago *</label>
+                <select value={formCobroOs.medioPagoId}
+                  onChange={e => setFormCobroOs(f => ({ ...f, medioPagoId: e.target.value }))}
+                  style={{ padding: '10px 12px', border: `1.5px solid ${T.gray1}`, borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: formCobroOs.medioPagoId ? T.black : T.gray5, boxSizing: 'border-box', height: 40, appearance: 'none' }}>
+                  <option value="" disabled>Seleccionar…</option>
+                  {mediosPago.map(mp => <option key={mp.id} value={mp.id}>{mp.nombre}</option>)}
+                </select>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Descripción (opcional)</label>
@@ -8475,7 +8510,10 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
       return `${signo} ${fmtPesos(m.monto)}`
     }
 
-    const esEliminable = (m) => m.id != null && m.origen !== 'consulta' && m.origen !== 'cobro_os'
+    // Eliminables: egresos, ingresos manuales ("libre") y cobros de OS (que además revierten los
+    // ingresos asociados a PENDIENTE). Las filas de origen "consulta" no se eliminan desde acá
+    // — para eso hay que ir a la consulta.
+    const esEliminable = (m) => m.id != null && m.origen !== 'consulta'
 
     return (
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: T.gray2 }}>
@@ -8571,7 +8609,7 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
                             </span>
                             {eliminable && (
                               <button onClick={e => { e.stopPropagation(); eliminarMovimiento(m) }}
-                                title={`Eliminar ${m.origen === 'egreso' ? 'egreso' : 'ingreso'}`}
+                                title={`Eliminar ${m.origen === 'egreso' ? 'egreso' : m.origen === 'cobro_os' ? 'cobro' : 'ingreso'}`}
                                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: T.gray3, display: 'flex', alignItems: 'center', opacity: 0.5 }}
                                 onMouseEnter={e => { e.currentTarget.style.color = '#e05a4a'; e.currentTarget.style.opacity = 1 }}
                                 onMouseLeave={e => { e.currentTarget.style.color = T.gray3; e.currentTarget.style.opacity = 0.5 }}>
@@ -8723,48 +8761,74 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
         </div>
       </div>
 
-      {/* ── Widget Cobros pendientes ── */}
+      {/* ── Widget Cobros pendientes + CTA "Ver todos los movimientos" ──
+             Grid 2fr / 1fr en desktop (card izq con la data + CTA negra a la derecha).
+             En mobile stackea: card arriba, CTA abajo. ── */}
       <div style={{ padding: isMobile ? '0 16px 12px' : '0 24px 12px', flexShrink: 0 }}>
-        {!cargando && pendientes.length === 0 ? (
-          <div style={{ background: T.white, border: '1px solid #e0e0dc', borderLeft: '4px solid #e0e0dc', borderRadius: 16, padding: isMobile ? '18px 20px' : '22px 26px', display: 'flex', alignItems: 'flex-start', gap: '1.4rem', opacity: 0.6 }}>
-            <span style={{ fontFamily: T.font, fontSize: '2.8rem', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: '#ccc', flexShrink: 0, minWidth: 44 }}>0</span>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: '#aaa', marginBottom: '0.25rem' }}>Sin cobros pendientes</div>
-              <div style={{ fontFamily: T.mono, fontSize: '0.52rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#bbb' }}>Todo al día ✓</div>
-            </div>
-          </div>
-        ) : (
-          <button onClick={() => setSubVista('cobros')}
-            onMouseEnter={e => { if (obrasSociales.length > 0) { e.currentTarget.style.boxShadow = '0 4px 20px rgba(17,17,17,.07)'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)' }}
-            style={{ all: 'unset', width: '100%', boxSizing: 'border-box', cursor: obrasSociales.length === 0 ? 'default' : 'pointer', background: T.white, border: '1px solid #e0e0dc', borderLeft: '4px solid #d97742', borderRadius: 16, padding: isMobile ? '18px 20px' : '22px 26px', display: 'flex', alignItems: 'flex-start', gap: '1.4rem', transition: 'all .15s' }}>
-            <span style={{ fontFamily: T.font, fontSize: '2.8rem', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: cargando ? '#ccc' : T.black, flexShrink: 0, minWidth: 44 }}>
-              {cargando ? '—' : pendientes.length}
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, marginBottom: '0.35rem' }}>Cobros pendientes</div>
-              <div style={{ fontFamily: T.mono, fontSize: '0.52rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#bbb', marginBottom: !cargando && breakdownPendientes.length > 0 ? '0.85rem' : 0 }}>
-                {MESES_LABEL[mes - 1]} {año} · solo este mes
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 2fr) minmax(0, 1fr)', gap: 12, alignItems: 'stretch' }}>
+          {/* Card izquierda: Cobros pendientes */}
+          {!cargando && pendientes.length === 0 ? (
+            <div style={{ background: T.white, border: '1px solid #e0e0dc', borderLeft: '4px solid #e0e0dc', borderRadius: 16, padding: isMobile ? '18px 20px' : '22px 26px', display: 'flex', alignItems: 'flex-start', gap: '1.4rem', opacity: 0.6 }}>
+              <span style={{ fontFamily: T.font, fontSize: '2.8rem', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: '#ccc', flexShrink: 0, minWidth: 44 }}>0</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: '#aaa', marginBottom: '0.25rem' }}>Sin cobros pendientes</div>
+                <div style={{ fontFamily: T.mono, fontSize: '0.52rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#bbb' }}>Todo al día ✓</div>
               </div>
-              {!cargando && breakdownPendientes.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                  {breakdownPendientes.map(([key, val], i) => {
-                    const paleta = ['#4a90d9', '#5baee0', '#7ec2e8', '#2e7fd6', '#3b6ea8']
-                    const color = key === 'Particular' ? '#111' : paleta[i % paleta.length]
-                    return (
-                      <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 3, background: color, flexShrink: 0 }} />
-                        <span style={{ fontFamily: T.font, fontSize: '0.88rem', fontWeight: 700, color: '#111' }}>{val.cantidad}</span>
-                        <span style={{ fontFamily: T.font, fontSize: '0.85rem', color: '#555' }}>{key}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
             </div>
-            <span style={{ color: '#ccc', fontSize: '1.3rem', marginTop: '0.2rem', flexShrink: 0 }}>→</span>
+          ) : (
+            <button onClick={() => setSubVista('cobros')}
+              onMouseEnter={e => { if (obrasSociales.length > 0) { e.currentTarget.style.boxShadow = '0 4px 20px rgba(17,17,17,.07)'; e.currentTarget.style.transform = 'translateY(-1px)' } }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)' }}
+              style={{ all: 'unset', width: '100%', boxSizing: 'border-box', cursor: obrasSociales.length === 0 ? 'default' : 'pointer', background: T.white, border: '1px solid #e0e0dc', borderLeft: '4px solid #d97742', borderRadius: 16, padding: isMobile ? '18px 20px' : '22px 26px', display: 'flex', alignItems: 'flex-start', gap: '1.4rem', transition: 'all .15s' }}>
+              <span style={{ fontFamily: T.font, fontSize: '2.8rem', fontWeight: 800, letterSpacing: '-0.04em', lineHeight: 1, color: cargando ? '#ccc' : T.black, flexShrink: 0, minWidth: 44 }}>
+                {cargando ? '—' : pendientes.length}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: T.font, fontSize: 15, fontWeight: 700, color: T.black, marginBottom: '0.35rem' }}>Cobros pendientes</div>
+                <div style={{ fontFamily: T.mono, fontSize: '0.52rem', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#bbb', marginBottom: !cargando && breakdownPendientes.length > 0 ? '0.85rem' : 0 }}>
+                  {MESES_LABEL[mes - 1]} {año} · solo este mes
+                </div>
+                {!cargando && breakdownPendientes.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                    {breakdownPendientes.map(([key, val], i) => {
+                      const paleta = ['#4a90d9', '#5baee0', '#7ec2e8', '#2e7fd6', '#3b6ea8']
+                      const color = key === 'Particular' ? '#111' : paleta[i % paleta.length]
+                      return (
+                        <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: 3, background: color, flexShrink: 0 }} />
+                          <span style={{ fontFamily: T.font, fontSize: '0.88rem', fontWeight: 700, color: '#111' }}>{val.cantidad}</span>
+                          <span style={{ fontFamily: T.font, fontSize: '0.85rem', color: '#555' }}>{key}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              <span style={{ color: '#ccc', fontSize: '1.3rem', marginTop: '0.2rem', flexShrink: 0 }}>→</span>
+            </button>
+          )}
+
+          {/* Card derecha: CTA "Ver todos los movimientos" — negra, misma altura */}
+          <button onClick={() => setSubVista('movimientos')}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.20)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.10)' }}
+            style={{ all: 'unset', boxSizing: 'border-box', cursor: 'pointer', background: T.black, color: T.white, borderRadius: 16, padding: isMobile ? '18px 20px' : '22px 26px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.10)', transition: 'all .15s', minHeight: isMobile ? 'auto' : 140 }}>
+            <div>
+              <div style={{ fontFamily: T.mono, fontSize: '0.55rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: 10 }}>
+                Detalle del mes
+              </div>
+              <div style={{ fontFamily: T.font, fontSize: isMobile ? 18 : 20, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                Ver todos los<br />movimientos
+              </div>
+              <div style={{ fontFamily: T.font, fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 8, lineHeight: 1.5 }}>
+                Ingresos, cobros y egresos, con búsqueda y filtros.
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, fontFamily: T.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)' }}>
+              Abrir <span style={{ fontSize: 16 }}>→</span>
+            </div>
           </button>
-        )}
+        </div>
       </div>
 
       {/* ── Breakdowns por origen y medio de pago (donuts con total arriba a la derecha) ── */}
@@ -8807,17 +8871,9 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
         </div>
       </div>
 
-      {/* ── CTAs finales: ver todos los movimientos + ver todos los cobros de OS ── */}
-      <div style={{ padding: isMobile ? '0 16px 96px' : '0 24px 24px', flexShrink: 0, display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <button onClick={() => setSubVista('movimientos')}
-          style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, background: T.white, color: T.black, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: '0 24px', height: 40, cursor: 'pointer', letterSpacing: '-0.005em', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-          Ver todos los movimientos →
-        </button>
-        <button onClick={() => setSubVista('cobros')}
-          style={{ fontFamily: T.font, fontSize: 13, fontWeight: 500, background: T.white, color: T.black, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: '0 24px', height: 40, cursor: 'pointer', letterSpacing: '-0.005em', whiteSpace: 'nowrap', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-          Ver todos los cobros de obra social →
-        </button>
-      </div>
+      {/* El CTA "Ver todos los movimientos" se movió arriba, al lado del widget de
+          Cobros pendientes. En mobile, dejamos algo de padding al pie para respirar. */}
+      {isMobile && <div style={{ height: 80, flexShrink: 0 }} />}
 
       {/* ── modal ingreso libre ── */}
       {modal && (
@@ -9088,7 +9144,7 @@ function VistaNuevoCobroOs({ apiFetch, obrasSociales, consultorios, mediosPago, 
 
   const fmtPesos = n => n == null ? '—' : new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(n)
 
-  const puedeGuardar = form.obraSocialId && form.consultorioId && form.fecha && form.montoRecibido && seleccionados.size > 0 && !guardando
+  const puedeGuardar = form.obraSocialId && form.consultorioId && form.fecha && form.montoRecibido && form.medioPagoId && seleccionados.size > 0 && !guardando
 
   async function guardar() {
     if (!puedeGuardar) return
@@ -9101,7 +9157,7 @@ function VistaNuevoCobroOs({ apiFetch, obrasSociales, consultorios, mediosPago, 
         consultorioId: Number(form.consultorioId),
         fecha:         form.fecha,
         montoRecibido: Number(form.montoRecibido),
-        medioPagoId:   form.medioPagoId ? Number(form.medioPagoId) : null,
+        medioPagoId:   Number(form.medioPagoId),
         descripcion:   form.descripcion || null,
         ingresoIds:    Array.from(seleccionados),
       }),
@@ -9252,10 +9308,10 @@ function VistaNuevoCobroOs({ apiFetch, obrasSociales, consultorios, mediosPago, 
                       style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: T.black, boxSizing: 'border-box' }} />
                   </div>
                   <div>
-                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Medio</label>
-                    <select value={form.medioPagoId} onChange={e => setForm(f => ({ ...f, medioPagoId: e.target.value }))}
+                    <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Medio *</label>
+                    <select value={form.medioPagoId} onChange={e => setForm(f => ({ ...f, medioPagoId: e.target.value }))} required
                       style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: form.medioPagoId ? T.black : T.gray5, background: T.white, boxSizing: 'border-box', appearance: 'none' }}>
-                      <option value="">Sin especificar</option>
+                      <option value="" disabled>Seleccionar…</option>
                       {mediosPago.map(mp => <option key={mp.id} value={mp.id}>{mp.nombre}</option>)}
                     </select>
                   </div>
