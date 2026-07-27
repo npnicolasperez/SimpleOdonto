@@ -1636,14 +1636,14 @@ function VistaLogin({ onLogin }) {
               <div style={{ fontSize: 16, fontWeight: 700, color: T.black, letterSpacing: '-0.01em' }}>
                 {modo === 'login'    && 'Bienvenido/a'}
                 {modo === 'registro'   && 'Solicitá acceso'}
-                {modo === 'exito'      && 'Revisá tu casilla'}
+                {modo === 'exito'      && 'Recibimos tu solicitud'}
                 {modo === 'guia'       && 'Solicitá la guía'}
                 {modo === 'guia-exito' && 'Te la mandamos por mail'}
               </div>
               <div style={{ fontSize: 12.5, color: T.gray3, marginTop: 5, lineHeight: 1.55 }}>
                 {modo === 'login'      && 'Elegí cómo querés empezar.'}
                 {modo === 'registro'   && 'Completá el formulario y te contactamos para darte acceso anticipado.'}
-                {modo === 'exito'      && 'Te enviamos un mail con el link para activar tu suscripción mensual. Cuando termines el pago, te redirigimos al login para que entres con Google.'}
+                {modo === 'exito'      && 'En breve te enviaremos un mail con el link para completar el pago de tu suscripción mensual. Cuando confirmemos tu pago, recibirás un segundo mail avisándote que tu cuenta ya está activa. Desde ese momento vas a poder ingresar con tu cuenta de Google en holadocapp.com.'}
                 {modo === 'guia'       && 'Dejanos tu contacto y te enviamos una guía visual de cómo funciona HolaDoc, sin compromiso.'}
                 {modo === 'guia-exito' && 'Recibimos tu pedido. Te vamos a mandar la guía por mail o WhatsApp en las próximas horas.'}
               </div>
