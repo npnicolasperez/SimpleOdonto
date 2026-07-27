@@ -1818,7 +1818,21 @@ function VistaLogin({ onLogin }) {
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   </div>
                 </div>
-                <button type="button" onClick={() => { setModo('login'); setForm({ nombre: '', apellido: '', email: '', confirmarEmail: '' }); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
+                {/* Acceso directo a Gmail — asumimos Gmail porque validamos @gmail.com en el form */}
+                <a href="https://mail.google.com/mail/u/0/#inbox" target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, width: '100%', padding: '12px 16px', background: T.white, border: `1.5px solid ${T.gray1}`, borderRadius: 10, textDecoration: 'none', color: T.black, fontFamily: T.font, fontSize: 13.5, fontWeight: 700, cursor: 'pointer', transition: 'border-color 0.15s, box-shadow 0.15s', boxSizing: 'border-box' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = T.black; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.gray1; e.currentTarget.style.boxShadow = 'none' }}>
+                  {/* Ícono Gmail (sobre + rojo Google) */}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                    <path d="M22 5.5v13a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-13" stroke="#5f6368" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M2 5.5 12 13l10-7.5" stroke="#5f6368" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M12 13 3.2 4.5A2 2 0 0 1 4.6 4h14.8a2 2 0 0 1 1.4.5L12 13z" fill="#ea4335"/>
+                  </svg>
+                  Abrir Gmail
+                  <span style={{ fontSize: 14, marginLeft: 2, opacity: 0.6 }}>↗</span>
+                </a>
+                <button type="button" onClick={() => { setModo('login'); setForm({ nombre: '', apellido: '', email: '', confirmarEmail: '' }); setError(null) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, width: '100%', marginTop: 12, background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 12, color: T.gray3 }}>
                   ← Volver al inicio
                 </button>
               </div>
