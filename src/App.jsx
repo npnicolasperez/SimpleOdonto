@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, useContext, lazy, Suspense } from 'react'
+import { DemoContext } from './demo/DemoContext.js'
 import { Upload, LayoutList, LayoutGrid, Users, ScanLine, ClipboardList, Building2, Menu, X } from 'lucide-react'
 import { GoogleLogin } from '@react-oauth/google'
 
@@ -78,8 +79,10 @@ const TURNSTILE_SITEKEY = import.meta.env.VITE_TURNSTILE_SITEKEY ?? '0x4AAAAAADa
 // back (con el mismo valor) y redeploy.
 const GUIA_TOKEN = import.meta.env.VITE_GUIA_TOKEN ?? '2f89a8b7-fde0-4fff-af9e-f63adcad8c68'
 
-// Chunk separado — solo se descarga cuando el user visita /bienvenida/{GUIA_TOKEN}.
-const VistaGuia = lazy(() => import('./VistaGuia.jsx'))
+// Chunks separados — cada uno solo se descarga cuando el user entra a su ruta correspondiente.
+const BienvenidaLanding = lazy(() => import('./BienvenidaLanding.jsx'))
+const VistaGuia         = lazy(() => import('./VistaGuia.jsx'))
+const DemoApp           = lazy(() => import('./demo/DemoApp.jsx'))
 
 /* ─── global request loading state (top progress bar) ──────────── */
 // Contador de requests activas. Notifica solo si la operación tarda más de 250ms,
@@ -378,14 +381,51 @@ export default function App() {
   // VITE_GUIA_TOKEN (Railway) con fallback local. El link se genera en el back y se
   // envía al lead a mano por mail. Además /robots.txt bloquea el path para Google.
   //
-  // VistaGuia se carga con React.lazy — su código va en un chunk separado que solo
-  // se descarga cuando alguien entra a esta URL. Cero impacto en el bundle principal.
-  if (window.location.pathname === `/bienvenida/${GUIA_TOKEN}`) {
+  // Estructura de rutas bajo el token:
+  //   /bienvenida/{token}         → Landing con 2 CTAs (guía + demo)
+  //   /bienvenida/{token}/guia    → Guía visual (VistaGuia)
+  //   /bienvenida/{token}/demo    → Demo interactiva (DemoApp)
+  //
+  // Todo lazy-loaded: cada chunk solo se descarga al entrar a su ruta.
+  const tokenBase = `/bienvenida/${GUIA_TOKEN}`
+  const path = window.location.pathname
+  if (path === tokenBase) {
     return (
       <>
         <TopLoader />
         <Suspense fallback={<div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9a9a9a', fontFamily: T.font }}>Cargando…</div>}>
+          <BienvenidaLanding tokenPath={tokenBase} />
+        </Suspense>
+      </>
+    )
+  }
+  if (path === `${tokenBase}/guia`) {
+    return (
+      <>
+        <TopLoader />
+        <Suspense fallback={<div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9a9a9a', fontFamily: T.font }}>Cargando guía…</div>}>
           <VistaGuia />
+        </Suspense>
+      </>
+    )
+  }
+  if (path === `${tokenBase}/demo` || path.startsWith(`${tokenBase}/demo/`)) {
+    return (
+      <>
+        <TopLoader />
+        <Suspense fallback={<div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9a9a9a', fontFamily: T.font }}>Cargando demo…</div>}>
+          <DemoApp />
+        </Suspense>
+      </>
+    )
+  }
+  // Ruta legacy /demo (sin token) — mantengo activa por retrocompatibilidad.
+  if (path === '/demo' || path.startsWith('/demo/')) {
+    return (
+      <>
+        <TopLoader />
+        <Suspense fallback={<div style={{ padding: '4rem', textAlign: 'center', fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#9a9a9a', fontFamily: T.font }}>Cargando demo…</div>}>
+          <DemoApp />
         </Suspense>
       </>
     )
@@ -409,7 +449,7 @@ const NAV_ITEMS = [
   { key: 'especialidades', label: 'Especialidades', group: 'Configuración', adminOnly: true },
 ]
 
-function MainLayout({ token, usuario, onLogout }) {
+export function MainLayout({ token, usuario, onLogout, apiFetch: apiFetchProp, demoMode = false, extraTopBanner = null }) {
   const [vista, setVista] = useState('dashboard')
   const [consultaEditarInicial,  setConsultaEditarInicial]  = useState(null) // { consultaId, pacienteId } | null — set desde Finanzas para editar una consulta pendiente
   const [finanzasMesInicial,     setFinanzasMesInicial]     = useState(null) // { año, mes } | null
@@ -423,12 +463,21 @@ function MainLayout({ token, usuario, onLogout }) {
   useEffect(() => { if (!isMobile) setSidebarOpen(false) }, [isMobile])
   useEffect(() => { setSidebarOpen(false) }, [vista])
 
+  // Guard demo: si algún componente intenta navegar a una vista fuera de la whitelist
+  // rebotamos a dashboard. Ahora el demo cubre Inicio, Pacientes, Turnos, Estudios, Finanzas y Ajustes.
+  const DEMO_VISTAS_PERMITIDAS = new Set(['dashboard', 'pacientes', 'turnos', 'estudios', 'finanzas', 'ajustes'])
+  useEffect(() => {
+    if (demoMode && !DEMO_VISTAS_PERMITIDAS.has(vista)) {
+      setVista('dashboard')
+    }
+  }, [demoMode, vista])
+
   function navegar(key) {
     if (key === 'turnos') setTurnosFechaInicial(null)
     setVista(key)
   }
 
-  const apiFetch = useCallback(async (path, opts = {}) => {
+  const apiFetchReal = useCallback(async (path, opts = {}) => {
     const res = await fetchTracked(`${API_URL}${path}`, {
       ...opts,
       headers: { ...(opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), Authorization: `Bearer ${token}`, ...opts.headers },
@@ -436,9 +485,13 @@ function MainLayout({ token, usuario, onLogout }) {
     if (res.status === 401) { onLogout(); return null }
     return res
   }, [token, onLogout])
+  // Modo demo: usa el apiFetch mockeado que le pasa DemoApp. Modo normal: construye el real.
+  const apiFetch = apiFetchProp || apiFetchReal
 
   return (
     <div style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', background: T.white, overflow: 'hidden' }}>
+
+      {extraTopBanner}
 
       {/* ── global header ── */}
       <header style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '0 16px' : '0 24px', borderBottom: `1px solid ${T.gray1}`, flexShrink: 0, background: T.white, zIndex: 10 }}>
@@ -499,7 +552,9 @@ function MainLayout({ token, usuario, onLogout }) {
         >
           <nav style={{ flex: 1, paddingTop: 16, paddingBottom: 8, overflowY: 'auto' }}>
             {(() => {
-              const visibles = NAV_ITEMS.filter(({ adminOnly }) => !(adminOnly && !usuario?.esAdmin))
+              const visibles = NAV_ITEMS
+                .filter(({ adminOnly }) => !(adminOnly && !usuario?.esAdmin))
+                .filter(({ key }) => !demoMode || DEMO_VISTAS_PERMITIDAS.has(key))
               const grupos = []
               const map = new Map()
               for (const it of visibles) {
@@ -537,7 +592,9 @@ function MainLayout({ token, usuario, onLogout }) {
           {vista === 'especialidades' && usuario?.esAdmin && <VistaEspecialidades apiFetch={apiFetch} />}
         </main>
       </div>
-      <FirmaPendienteOverlay apiFetch={apiFetch} />
+      {/* Firma sigue deshabilitada globalmente (chip "Próximamente" en la card de consulta),
+          y además nunca se monta en demo (no tiene sentido polear firmas pendientes ahí). */}
+      {!demoMode && <FirmaPendienteOverlay apiFetch={apiFetch} />}
     </div>
   )
 }
@@ -1637,15 +1694,15 @@ function VistaLogin({ onLogin }) {
                 {modo === 'login'    && 'Bienvenido/a'}
                 {modo === 'registro'   && 'Solicitá acceso'}
                 {modo === 'exito'      && 'Recibimos tu solicitud'}
-                {modo === 'guia'       && 'Solicitá la guía'}
-                {modo === 'guia-exito' && 'Te la mandamos por mail'}
+                {modo === 'guia'       && 'Probá HolaDoc'}
+                {modo === 'guia-exito' && 'Te lo mandamos por mail'}
               </div>
               <div style={{ fontSize: 12.5, color: T.gray3, marginTop: 5, lineHeight: 1.55 }}>
                 {modo === 'login'      && 'Elegí cómo querés empezar.'}
                 {modo === 'registro'   && 'Completá el formulario y te contactamos para darte acceso anticipado.'}
                 {modo === 'exito'      && 'En breve te enviaremos un mail con el link para completar el pago de tu suscripción mensual. Cuando confirmemos tu pago, recibirás un segundo mail avisándote que tu cuenta ya está activa. Desde ese momento vas a poder ingresar con tu cuenta de Google en holadocapp.com.'}
-                {modo === 'guia'       && 'Dejanos tu contacto y te enviamos una guía visual de cómo funciona HolaDoc, sin compromiso.'}
-                {modo === 'guia-exito' && 'Recibimos tu pedido. Te vamos a mandar la guía por mail o WhatsApp en las próximas horas.'}
+                {modo === 'guia'       && 'Dejanos tu contacto y te mandamos el link para conocer HolaDoc — con guía visual y demo interactivo. Sin compromiso.'}
+                {modo === 'guia-exito' && 'Recibimos tu pedido. Te vamos a mandar el link con la guía y el demo por mail en las próximas horas.'}
               </div>
             </div>
 
@@ -1684,20 +1741,20 @@ function VistaLogin({ onLogin }) {
                   </div>
                 </div>
 
-                {/* ── 3. Solicitar guía (para curiosos sin compromiso) ── */}
+                {/* ── 3. Probar HolaDoc (guía visual + demo interactivo, sin compromiso) ── */}
                 <div style={{ marginTop: 28, paddingTop: 24, borderTop: `1px solid ${T.gray1}` }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: T.black, letterSpacing: '-0.01em', textAlign: 'center' }}>
                     ¿Querés conocer HolaDoc sin compromiso?
                   </div>
                   <div style={{ fontSize: 12, color: T.gray4, textAlign: 'center', marginTop: 6, lineHeight: 1.5 }}>
-                    Te enviamos una guía visual con capturas y explicaciones — sin registrarte.
+                    Te enviamos el link con una guía visual y una demo interactiva — sin registrarte.
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
                     <button type="button" onClick={() => { setModo('guia'); setError(null); setGuiaForm({ email: '', whatsapp: '' }) }}
                       style={{ width: 320, maxWidth: '100%', padding: '13px', background: T.white, color: T.black, border: `1.5px solid ${T.black}`, borderRadius: 10, fontFamily: T.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'background 0.15s, color 0.15s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = T.black; e.currentTarget.style.color = T.white }}
                       onMouseLeave={e => { e.currentTarget.style.background = T.white; e.currentTarget.style.color = T.black }}>
-                      Solicitar guía
+                      Probá HolaDoc
                     </button>
                   </div>
                 </div>
@@ -3385,6 +3442,7 @@ const VACÍO_CO_DET = { consultorioId: '', fecha: hoyISO(), descripcion: '', mon
 
 function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudio, onIrAConsultorios, onIniciarConsulta, onEditarConsulta, onEditarPaciente, usuario }) {
   const isMobile = useIsMobile()
+  const demoMode = useContext(DemoContext)
   const [paciente,        setPaciente]        = useState(null)
   const [cargando,        setCargando]        = useState(true)
   const [error,           setError]           = useState(null)
@@ -3496,6 +3554,11 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
           )}
           {tab === 'odontograma' && (
             <div style={{ padding: '16px', paddingBottom: 96 }}>
+              {demoMode && (
+                <div style={{ marginBottom: 16, padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, fontFamily: T.font, fontSize: 12.5, lineHeight: 1.55, color: '#1e40af' }}>
+                  <strong style={{ fontWeight: 700 }}>ℹ Solo visible para odontología.</strong> Esta pantalla se activa automáticamente cuando la especialidad configurada es odontología. En el demo la mostramos siempre.
+                </div>
+              )}
               <Odontograma apiFetch={apiFetch} pacienteId={id} />
             </div>
           )}
@@ -3694,7 +3757,12 @@ function DetallePaciente({ apiFetch, id, onVolver, onNuevoEstudio, onAbrirEstudi
               )}
               {tab === 'odontograma' && (
                 <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
-                  <Odontograma apiFetch={apiFetch} pacienteId={id} />
+                  {demoMode && (
+                <div style={{ marginBottom: 16, padding: '10px 14px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, fontFamily: T.font, fontSize: 12.5, lineHeight: 1.55, color: '#1e40af' }}>
+                  <strong style={{ fontWeight: 700 }}>ℹ Solo visible para odontología.</strong> Esta pantalla se activa automáticamente cuando la especialidad configurada es odontología. En el demo la mostramos siempre.
+                </div>
+              )}
+              <Odontograma apiFetch={apiFetch} pacienteId={id} />
                 </div>
               )}
               {tab === 'estudios' && (
@@ -4905,17 +4973,17 @@ function PacienteFormFields({ form, handleChange, setField, apiFetch }) {
         <div style={fRow2}>
           <div>
             <label style={fLbl}>Nombre <span style={{ color: '#d97742' }}>*</span></label>
-            <Input required name="nombre" value={form.nombre} onChange={handleChange} style={fInp} placeholder="Nicolás" />
+            <Input required name="nombre" value={form.nombre} onChange={handleChange} style={fInp} placeholder="Juan" />
           </div>
           <div>
             <label style={fLbl}>Apellido <span style={{ color: '#d97742' }}>*</span></label>
-            <Input required name="apellido" value={form.apellido} onChange={handleChange} style={fInp} placeholder="Pérez" />
+            <Input required name="apellido" value={form.apellido} onChange={handleChange} style={fInp} placeholder="López" />
           </div>
         </div>
         <div style={fRow2}>
           <div>
             <label style={fLbl}>DNI</label>
-            <Input name="dni" value={form.dni} onChange={handleChange} style={fInp} placeholder="38.984.356" />
+            <Input name="dni" value={form.dni} onChange={handleChange} style={fInp} placeholder="35.123.456" />
           </div>
           <div>
             <label style={fLbl}>Fecha de nacimiento</label>
@@ -4942,7 +5010,7 @@ function PacienteFormFields({ form, handleChange, setField, apiFetch }) {
           </div>
           <div style={fFld}>
             <label style={fLbl}>Email</label>
-            <Input type="email" name="email" value={form.email} onChange={handleChange} style={fInp} placeholder="nicolas@email.com" />
+            <Input type="email" name="email" value={form.email} onChange={handleChange} style={fInp} placeholder="juan@email.com" />
           </div>
         </div>
         <div>
@@ -5225,6 +5293,7 @@ function ReglaIlustrativa({ marca = 1 }) {
 
 function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = null, onVolver = null }) {
   const isMobile = useIsMobile()
+  const demoMode = useContext(DemoContext)
   // En mobile la vista es solo lectura — sin upload, sin edición de trazos, sin eliminar/asignar.
   const readOnly = isMobile
   const [sub,          setSub]          = useState(onVolver
@@ -5368,6 +5437,36 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     setTrazos([]); resetInProgress(); setEscala(1); setCalibrado(false)
     setSubiendo(false); setSub('editor')
   }
+
+  // ── Demo mode: cuando el user hace "+ Nuevo estudio", auto-cargamos la radiografía
+  // preloaded (/demo/estudio.jpg) y saltamos directo al editor. Skip del file picker.
+  useEffect(() => {
+    if (!demoMode || sub !== 'upload' || subiendo || estudioId) return
+    const pacId = pacienteIdInicial ?? pacIdUpload
+    if (!pacId) return // sin paciente no arrancamos — el modal de selección se muestra igual
+    let cancelado = false
+    fetch('/demo/estudio.jpg')
+      .then(r => r.blob())
+      .then(blob => {
+        if (cancelado) return
+        const file = new File([blob], 'Radiografia-demo.jpg', { type: blob.type || 'image/jpeg' })
+        procesarArchivo(file, 'Estudio demo')
+      })
+      .catch(() => {})
+    return () => { cancelado = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode, sub, pacIdUpload, pacienteIdInicial])
+
+  // ── Demo mode: si la auto-subida falla (ej. límite alcanzado, el mock devuelve 403)
+  // el user quedaba stuck en la pantalla "Nuevo estudio" viendo un error feo. Detectamos
+  // el fallo por errSubida y volvemos a la ficha del paciente. El modal global del demo
+  // (DemoApp → 'demo-limit') ya le explicó por qué no se pudo.
+  useEffect(() => {
+    if (!demoMode || !errSubida || !onVolver) return
+    const t = setTimeout(() => { setErrSubida(null); onVolver() }, 50)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode, errSubida])
 
   // Disparado por "+ Nuevo estudio" en la lista: abre un modal para elegir/crear paciente antes del upload.
   async function abrirNuevoEstudio() {
@@ -7559,11 +7658,11 @@ function VistaTurnos({ apiFetch, fechaInicial }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
                     <label style={mLbl}>Nombre <span style={{ color: '#d97742' }}>*</span></label>
-                    <Input value={form.nombreLib} onChange={e => setForm(f => ({ ...f, nombreLib: e.target.value }))} placeholder="Nicolás" />
+                    <Input value={form.nombreLib} onChange={e => setForm(f => ({ ...f, nombreLib: e.target.value }))} placeholder="Juan" />
                   </div>
                   <div>
                     <label style={mLbl}>Apellido</label>
-                    <Input value={form.apellidoLib} onChange={e => setForm(f => ({ ...f, apellidoLib: e.target.value }))} placeholder="Pérez" />
+                    <Input value={form.apellidoLib} onChange={e => setForm(f => ({ ...f, apellidoLib: e.target.value }))} placeholder="López" />
                   </div>
                 </div>
                 <div>
