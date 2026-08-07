@@ -1701,7 +1701,7 @@ function VistaLogin({ onLogin }) {
 
       {/* ── HERO ─────────────────────────────────────────────── */}
       <section style={{ padding: isMobile ? '48px 20px 60px' : '80px 40px 100px', background: T.white }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.05fr 1fr', gap: isMobile ? 44 : 64, alignItems: 'center' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.05fr 1fr', gap: isMobile ? 44 : 64, alignItems: 'start' }}>
           <div style={{ animation: 'soFadeUp 0.45s ease' }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: T.gray2, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: '5px 12px', fontFamily: T.mono, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, marginBottom: 18 }}>
               <span style={{ width: 5, height: 5, borderRadius: '50%', background: T.black, animation: 'soPulse 2s ease infinite' }} />
@@ -1731,25 +1731,42 @@ function VistaLogin({ onLogin }) {
             </div>
           </div>
 
-          {/* HERO VISUAL — desktop screenshot + mobile flotante */}
-          <div style={{ position: 'relative', width: '100%', animation: 'soFadeUp 0.55s ease' }}>
-            <img src="/landing/desktop.png" alt="Panel de finanzas de HolaDoc"
-              style={{
-                width: '100%', height: 'auto', display: 'block',
-                borderRadius: 16,
-                boxShadow: '0 24px 60px rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.08)',
-                border: `1px solid ${T.gray1}`,
-              }} />
-            {!isMobile && (
-              <img src="/landing/mobile.jpeg" alt="Perfil de paciente en HolaDoc"
+          {/* HERO VISUAL — desktop + mobile flotante + ejemplo cefalometría */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 32 : 48, width: '100%', animation: 'soFadeUp 0.55s ease' }}>
+            {/* 1. Dashboard finanzas con overlay del mobile */}
+            <div style={{ position: 'relative' }}>
+              <img src="/landing/desktop.png" alt="Panel de finanzas de HolaDoc"
                 style={{
-                  position: 'absolute', bottom: '-8%', left: '-6%',
-                  width: '32%', height: 'auto',
-                  borderRadius: 18,
-                  boxShadow: '0 22px 42px rgba(0,0,0,0.28), 0 4px 10px rgba(0,0,0,0.14)',
-                  border: `5px solid ${T.white}`,
+                  width: '100%', height: 'auto', display: 'block',
+                  borderRadius: 16,
+                  boxShadow: '0 24px 60px rgba(0,0,0,0.18), 0 4px 10px rgba(0,0,0,0.08)',
+                  border: `1px solid ${T.gray1}`,
                 }} />
-            )}
+              {!isMobile && (
+                <img src="/landing/mobile.jpeg" alt="Perfil de paciente en HolaDoc"
+                  style={{
+                    position: 'absolute', bottom: '-8%', left: '-6%',
+                    width: '32%', height: 'auto',
+                    borderRadius: 18,
+                    boxShadow: '0 22px 42px rgba(0,0,0,0.28), 0 4px 10px rgba(0,0,0,0.14)',
+                    border: `5px solid ${T.white}`,
+                  }} />
+              )}
+            </div>
+
+            {/* 2. Ejemplo cefalometría — trazado sobre estudios */}
+            <div>
+              <img src="/guia/ejemplo.png" alt="Análisis cefalométrico realizado sobre una telerradiografía lateral, con planos anatómicos trazados y ángulos medidos"
+                style={{
+                  width: '100%', height: 'auto', display: 'block',
+                  borderRadius: 16,
+                  boxShadow: '0 20px 50px rgba(0,0,0,0.16), 0 4px 10px rgba(0,0,0,0.08)',
+                  border: `1px solid ${T.gray1}`,
+                }} />
+              <div style={{ marginTop: 12, fontFamily: T.mono, fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray4, textAlign: 'center' }}>
+                Trazá líneas y medí ángulos sobre tus estudios
+              </div>
+            </div>
           </div>
         </div>
       </section>
