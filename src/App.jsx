@@ -1452,6 +1452,14 @@ function VistaPostPago() {
 }
 
 
+// ── Precios de los planes (fuente de verdad del front) ──
+// Cambiar acá si actualiza el pricing. El back tiene su propia copia en AdminNotificationService.
+const PLAN_MENSUAL_PRECIO = 28900
+const PLAN_ANUAL_PRECIO   = 21900
+const PLAN_ANUAL_TOTAL    = PLAN_ANUAL_PRECIO * 12
+const PLAN_AHORRO_PCT     = Math.round((1 - PLAN_ANUAL_PRECIO / PLAN_MENSUAL_PRECIO) * 100)
+const fmtPrecio = (n) => n.toLocaleString('es-AR')
+
 function VistaLogin({ onLogin }) {
   const isMobile = useIsMobile()
   const [cargando,        setCargando]        = useState(false)
@@ -1461,6 +1469,7 @@ function VistaLogin({ onLogin }) {
   const [guiaForm,        setGuiaForm]        = useState({ email: '', whatsapp: '' })
   const [turnstileToken,  setTurnstileToken]  = useState(null)
   const [faqAbierta,      setFaqAbierta]      = useState(null)
+  const [planAnual,       setPlanAnual]       = useState(true)
   const turnstileRef      = useRef(null)
   const turnstileWidgetId = useRef(null)
 
@@ -1536,7 +1545,7 @@ function VistaLogin({ onLogin }) {
       const res = await fetchTracked(`${API_URL}/auth/registro`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ ...payload, turnstileToken }),
+        body:    JSON.stringify({ ...payload, turnstileToken, plan: planAnual ? 'ANUAL' : 'MENSUAL' }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -1604,6 +1613,11 @@ function VistaLogin({ onLogin }) {
     e.preventDefault()
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
+  const irAPrecio = () => {
+    setModo('landing')
+    setError(null)
+    setTimeout(() => document.getElementById('precio')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
 
   // ── Contenido de las secciones ──────────────────────────────────
   const features = [
@@ -1650,15 +1664,23 @@ function VistaLogin({ onLogin }) {
     },
   ]
 
-  const steps = [
-    { title: 'Solicitá acceso',   desc: 'Dejá tu mail y WhatsApp, te contactamos en horas.' },
-    { title: 'Probá el sistema',  desc: 'Te mandamos la guía visual + demo interactiva para que veas todo funcionando.' },
-    { title: 'Empezá a usarlo',   desc: 'Si te suma, activás tu cuenta y arrancás con tus pacientes reales.' },
+  const pasosDemo = [
+    { title: 'Solicitá el demo',        desc: 'Desde el botón "Probá HolaDoc gratis", dejás tu mail y WhatsApp.' },
+    { title: 'Te enviamos el link',     desc: 'Recibís por mail el acceso a la guía visual + demo interactiva con datos de ejemplo.' },
+    { title: 'Explorás cuando quieras', desc: 'Sin registrarte, sin cargar tus datos, sin tarjeta y sin límite de tiempo.' },
+  ]
+
+  const pasosSuscripcion = [
+    { title: 'Elegí tu plan',      desc: 'Mensual o anual desde la sección de precios.' },
+    { title: 'Solicitá tu cuenta', desc: 'Completás tus datos con el plan elegido y enviás el formulario.' },
+    { title: 'Pagá con seguridad', desc: 'Te enviamos por mail el link de Mercado Pago. Cuando confirmemos el cobro, activamos tu cuenta.',
+      icon: <img src="/landing/mp-logo-sin-fondo.png" alt="Mercado Pago" style={{ height: 18, width: 'auto', display: 'inline-block', verticalAlign: 'middle', marginLeft: 8 }} /> },
+    { title: 'Empezás a usarlo',   desc: 'Ingresás con Google y arrancás a trabajar con tus pacientes reales.' },
   ]
 
   const faqs = [
     { q: '¿Qué es HolaDoc?',                    a: 'Un sistema web para que profesionales de la salud gestionen sus turnos, pacientes, historia clínica y finanzas desde un solo lugar, sin necesidad de instalar nada.' },
-    { q: '¿Cuánto cuesta?',                     a: 'Tenemos un plan mensual con precio promocional para los primeros usuarios. Te enviamos el detalle exacto cuando solicitás acceso.' },
+    { q: '¿Cuánto cuesta?',                     a: `$${fmtPrecio(PLAN_MENSUAL_PRECIO)}/mes en plan mensual, o $${fmtPrecio(PLAN_ANUAL_PRECIO)}/mes si contratás por año (ahorrás ~${PLAN_AHORRO_PCT}%). Un solo plan que incluye todas las funcionalidades sin límites, con soporte por mail y WhatsApp. Además tenés 7 días de prueba gratis para conocer el sistema sin cargo.` },
     { q: '¿Para quién está dirigido?',          a: 'Para cualquier profesional de la salud que atienda pacientes: odontólogos, kinesiólogos, psicólogos, nutricionistas, médicos generalistas, entre otros. Las funciones específicas como el odontograma aparecen solo si tu especialidad lo requiere.' },
   ]
 
@@ -1684,7 +1706,7 @@ function VistaLogin({ onLogin }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 20 }}>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, lineHeight: 1.3 }}>
               {!isMobile && <span style={{ color: T.gray4 }}>¿Ya probaste HolaDoc y querés crear tu cuenta?</span>}
-              <button onClick={abrirRegistro}
+              <button onClick={irAPrecio}
                 style={{ background: 'none', border: 'none', padding: 0, color: T.black, fontFamily: T.font, fontSize: 13, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', whiteSpace: 'nowrap' }}>
                 Solicitar acceso
               </button>
@@ -1796,29 +1818,179 @@ function VistaLogin({ onLogin }) {
 
       {/* ── HOW IT WORKS ─────────────────────────────────────── */}
       <section style={{ background: T.white, padding: isMobile ? '60px 20px' : '100px 40px' }}>
-        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+        <div style={{ maxWidth: 1080, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 48 }}>
             <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 10 }}>Empezar</div>
             <h2 style={{ margin: 0, fontSize: isMobile ? 28 : 38, fontWeight: 800, letterSpacing: '-0.028em', color: T.black }}>Cómo funciona</h2>
+            <p style={{ margin: '14px auto 0', fontSize: isMobile ? 14.5 : 16, lineHeight: 1.6, color: T.gray4, maxWidth: 560 }}>
+              Hay dos formas de arrancar con HolaDoc — elegí la que te venga mejor.
+            </p>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: isMobile ? 28 : 32 }}>
-            {steps.map((s, i) => (
-              <div key={i} style={{ display: 'flex', flexDirection: isMobile ? 'row' : 'column', gap: isMobile ? 16 : 16, alignItems: isMobile ? 'flex-start' : 'flex-start', textAlign: 'left' }}>
-                <div style={{ width: 44, height: 44, borderRadius: '50%', border: `2px solid ${T.black}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.font, fontSize: 17, fontWeight: 800, color: T.black, flexShrink: 0 }}>
-                  {i + 1}
+
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: isMobile ? 24 : 24 }}>
+
+            {/* Track A — Demo sin costo */}
+            <div style={{ background: T.gray2, border: `1px solid ${T.gray1}`, borderRadius: 18, padding: isMobile ? '28px 24px' : '32px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <div style={{ fontFamily: T.mono, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: T.gray4, marginBottom: 8 }}>
+                  Sin costo · Sin tarjeta
                 </div>
-                <div>
-                  <div style={{ fontSize: 16.5, fontWeight: 800, letterSpacing: '-0.015em', color: T.black }}>{s.title}</div>
-                  <div style={{ fontSize: 13.5, lineHeight: 1.6, color: T.gray4, marginTop: 6 }}>{s.desc}</div>
+                <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, letterSpacing: '-0.02em', color: T.black }}>
+                  Solo querés conocerlo
+                </div>
+                <div style={{ fontSize: 13.5, color: T.gray4, marginTop: 6, lineHeight: 1.5 }}>
+                  Explorá la app antes de decidir, sin compromiso.
                 </div>
               </div>
-            ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 4 }}>
+                {pasosDemo.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', border: `1.5px solid ${T.black}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.font, fontSize: 13, fontWeight: 800, color: T.black, flexShrink: 0, background: T.white }}>
+                      {i + 1}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.015em', color: T.black }}>{s.title}</div>
+                      <div style={{ fontSize: 13, lineHeight: 1.55, color: T.gray4, marginTop: 4 }}>{s.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={abrirGuia}
+                style={{ marginTop: 'auto', background: T.black, color: T.white, border: `1.5px solid ${T.black}`, borderRadius: 12, padding: '13px 22px', fontFamily: T.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 22px rgba(0,0,0,0.22)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.15)' }}>
+                Probá HolaDoc gratis
+              </button>
+            </div>
+
+            {/* Track B — Suscripción */}
+            <div style={{ background: T.black, border: `1px solid ${T.black}`, borderRadius: 18, padding: isMobile ? '28px 24px' : '32px 28px', display: 'flex', flexDirection: 'column', gap: 20, color: T.white }}>
+              <div>
+                <div style={{ fontFamily: T.mono, fontSize: 9.5, letterSpacing: '0.16em', textTransform: 'uppercase', color: '#a3a3a3', marginBottom: 8 }}>
+                  Con suscripción
+                </div>
+                <div style={{ fontSize: isMobile ? 20 : 22, fontWeight: 800, letterSpacing: '-0.02em', color: T.white }}>
+                  Querés empezar a usarlo
+                </div>
+                <div style={{ fontSize: 13.5, color: '#a3a3a3', marginTop: 6, lineHeight: 1.5 }}>
+                  Cargá tus pacientes reales y hacé de HolaDoc tu sistema del día a día.
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 4 }}>
+                {pasosSuscripcion.map((s, i) => (
+                  <div key={i} style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', border: `1.5px solid ${T.white}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: T.font, fontSize: 13, fontWeight: 800, color: T.white, flexShrink: 0, background: 'transparent' }}>
+                      {i + 1}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.015em', color: T.white, display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span>{s.title}</span>
+                        {s.icon}
+                      </div>
+                      <div style={{ fontSize: 13, lineHeight: 1.55, color: '#c4c4c4', marginTop: 4 }}>{s.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button onClick={irAPrecio}
+                style={{ marginTop: 'auto', background: T.white, color: T.black, border: `1.5px solid ${T.white}`, borderRadius: 12, padding: '13px 22px', fontFamily: T.font, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)' }}>
+                Ver planes →
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRECIO ───────────────────────────────────────────── */}
+      <section id="precio" style={{ background: T.gray2, padding: isMobile ? '60px 20px' : '100px 40px', borderTop: `1px solid ${T.gray1}` }}>
+        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 40 }}>
+            <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 10 }}>Precio</div>
+            <h2 style={{ margin: 0, fontSize: isMobile ? 28 : 38, fontWeight: 800, letterSpacing: '-0.028em', color: T.black }}>Un plan, todo incluido</h2>
+            <p style={{ margin: '14px auto 0', fontSize: isMobile ? 14.5 : 16, lineHeight: 1.6, color: T.gray4, maxWidth: 480 }}>
+              Sin niveles ni funcionalidades bloqueadas. Todo lo que ves en HolaDoc lo tenés desde el primer día.
+            </p>
+          </div>
+
+          <div style={{ background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 20, padding: isMobile ? '32px 24px' : '44px 40px', boxShadow: '0 20px 50px rgba(0,0,0,0.08)' }}>
+
+            {/* Toggle Mensual / Anual */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 28 }}>
+              <div style={{ background: T.gray2, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: 4, display: 'inline-flex', gap: 2 }}>
+                <button onClick={() => setPlanAnual(false)}
+                  style={{ background: !planAnual ? T.black : 'transparent', color: !planAnual ? T.white : T.gray4, border: 'none', borderRadius: 100, padding: '8px 18px', fontFamily: T.font, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'all 0.18s' }}>
+                  Mensual
+                </button>
+                <button onClick={() => setPlanAnual(true)}
+                  style={{ background: planAnual ? T.black : 'transparent', color: planAnual ? T.white : T.gray4, border: 'none', borderRadius: 100, padding: '8px 18px', fontFamily: T.font, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', transition: 'all 0.18s', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  Anual
+                  <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 100, letterSpacing: '0.02em' }}>-{PLAN_AHORRO_PCT}%</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Precio */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontFamily: T.mono, fontSize: 9.5, letterSpacing: '0.18em', textTransform: 'uppercase', color: T.gray5 }}>Plan HolaDoc completo</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, marginTop: 14 }}>
+                <span style={{ fontSize: isMobile ? 26 : 30, fontWeight: 700, color: T.gray4, letterSpacing: '-0.02em' }}>$</span>
+                <span style={{ fontSize: isMobile ? 52 : 64, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1, color: T.black }}>
+                  {fmtPrecio(planAnual ? PLAN_ANUAL_PRECIO : PLAN_MENSUAL_PRECIO)}
+                </span>
+              </div>
+              <div style={{ fontSize: 13.5, color: T.gray4, marginTop: 6 }}>
+                por mes
+              </div>
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontFamily: T.mono, fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5, minHeight: 16 }}>
+                {planAnual && (
+                  <span>Pagás ${fmtPrecio(PLAN_ANUAL_TOTAL)} una vez y te olvidás por el resto del año</span>
+                )}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span>Pago seguro con Mercado Pago</span>
+                  <img src="/landing/mp-logo.png" alt="Mercado Pago" style={{ height: 16, width: 'auto', display: 'inline-block' }} />
+                </div>
+              </div>
+            </div>
+
+            {/* Features incluidas */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 32, marginBottom: 32, maxWidth: 400, marginLeft: 'auto', marginRight: 'auto' }}>
+              {[
+                'Pacientes ilimitados',
+                'Turnos sincronizados con Google Calendar',
+                'Historia clínica + odontograma para odontología',
+                'Cobros, ingresos y egresos con reportes',
+                'Estudios con anotaciones (radiografías, cefalometría)',
+                'Soporte por mail y WhatsApp',
+              ].map((f, i) => (
+                <div key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', fontSize: 14, color: T.black, lineHeight: 1.5 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, marginTop: 2 }}>
+                    <circle cx="12" cy="12" r="10" fill={T.black} />
+                    <path d="M8 12l3 3 5-6" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span>{f}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* CTA */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button onClick={abrirRegistro}
+                style={{ width: '100%', maxWidth: 320, padding: '14px 26px', background: T.black, color: T.white, border: 'none', borderRadius: 12, fontFamily: T.font, fontSize: 15, fontWeight: 700, cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s', boxShadow: '0 4px 14px rgba(0,0,0,0.15)' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 22px rgba(0,0,0,0.22)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(0,0,0,0.15)' }}>
+                Solicitar acceso
+              </button>
+            </div>
+
           </div>
         </div>
       </section>
 
       {/* ── FAQ ──────────────────────────────────────────────── */}
-      <section style={{ background: T.gray2, padding: isMobile ? '60px 20px' : '100px 40px', borderTop: `1px solid ${T.gray1}` }}>
+      <section style={{ background: T.white, padding: isMobile ? '60px 20px' : '100px 40px', borderTop: `1px solid ${T.gray1}` }}>
         <div style={{ maxWidth: 780, margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: 40 }}>
             <div style={{ fontFamily: T.mono, fontSize: 10, letterSpacing: '0.22em', textTransform: 'uppercase', color: T.gray4, marginBottom: 10 }}>Dudas</div>
@@ -1863,9 +2035,9 @@ function VistaLogin({ onLogin }) {
           </button>
           <div style={{ marginTop: 20, fontSize: 13, color: '#a3a3a3' }}>
             ¿Ya te decidiste?{' '}
-            <button onClick={abrirRegistro}
+            <button onClick={irAPrecio}
               style={{ background: 'none', border: 'none', padding: 0, color: T.white, fontFamily: T.font, fontSize: 13, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>
-              Solicitá acceso →
+              Ver planes →
             </button>
           </div>
         </div>
@@ -1940,7 +2112,7 @@ function VistaLogin({ onLogin }) {
                   <div style={{ fontSize: 12.5, color: T.gray4, lineHeight: 1.55 }}>
                     ¿Todavía no tenés cuenta?
                   </div>
-                  <button type="button" onClick={() => { setModo('registro'); setError(null) }}
+                  <button type="button" onClick={irAPrecio}
                     style={{ marginTop: 10, background: 'none', border: 'none', cursor: 'pointer', fontFamily: T.font, fontSize: 13, fontWeight: 700, color: T.black, textDecoration: 'underline' }}>
                     Registrarme
                   </button>
@@ -1951,6 +2123,41 @@ function VistaLogin({ onLogin }) {
             {/* REGISTRO */}
             {modo === 'registro' && (
               <form onSubmit={handleRegistro}>
+                {/* Selector de plan — mini versión del toggle de la sección de precio. Arranca
+                    seteado con la opción que el usuario eligió en el pricing card; puede cambiarla
+                    directo desde acá sin volver arriba. */}
+                <div style={{ padding: '16px', marginBottom: 18, background: T.gray2, border: `1px solid ${T.gray1}`, borderRadius: 12 }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5, textAlign: 'center', marginBottom: 12 }}>
+                    Plan seleccionado
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+                    <div style={{ background: T.white, border: `1px solid ${T.gray1}`, borderRadius: 100, padding: 3, display: 'inline-flex', gap: 2 }}>
+                      <button type="button" onClick={() => setPlanAnual(false)}
+                        style={{ background: !planAnual ? T.black : 'transparent', color: !planAnual ? T.white : T.gray4, border: 'none', borderRadius: 100, padding: '6px 14px', fontFamily: T.font, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', transition: 'all 0.18s' }}>
+                        Mensual
+                      </button>
+                      <button type="button" onClick={() => setPlanAnual(true)}
+                        style={{ background: planAnual ? T.black : 'transparent', color: planAnual ? T.white : T.gray4, border: 'none', borderRadius: 100, padding: '6px 14px', fontFamily: T.font, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', transition: 'all 0.18s', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                        Anual
+                        <span style={{ background: '#dcfce7', color: '#16a34a', fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 100, letterSpacing: '0.02em' }}>-{PLAN_AHORRO_PCT}%</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4 }}>
+                      <span style={{ fontSize: 18, fontWeight: 700, color: T.gray4, letterSpacing: '-0.02em' }}>$</span>
+                      <span style={{ fontSize: 32, fontWeight: 800, letterSpacing: '-0.035em', lineHeight: 1, color: T.black }}>
+                        {fmtPrecio(planAnual ? PLAN_ANUAL_PRECIO : PLAN_MENSUAL_PRECIO)}
+                      </span>
+                      <span style={{ fontSize: 12, color: T.gray4 }}>/mes</span>
+                    </div>
+                    {planAnual && (
+                      <div style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.14em', textTransform: 'uppercase', color: T.gray5, marginTop: 6 }}>
+                        Pago único de ${fmtPrecio(PLAN_ANUAL_TOTAL)} al año
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
                   <div>
                     <label style={labelStyle}>Nombre</label>
