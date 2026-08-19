@@ -731,6 +731,133 @@ function Textarea({ style: extraStyle, ...props }) {
   )
 }
 
+/**
+ * Input de fecha tipeable con auto-formato DD/MM/AAAA + botón de calendar picker al costado.
+ *
+ * API compatible con <Input type="date">: recibe `value` en formato ISO (YYYY-MM-DD) y emite
+ * `onChange({ target: { name, value } })` con ISO. Emite '' cuando el texto no es una fecha
+ * válida completa, para que el form padre no persista datos parciales.
+ *
+ * Auto-formatea mientras tipeás dígitos (inserta '/' en las posiciones 2 y 4) y valida en blur
+ * — rango razonable: 1900 hasta hoy por default (pensado para fechas de nacimiento; se puede
+ * ampliar con las props `min`/`max` en ISO).
+ */
+function FechaInput({ value, onChange, name, min = '1900-01-01', max = '2100-12-31', style: extraStyle, placeholder = 'DD/MM/AAAA', ...rest }) {
+  const [foc, setFoc]       = useState(false)
+  const [texto, setTexto]   = useState('')
+  const [error, setError]   = useState(false)
+  const hiddenDateRef       = useRef(null)
+  const lastEmittedRef      = useRef(value ?? '')
+
+  const parsearAISO = (t) => {
+    const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(t)
+    if (!m) return null
+    const dd = +m[1], mm = +m[2], yyyy = +m[3]
+    const minYear = +min.slice(0, 4)
+    const maxYear = +max.slice(0, 4)
+    if (yyyy < minYear || yyyy > maxYear) return null
+    if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null
+    // Valida día real: si Date normaliza (ej. 31/02 → 03/03), fecha inválida
+    const d = new Date(yyyy, mm - 1, dd)
+    if (d.getDate() !== dd || d.getMonth() !== mm - 1 || d.getFullYear() !== yyyy) return null
+    const iso = `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
+    if (iso < min || iso > max) return null
+    return iso
+  }
+
+  const isoAtexto = (iso) => {
+    if (!iso) return ''
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : ''
+  }
+
+  // Sync value externo → texto interno. Skip cuando el value entrante coincide con lo que
+  // acabamos de emitir (evita pisar lo que el usuario está tipeando por el re-render del padre).
+  useEffect(() => {
+    if (value === lastEmittedRef.current) return
+    lastEmittedRef.current = value ?? ''
+    setTexto(isoAtexto(value))
+    setError(false)
+  }, [value])
+
+  const emitir = (iso) => {
+    lastEmittedRef.current = iso ?? ''
+    onChange?.({ target: { name, value: iso ?? '' } })
+  }
+
+  const onChangeTexto = (e) => {
+    const soloDigitos = e.target.value.replace(/\D/g, '').slice(0, 8)
+    let out = soloDigitos
+    if (soloDigitos.length > 4)      out = soloDigitos.slice(0, 2) + '/' + soloDigitos.slice(2, 4) + '/' + soloDigitos.slice(4)
+    else if (soloDigitos.length > 2) out = soloDigitos.slice(0, 2) + '/' + soloDigitos.slice(2)
+    setTexto(out)
+    setError(false)
+    emitir(parsearAISO(out))
+  }
+
+  const onBlurCheck = () => {
+    setFoc(false)
+    if (!texto) { setError(false); return }
+    setError(parsearAISO(texto) === null)
+  }
+
+  const onPickerChange = (e) => {
+    const iso = e.target.value
+    if (!iso) { setTexto(''); setError(false); emitir(''); return }
+    setTexto(isoAtexto(iso))
+    setError(false)
+    emitir(iso)
+  }
+
+  const abrirPicker = () => {
+    const el = hiddenDateRef.current
+    if (!el) return
+    if (typeof el.showPicker === 'function') { try { el.showPicker() } catch { el.click() } }
+    else el.click()
+  }
+
+  const borderColor = error ? T.red : (foc ? T.black : '#e0e0dc')
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <input
+        {...rest}
+        type="text"
+        inputMode="numeric"
+        value={texto}
+        onChange={onChangeTexto}
+        onFocus={() => setFoc(true)}
+        onBlur={onBlurCheck}
+        placeholder={placeholder}
+        maxLength={10}
+        style={{
+          width: '100%', padding: '13px 16px',
+          outline: 'none', background: T.white,
+          fontSize: 15, fontFamily: T.font, color: T.black,
+          borderRadius: 10, boxSizing: 'border-box',
+          transition: 'border-color 0.15s',
+          ...extraStyle,
+          border: `1px solid ${borderColor}`,
+          paddingRight: 40,
+        }}
+      />
+      <button type="button" onClick={abrirPicker} aria-label="Abrir calendario"
+        style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', padding: 6, display: 'flex', alignItems: 'center', color: '#888' }}
+        onMouseEnter={e => e.currentTarget.style.color = T.black}
+        onMouseLeave={e => e.currentTarget.style.color = '#888'}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <path d="M16 2v4M8 2v4M3 10h18"/>
+        </svg>
+      </button>
+      <input ref={hiddenDateRef} type="date" value={value || ''} onChange={onPickerChange}
+        min={min} max={max} tabIndex={-1}
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none', border: 0, padding: 0, margin: 0, left: 0, top: 0 }} />
+      {error && <div style={{ fontSize: 11, color: T.red, marginTop: 4, fontFamily: T.font }}>Fecha inválida — usá DD/MM/AAAA</div>}
+    </div>
+  )
+}
+
 function FieldLabel({ children }) {
   return (
     <label style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 400, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', display: 'block', marginBottom: 7 }}>
@@ -4583,8 +4710,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
               <div>
                 <label style={fLbl}>Fecha <span style={{ color: '#d97742' }}>*</span></label>
-                <Input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
-                  style={{}} />
+                <FechaInput value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} />
               </div>
               <div>
                 <label style={fLbl}>Consultorio <span style={{ color: '#d97742' }}>*</span></label>
@@ -5376,7 +5502,7 @@ function PacienteFormFields({ form, handleChange, setField, apiFetch }) {
           </div>
           <div>
             <label style={fLbl}>Fecha de nacimiento</label>
-            <Input type="date" name="fechaNac" value={form.fechaNac} onChange={handleChange} style={fInp} />
+            <FechaInput name="fechaNac" value={form.fechaNac} onChange={handleChange} style={fInp} max={new Date().toISOString().slice(0, 10)} />
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.1rem' }}>
@@ -8844,9 +8970,9 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
                           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Fecha del cobro *</label>
-                              <input type="date" value={f.fecha ?? ''}
+                              <FechaInput value={f.fecha ?? ''}
                                 onChange={e => setFormsPart(prev => ({ ...prev, [p.ingresoId]: { ...prev[p.ingresoId], fecha: e.target.value } }))}
-                                style={{ padding: '10px 12px', border: '1.5px solid #e0e0dc', borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black }} />
+                                style={{ padding: '10px 12px', borderRadius: 9, fontSize: 14 }} />
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Monto cobrado *</label>
@@ -8895,9 +9021,9 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Fecha del cobro *</label>
-                <input type="date" value={formCobroOs.fecha}
+                <FechaInput value={formCobroOs.fecha}
                   onChange={e => setFormCobroOs(f => ({ ...f, fecha: e.target.value }))}
-                  style={{ padding: '10px 12px', border: `1.5px solid ${T.gray1}`, borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box', height: 40 }} />
+                  style={{ padding: '10px 12px', borderRadius: 9, fontSize: 14, height: 40 }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Monto recibido *</label>
@@ -9469,8 +9595,8 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Fecha *</label>
-                <input type="date" value={formEgreso.fecha} onChange={e => setFormEgreso(f => ({ ...f, fecha: e.target.value }))}
-                       style={{ fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '8px 12px', outline: 'none', color: T.black }} />
+                <FechaInput value={formEgreso.fecha} onChange={e => setFormEgreso(f => ({ ...f, fecha: e.target.value }))}
+                       style={{ fontSize: 13, borderRadius: 8, padding: '8px 12px' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Monto *</label>
@@ -9828,8 +9954,8 @@ function VistaNuevoCobroOs({ apiFetch, obrasSociales, consultorios, mediosPago, 
                 <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'minmax(140px, 1fr) minmax(140px, 1fr) minmax(160px, 1fr) minmax(180px, 1.4fr)', gap: 10 }}>
                   <div>
                     <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Fecha *</label>
-                    <input type="date" value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
-                      style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: T.black, boxSizing: 'border-box' }} />
+                    <FechaInput value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))}
+                      style={{ marginTop: 7, fontSize: 15, borderRadius: 10, padding: '13px 16px' }} />
                   </div>
                   <div>
                     <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Monto *</label>
