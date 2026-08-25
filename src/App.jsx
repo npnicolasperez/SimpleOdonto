@@ -858,6 +858,133 @@ function FechaInput({ value, onChange, name, min = '1900-01-01', max = '2100-12-
   )
 }
 
+/**
+ * Input de monto en pesos con auto-formato AR (dots = miles, coma = decimal).
+ *
+ * Existe para evitar el bug clásico de `<input type="number">` donde el usuario tipea "50.000"
+ * pensando "cincuenta mil" pero JavaScript lo interpreta como Number("50.000") = 50, guardando
+ * silenciosamente $50 en lugar de $50.000.
+ *
+ * Solución: al usuario le es IMPOSIBLE tipear el punto — solo puede tipear dígitos y coma. Los
+ * puntos aparecen automáticamente como separador de miles al display. El componente emite el
+ * valor en formato canónico JS (dot como decimal, sin thousand seps), así `Number(form.monto)`
+ * en el submit sigue funcionando sin tocar nada del backend.
+ *
+ * Paste: si pegan "50.000,50" (AR) o "50,000.50" (US) detectamos que el último separador es el
+ * decimal — los anteriores son thousand seps y se strippean. Cubre el 99% de los formatos que
+ * la gente copia de un WhatsApp/mail.
+ *
+ * API compatible con `<Input type="number">`: recibe `value` y emite
+ * `onChange({ target: { name, value } })`.
+ */
+function MontoInput({ value, onChange, name, style: extraStyle, placeholder = '0', ...rest }) {
+  const canonicalToDisplay = (v) => {
+    if (v === '' || v == null) return ''
+    const s = String(v)
+    const [intPart, decPart] = s.split('.')
+    const withThousandSep = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    return decPart != null ? `${withThousandSep},${decPart}` : withThousandSep
+  }
+
+  // Paste inteligente: normaliza cualquier formato razonable a display AR "50.000,50"
+  const normalizarPaste = (raw) => {
+    const soloValidos = raw.replace(/[^\d.,]/g, '')
+    if (!soloValidos) return ''
+    const lastDot   = soloValidos.lastIndexOf('.')
+    const lastComma = soloValidos.lastIndexOf(',')
+    let decimalSep, thousandSep
+    if (lastDot === -1 && lastComma === -1) return soloValidos
+    if (lastDot === -1)   { decimalSep = ','; thousandSep = '.' }
+    else if (lastComma === -1) {
+      // Solo dots: ambiguo. Si hay UN solo dot con 1-2 dígitos después → interpretación US decimal.
+      // Sino → interpretación AR thousand seps (que es la que evita el bug).
+      const parts = soloValidos.split('.')
+      if (parts.length === 2 && (parts[1].length === 1 || parts[1].length === 2)) {
+        decimalSep = '.'; thousandSep = ','
+      } else {
+        decimalSep = ','; thousandSep = '.'
+      }
+    }
+    else if (lastDot > lastComma) { decimalSep = '.'; thousandSep = ',' }
+    else                          { decimalSep = ','; thousandSep = '.' }
+    // Devuelve en formato display AR: strippea thousand seps, convierte decimal a coma
+    const sinThousands = soloValidos.split(thousandSep).join('')
+    return sinThousands.replace(decimalSep, ',')
+  }
+
+  const [foc, setFoc]      = useState(false)
+  const [texto, setTexto]  = useState(() => canonicalToDisplay(value))
+  const lastEmittedRef     = useRef(String(value ?? ''))
+
+  useEffect(() => {
+    const s = String(value ?? '')
+    if (s === lastEmittedRef.current) return
+    lastEmittedRef.current = s
+    setTexto(canonicalToDisplay(s))
+  }, [value])
+
+  const procesarInput = (raw) => {
+    // Solo dígitos y coma. El punto se ignora — solo aparece como thousand sep del display.
+    let cleaned = raw.replace(/[^\d,]/g, '')
+    // Solo permitir UNA coma (segunda y siguientes se strippean)
+    const firstComma = cleaned.indexOf(',')
+    if (firstComma !== -1) {
+      cleaned = cleaned.slice(0, firstComma + 1) + cleaned.slice(firstComma + 1).replace(/,/g, '')
+    }
+    const [intRaw, decRaw] = cleaned.split(',')
+    // Strip leading zeros (excepto el único "0")
+    const intClean = intRaw.replace(/^0+(\d)/, '$1')
+    const decClean = decRaw != null ? decRaw.slice(0, 2) : null   // max 2 decimales
+    // Si solo tipearon coma o ",5", asumimos 0 como parte entera
+    const parteEntera = (intClean === '' && decClean != null) ? '0' : intClean
+
+    const withThousandSep = parteEntera.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    const display   = decClean != null ? `${withThousandSep},${decClean}` : withThousandSep
+    const canonical = decClean != null ? `${parteEntera}.${decClean}` : parteEntera
+
+    setTexto(display)
+    lastEmittedRef.current = canonical
+    onChange?.({ target: { name, value: canonical } })
+  }
+
+  const onChangeInput = (e) => procesarInput(e.target.value)
+
+  const onPaste = (e) => {
+    e.preventDefault()
+    const pegado = e.clipboardData?.getData('text') ?? ''
+    procesarInput(normalizarPaste(pegado))
+  }
+
+  const borderColor = foc ? T.black : '#e0e0dc'
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#888', fontSize: 14, pointerEvents: 'none', fontFamily: T.font, userSelect: 'none' }}>$</span>
+      <input
+        {...rest}
+        type="text"
+        inputMode="decimal"
+        value={texto}
+        onChange={onChangeInput}
+        onPaste={onPaste}
+        onFocus={() => setFoc(true)}
+        onBlur={() => setFoc(false)}
+        placeholder={placeholder}
+        style={{
+          width: '100%', padding: '13px 16px',
+          background: T.white, outline: 'none',
+          fontSize: 15, fontFamily: T.font, color: T.black,
+          borderRadius: 10, boxSizing: 'border-box',
+          transition: 'border-color 0.15s',
+          ...extraStyle,
+          border: `1px solid ${borderColor}`,
+          paddingLeft: 28,
+        }}
+      />
+    </div>
+  )
+}
+
 function FieldLabel({ children }) {
   return (
     <label style={{ fontSize: 9, fontFamily: T.mono, fontWeight: 400, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999', display: 'block', marginBottom: 7 }}>
@@ -4808,11 +4935,7 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : (mostrarMedioPago ? '1fr 1fr' : 'minmax(140px,280px)'), gap: '1.25rem', marginBottom: '1.25rem' }}>
                     <div>
                       <label style={fLbl}>Monto <span style={{ color: '#d97742' }}>*</span></label>
-                      <div style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.gray5, fontSize: 15, pointerEvents: 'none', fontFamily: T.font }}>$</span>
-                        <Input type="number" min="0" step="0.01" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="0"
-                          style={{ paddingLeft: 28 }} />
-                      </div>
+                      <MontoInput value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} />
                     </div>
                     {mostrarMedioPago && (
                       <div>
@@ -4856,10 +4979,8 @@ function VistaNuevaConsulta({ apiFetch, pacienteId, onVolver, usuario, consulta 
                 </div>
                 <div style={{ marginBottom: '1.25rem' }}>
                   <label style={fLbl}>Coseguro (opcional)</label>
-                  <div style={{ position: 'relative', maxWidth: 280 }}>
-                    <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: T.gray5, fontSize: 15, pointerEvents: 'none', fontFamily: T.font }}>$</span>
-                    <Input type="number" min="0" step="0.01" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} placeholder="0"
-                      style={{ paddingLeft: 28 }} />
+                  <div style={{ maxWidth: 280 }}>
+                    <MontoInput value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))} />
                   </div>
                 </div>
                 {coseguroConMonto && (
@@ -8976,12 +9097,9 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Monto cobrado *</label>
-                              <div style={{ position: 'relative' }}>
-                                <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#aaa', pointerEvents: 'none' }}>$</span>
-                                <input type="number" value={f.monto ?? ''}
-                                  onChange={e => setFormsPart(prev => ({ ...prev, [p.ingresoId]: { ...prev[p.ingresoId], monto: e.target.value } }))}
-                                  style={{ width: '100%', padding: '10px 12px 10px 24px', border: '1.5px solid #e0e0dc', borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box' }} />
-                              </div>
+                              <MontoInput value={f.monto ?? ''}
+                                onChange={e => setFormsPart(prev => ({ ...prev, [p.ingresoId]: { ...prev[p.ingresoId], monto: e.target.value } }))}
+                                style={{ padding: '10px 12px', borderRadius: 9, fontSize: 14 }} />
                               {p.monto != null && <span style={{ fontFamily: T.font, fontSize: 11, color: '#aaa' }}>Pre-cargado con <strong style={{ color: '#d97742' }}>{fmtPesos(p.monto)}</strong> · podés modificarlo</span>}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -9027,12 +9145,9 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Monto recibido *</label>
-                <div style={{ position: 'relative' }}>
-                  <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#aaa', pointerEvents: 'none', fontSize: 14 }}>$</span>
-                  <input type="number" value={formCobroOs.monto}
-                    onChange={e => setFormCobroOs(f => ({ ...f, monto: e.target.value }))}
-                    style={{ width: '100%', padding: '10px 12px 10px 24px', border: `1.5px solid ${T.gray1}`, borderRadius: 9, fontFamily: T.font, fontSize: 14, background: T.white, outline: 'none', color: T.black, boxSizing: 'border-box', height: 40 }} />
-                </div>
+                <MontoInput value={formCobroOs.monto}
+                  onChange={e => setFormCobroOs(f => ({ ...f, monto: e.target.value }))}
+                  style={{ padding: '10px 12px', borderRadius: 9, fontSize: 14, height: 40 }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                 <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Medio de pago *</label>
@@ -9548,9 +9663,8 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Monto *</label>
-              <input type="number" value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
-                     placeholder="0"
-                     style={{ fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '8px 12px', outline: 'none', color: T.black }} />
+              <MontoInput value={form.monto} onChange={e => setForm(f => ({ ...f, monto: e.target.value }))}
+                     style={{ fontSize: 13, borderRadius: 8, padding: '8px 12px' }} />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -9600,9 +9714,8 @@ function VistaFinanzas({ apiFetch, onIrAConsulta, mesInicial, subVistaInicial, o
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: T.gray4 }}>Monto *</label>
-                <input type="number" value={formEgreso.monto} onChange={e => setFormEgreso(f => ({ ...f, monto: e.target.value }))}
-                       placeholder="0"
-                       style={{ fontFamily: T.font, fontSize: 13, border: `1px solid ${T.gray1}`, borderRadius: 8, padding: '8px 12px', outline: 'none', color: T.black }} />
+                <MontoInput value={formEgreso.monto} onChange={e => setFormEgreso(f => ({ ...f, monto: e.target.value }))}
+                       style={{ fontSize: 13, borderRadius: 8, padding: '8px 12px' }} />
               </div>
             </div>
 
@@ -9959,10 +10072,9 @@ function VistaNuevoCobroOs({ apiFetch, obrasSociales, consultorios, mediosPago, 
                   </div>
                   <div>
                     <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Monto *</label>
-                    <input type="number" min="0" step="0.01" value={form.montoRecibido}
+                    <MontoInput value={form.montoRecibido}
                       onChange={e => setForm(f => ({ ...f, montoRecibido: e.target.value }))}
-                      placeholder="0"
-                      style={{ width: '100%', marginTop: 7, fontFamily: T.font, fontSize: 15, border: '1px solid #e0e0dc', borderRadius: 10, padding: '13px 16px', outline: 'none', color: T.black, boxSizing: 'border-box' }} />
+                      style={{ marginTop: 7, fontSize: 15, borderRadius: 10, padding: '13px 16px' }} />
                   </div>
                   <div>
                     <label style={{ fontFamily: T.mono, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#999' }}>Medio *</label>
