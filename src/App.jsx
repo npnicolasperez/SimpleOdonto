@@ -458,6 +458,8 @@ export function MainLayout({ token, usuario, onLogout, apiFetch: apiFetchProp, d
   const [ajustesTabInicial,      setAjustesTabInicial]      = useState(null) // 'medios-pago' | 'obras-sociales' | 'consultorios' | null
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { openAlert, dialog: alertDialog } = useAlert()
+  const [reporteEnviando, setReporteEnviando] = useState(false)
 
   // Auto-cerrar el drawer al pasar a desktop o al navegar
   useEffect(() => { if (!isMobile) setSidebarOpen(false) }, [isMobile])
@@ -475,6 +477,25 @@ export function MainLayout({ token, usuario, onLogout, apiFetch: apiFetchProp, d
   function navegar(key) {
     if (key === 'turnos') setTurnosFechaInicial(null)
     setVista(key)
+  }
+
+  async function handleGenerarReporte() {
+    if (reporteEnviando) return
+    setReporteEnviando(true)
+    try {
+      const res = await apiFetch('/admin/metrics/enviar', { method: 'POST' })
+      if (!res) return
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        openAlert(data.message || 'Reporte enviado a los admins configurados.', { title: '✓ Reporte disparado' })
+      } else {
+        openAlert(data.message || data.error || `Error ${res.status}`, { title: 'No se pudo enviar' })
+      }
+    } catch {
+      openAlert('No se pudo conectar con el servidor.', { title: 'Error' })
+    } finally {
+      setReporteEnviando(false)
+    }
   }
 
   const apiFetchReal = useCallback(async (path, opts = {}) => {
@@ -576,7 +597,12 @@ export function MainLayout({ token, usuario, onLogout, apiFetch: apiFetchProp, d
               ))
             })()}
           </nav>
-          <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.gray7}` }}>
+          <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.gray7}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {usuario?.esAdmin && !demoMode && (
+              <Btn variant="outline" size="sm" fullWidth onClick={handleGenerarReporte} disabled={reporteEnviando}>
+                {reporteEnviando ? 'Enviando…' : '📊 Generar reporte'}
+              </Btn>
+            )}
             <Btn variant="outline" size="sm" fullWidth onClick={onLogout}>Cerrar sesión</Btn>
           </div>
         </aside>
@@ -595,6 +621,7 @@ export function MainLayout({ token, usuario, onLogout, apiFetch: apiFetchProp, d
       {/* Firma sigue deshabilitada globalmente (chip "Próximamente" en la card de consulta),
           y además nunca se monta en demo (no tiene sentido polear firmas pendientes ahí). */}
       {!demoMode && <FirmaPendienteOverlay apiFetch={apiFetch} />}
+      {alertDialog}
     </div>
   )
 }
