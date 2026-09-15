@@ -5975,6 +5975,16 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   // el banner de instrucciones SOLO cuando el user eligió la herramienta — no en auto-switches
   // internos (ej. calibrar → longitud al terminar).
   const [herramientaUserSelected, setHerramientaUserSelected] = useState(null)
+  // Toggle para mostrar/ocultar el banner de indicaciones sobre el canvas. Default ON — cuando
+  // el user ya sabe usar la herramienta lo puede apagar y la preferencia se persiste en localStorage.
+  const [mostrarIndicaciones, setMostrarIndicacionesRaw] = useState(() => {
+    try { const v = localStorage.getItem('estudios-mostrar-indicaciones'); return v === null ? true : v === 'true' }
+    catch { return true }
+  })
+  const setMostrarIndicaciones = (v) => {
+    setMostrarIndicacionesRaw(v)
+    try { localStorage.setItem('estudios-mostrar-indicaciones', String(v)) } catch {}
+  }
   const [trazos,       setTrazos]       = useState([])
   const [primerPunto,   setPrimerPunto]   = useState(null)
 
@@ -6807,6 +6817,34 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
             ✕ Limpiar
           </SideToolBtn>
 
+          {/* ── Preferencias ── */}
+          <SideSection label="Preferencias" top />
+          <div style={{ padding: '4px 14px 12px' }}>
+            <button
+              type="button"
+              onClick={() => setMostrarIndicaciones(!mostrarIndicaciones)}
+              title={mostrarIndicaciones ? 'Ocultar el banner de indicaciones' : 'Mostrar el banner de indicaciones'}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: T.gray4, fontFamily: T.font, fontSize: 11, textAlign: 'left' }}
+            >
+              <span style={{
+                position: 'relative', flexShrink: 0,
+                width: 28, height: 16, borderRadius: 100,
+                background: mostrarIndicaciones ? T.black : T.gray1,
+                transition: 'background 0.15s',
+              }}>
+                <span style={{
+                  position: 'absolute', top: 2, left: mostrarIndicaciones ? 14 : 2,
+                  width: 12, height: 12, borderRadius: '50%', background: T.white,
+                  transition: 'left 0.15s',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+                }} />
+              </span>
+              <span style={{ color: mostrarIndicaciones ? T.black : T.gray4, fontWeight: 500, lineHeight: 1.3 }}>
+                Mostrar indicaciones
+              </span>
+            </button>
+          </div>
+
         </div>
 
         {/* Card imagen / canvas — wrapper externo para overlays no-scrolleables */}
@@ -6814,7 +6852,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
           {/* Banner contextual de instrucción — fijo en la parte superior del canvas, fuera del
               scroll del contenido. Solo aparece si el user seleccionó manualmente la herramienta
               (no en auto-switches internos como calibrar → longitud). */}
-          {stepInfo && herramientaUserSelected === herramienta && (
+          {mostrarIndicaciones && stepInfo && herramientaUserSelected === herramienta && (
             <div style={{
               position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
