@@ -6220,10 +6220,19 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   const redibujar = useCallback(() => {
     const canvas = canvasRef.current; if (!canvas) return
     const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height)
+    // El canvas se escala con CSS al hacer zoom (el buffer interno mantiene resolución fija —
+    // ver comentario en el ResizeObserver más abajo). Eso significa que cualquier grosor/radio
+    // dibujado en unidades del buffer se ve amplificado ×zoom en pantalla: a zoom 300%, una línea
+    // de 1px se ve como 3px. Compensamos dividiendo por el zoom actual, así el grosor/radio FINAL
+    // en pantalla se mantiene constante sin importar cuánto zoom esté aplicado — que es lo que el
+    // usuario espera al elegir "1x" (el mínimo) y es clave para precisión en mediciones/calibrado.
+    const z  = zoom || 1
+    const lw = (px) => px / z   // grosor de línea compensado
+    const pr = (px) => px / z   // radio de punto/handle compensado
     let nLong = 0
     for (const [i, t] of trazos.entries()) {
       if (t.tipo === 'punto') {
-        ctx.fillStyle = t.color ?? COLOR_PUNTO; ctx.beginPath(); ctx.arc(t.x, t.y, RADIOS_PUNTO[t.grosor ?? 1], 0, Math.PI * 2); ctx.fill()
+        ctx.fillStyle = t.color ?? COLOR_PUNTO; ctx.beginPath(); ctx.arc(t.x, t.y, pr(RADIOS_PUNTO[t.grosor ?? 1]), 0, Math.PI * 2); ctx.fill()
       } else if (t.tipo === 'linea') {
         const mL = herramienta === 'angulo-lineas' || herramienta === 'longitud'
         const eS = herramienta === 'angulo-lineas' && lineasSel.some(s => s.idx === i)
@@ -6231,25 +6240,25 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         const cL = t.color ?? COLOR_LINEA
         ctx.strokeStyle = (eS || eH) ? COLOR_ANGULO : cL; ctx.fillStyle = (eS || eH) ? COLOR_ANGULO : cL
         const gL = GROSORES_LINEA[t.grosor ?? 1]
-        ctx.lineWidth = eS ? gL * 1.8 : eH ? gL * 1.4 : gL; ctx.globalAlpha = eH ? 0.65 : 1
+        ctx.lineWidth = lw(eS ? gL * 1.8 : eH ? gL * 1.4 : gL); ctx.globalAlpha = eH ? 0.65 : 1
         ctx.beginPath(); ctx.moveTo(t.x1, t.y1); ctx.lineTo(t.x2, t.y2); ctx.stroke()
-        ctx.beginPath(); ctx.arc(t.x1, t.y1, 3, 0, Math.PI * 2); ctx.fill()
-        ctx.beginPath(); ctx.arc(t.x2, t.y2, 3, 0, Math.PI * 2); ctx.fill()
-        ctx.globalAlpha = 1; ctx.lineWidth = gL
+        ctx.beginPath(); ctx.arc(t.x1, t.y1, pr(3), 0, Math.PI * 2); ctx.fill()
+        ctx.beginPath(); ctx.arc(t.x2, t.y2, pr(3), 0, Math.PI * 2); ctx.fill()
+        ctx.globalAlpha = 1; ctx.lineWidth = lw(gL)
       } else if (t.tipo === 'angulo') {
-        ctx.strokeStyle = COLOR_ANGULO; ctx.fillStyle = COLOR_ANGULO; ctx.lineWidth = 2
+        ctx.strokeStyle = COLOR_ANGULO; ctx.fillStyle = COLOR_ANGULO; ctx.lineWidth = lw(2)
         ctx.beginPath(); ctx.moveTo(t.vx, t.vy); ctx.lineTo(t.ax1, t.ay1); ctx.stroke()
         ctx.beginPath(); ctx.moveTo(t.vx, t.vy); ctx.lineTo(t.ax2, t.ay2); ctx.stroke()
-        ctx.beginPath(); ctx.arc(t.vx, t.vy, 4, 0, Math.PI * 2); ctx.fill()
+        ctx.beginPath(); ctx.arc(t.vx, t.vy, pr(4), 0, Math.PI * 2); ctx.fill()
         const { midA, r } = dibujarArco(ctx, t.vx, t.vy, t.ax1, t.ay1, t.ax2, t.ay2)
         dibujarEtiqueta(ctx, `${t.grados.toFixed(1)}°`, t.vx + (r + 35) * Math.cos(midA) - 14, t.vy + (r + 35) * Math.sin(midA) + 5)
       } else if (t.tipo === 'angulo-lineas') {
-        ctx.strokeStyle = COLOR_ANGULO; ctx.fillStyle = COLOR_ANGULO; ctx.lineWidth = 2
+        ctx.strokeStyle = COLOR_ANGULO; ctx.fillStyle = COLOR_ANGULO; ctx.lineWidth = lw(2)
         const fa1 = anguloHaciaLinea(t.ix, t.iy, t.a1, t.mid1x, t.mid1y)
         const fa2 = anguloHaciaLinea(t.ix, t.iy, t.a2, t.mid2x, t.mid2y)
         const arm1x = t.ix + 50 * Math.cos(fa1), arm1y = t.iy + 50 * Math.sin(fa1)
         const arm2x = t.ix + 50 * Math.cos(fa2), arm2y = t.iy + 50 * Math.sin(fa2)
-        ctx.beginPath(); ctx.arc(t.ix, t.iy, 4, 0, Math.PI * 2); ctx.fill()
+        ctx.beginPath(); ctx.arc(t.ix, t.iy, pr(4), 0, Math.PI * 2); ctx.fill()
         const { midA, r } = dibujarArco(ctx, t.ix, t.iy, arm1x, arm1y, arm2x, arm2y)
         dibujarEtiqueta(ctx, `${t.grados.toFixed(1)}°`, t.ix + (r + 35) * Math.cos(midA) - 14, t.iy + (r + 35) * Math.sin(midA) + 5)
       } else if (t.tipo === 'longitud') {
@@ -6257,56 +6266,56 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         const dx = t.x2 - t.x1, dy = t.y2 - t.y1, len = Math.hypot(dx, dy)
         if (len === 0) continue
         const nx = -dy / len, ny = dx / len
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = lw(2)
         const drawTick = (x, y) => { ctx.beginPath(); ctx.moveTo(x + nx * 7, y + ny * 7); ctx.lineTo(x - nx * 7, y - ny * 7); ctx.stroke() }
-        drawTick(t.x1, t.y1); drawTick(t.x2, t.y2); ctx.lineWidth = 2
+        drawTick(t.x1, t.y1); drawTick(t.x2, t.y2); ctx.lineWidth = lw(2)
         const label = `L${nLong}: ${t.mm.toFixed(1)} mm`
         const mx = (t.x1 + t.x2) / 2 + nx * 22, my = (t.y1 + t.y2) / 2 + ny * 22
         dibujarEtiqueta(ctx, label, mx - label.length * 4, my + 5)
       } else if (t.tipo === 'circulo') {
-        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.fillStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = GROSORES_LINEA[t.grosor ?? 1]; ctx.globalAlpha = 1
+        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.fillStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = lw(GROSORES_LINEA[t.grosor ?? 1]); ctx.globalAlpha = 1
         ctx.beginPath(); ctx.arc(t.cx, t.cy, t.r, 0, Math.PI * 2); ctx.stroke()
-        ctx.beginPath(); ctx.arc(t.cx, t.cy, 3, 0, Math.PI * 2); ctx.fill()
+        ctx.beginPath(); ctx.arc(t.cx, t.cy, pr(3), 0, Math.PI * 2); ctx.fill()
       } else if (t.tipo === 'cuadrado') {
-        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = GROSORES_LINEA[t.grosor ?? 1]; ctx.globalAlpha = 1
+        ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = lw(GROSORES_LINEA[t.grosor ?? 1]); ctx.globalAlpha = 1
         ctx.strokeRect(t.x1, t.y1, t.x2 - t.x1, t.y2 - t.y1)
       }
     }
     if (herramienta === 'linea' && primerPunto) {
-      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = GROSORES_LINEA[grosor]
-      ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, RADIOS_PUNTO[1], 0, Math.PI * 2); ctx.fill()
-      if (mouse) { ctx.beginPath(); ctx.moveTo(primerPunto.x, primerPunto.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, Math.PI * 2); ctx.fill() }
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw(GROSORES_LINEA[grosor])
+      ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, pr(RADIOS_PUNTO[1]), 0, Math.PI * 2); ctx.fill()
+      if (mouse) { ctx.beginPath(); ctx.moveTo(primerPunto.x, primerPunto.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); ctx.beginPath(); ctx.arc(mouse.x, mouse.y, pr(3), 0, Math.PI * 2); ctx.fill() }
     }
     if (herramienta === 'calibrar' && primerPunto) {
       const CAL = '#f59e0b'
-      ctx.strokeStyle = CAL; ctx.fillStyle = CAL; ctx.lineWidth = 2
+      ctx.strokeStyle = CAL; ctx.fillStyle = CAL; ctx.lineWidth = lw(2)
       ctx.setLineDash([5, 4])
-      ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, RADIOS_PUNTO[1], 0, Math.PI * 2); ctx.fill()
-      if (mouse) { ctx.beginPath(); ctx.moveTo(primerPunto.x, primerPunto.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); ctx.beginPath(); ctx.arc(mouse.x, mouse.y, 3, 0, Math.PI * 2); ctx.fill() }
+      ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, pr(RADIOS_PUNTO[1]), 0, Math.PI * 2); ctx.fill()
+      if (mouse) { ctx.beginPath(); ctx.moveTo(primerPunto.x, primerPunto.y); ctx.lineTo(mouse.x, mouse.y); ctx.stroke(); ctx.beginPath(); ctx.arc(mouse.x, mouse.y, pr(3), 0, Math.PI * 2); ctx.fill() }
       ctx.setLineDash([])
     }
     if (herramienta === 'circulo' && primerPunto && mouse) {
       const r = Math.hypot(mouse.x - primerPunto.x, mouse.y - primerPunto.y)
-      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = GROSORES_LINEA[grosor]
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw(GROSORES_LINEA[grosor])
       ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, r, 0, Math.PI * 2); ctx.stroke()
-      ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, 3, 0, Math.PI * 2); ctx.fill()
+      ctx.beginPath(); ctx.arc(primerPunto.x, primerPunto.y, pr(3), 0, Math.PI * 2); ctx.fill()
     }
     if (herramienta === 'cuadrado' && primerPunto && mouse) {
-      ctx.strokeStyle = color; ctx.lineWidth = GROSORES_LINEA[grosor]
+      ctx.strokeStyle = color; ctx.lineWidth = lw(GROSORES_LINEA[grosor])
       ctx.strokeRect(primerPunto.x, primerPunto.y, mouse.x - primerPunto.x, mouse.y - primerPunto.y)
     }
     if (herramienta === 'borrar' && borrarHover !== -1 && trazos[borrarHover]) {
       const t = trazos[borrarHover]
       ctx.save(); ctx.strokeStyle = 'rgba(239,68,68,0.85)'; ctx.fillStyle = 'rgba(239,68,68,0.85)'; ctx.lineCap = 'round'
-      if (t.tipo === 'punto') { ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(t.x, t.y, (RADIOS_PUNTO[t.grosor ?? 1] ?? 2) + 5, 0, Math.PI * 2); ctx.stroke() }
-      else if (t.tipo === 'linea' || t.tipo === 'longitud') { ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(t.x1, t.y1); ctx.lineTo(t.x2, t.y2); ctx.stroke() }
-      else if (t.tipo === 'angulo') { ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(t.vx, t.vy, 12, 0, Math.PI * 2); ctx.stroke() }
-      else if (t.tipo === 'angulo-lineas') { ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(t.ix, t.iy, 12, 0, Math.PI * 2); ctx.stroke() }
-      else if (t.tipo === 'circulo') { ctx.lineWidth = 8; ctx.beginPath(); ctx.arc(t.cx, t.cy, t.r, 0, Math.PI * 2); ctx.stroke() }
-      else if (t.tipo === 'cuadrado') { ctx.lineWidth = 6; ctx.strokeRect(Math.min(t.x1, t.x2), Math.min(t.y1, t.y2), Math.abs(t.x2 - t.x1), Math.abs(t.y2 - t.y1)) }
+      if (t.tipo === 'punto') { ctx.lineWidth = lw(3); ctx.beginPath(); ctx.arc(t.x, t.y, pr((RADIOS_PUNTO[t.grosor ?? 1] ?? 2) + 5), 0, Math.PI * 2); ctx.stroke() }
+      else if (t.tipo === 'linea' || t.tipo === 'longitud') { ctx.lineWidth = lw(7); ctx.beginPath(); ctx.moveTo(t.x1, t.y1); ctx.lineTo(t.x2, t.y2); ctx.stroke() }
+      else if (t.tipo === 'angulo') { ctx.lineWidth = lw(3); ctx.beginPath(); ctx.arc(t.vx, t.vy, pr(12), 0, Math.PI * 2); ctx.stroke() }
+      else if (t.tipo === 'angulo-lineas') { ctx.lineWidth = lw(3); ctx.beginPath(); ctx.arc(t.ix, t.iy, pr(12), 0, Math.PI * 2); ctx.stroke() }
+      else if (t.tipo === 'circulo') { ctx.lineWidth = lw(8); ctx.beginPath(); ctx.arc(t.cx, t.cy, t.r, 0, Math.PI * 2); ctx.stroke() }
+      else if (t.tipo === 'cuadrado') { ctx.lineWidth = lw(6); ctx.strokeRect(Math.min(t.x1, t.x2), Math.min(t.y1, t.y2), Math.abs(t.x2 - t.x1), Math.abs(t.y2 - t.y1)) }
       ctx.restore()
     }
-  }, [trazos, primerPunto, mouse, herramienta, lineasSel, lineaHover, borrarHover, color])
+  }, [trazos, primerPunto, mouse, herramienta, lineasSel, lineaHover, borrarHover, color, zoom])
 
   useEffect(() => { redibujar() }, [redibujar])
   useEffect(() => {
