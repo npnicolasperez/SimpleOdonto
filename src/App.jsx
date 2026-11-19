@@ -61,8 +61,14 @@ const HERRAMIENTAS_MEDIR = [
   { key: 'calibrar',      label: 'Calibrar',       Ico: IcoCalibracion  },
 ]
 
-const RADIOS_PUNTO    = { 1: 2, 2: 4, 3: 7 }
-const GROSORES_LINEA  = { 1: 1.5, 2: 3, 3: 5 }
+// Los índices 1/2/3 son el valor persistido en cada trazo (DB) — se mantienen fijos aunque la
+// etiqueta visual haya cambiado de "1×/2×/3×" a "0.5×/1×/2×", para no romper estudios ya
+// guardados. El índice 2 (antes "1×", el grosor normal) sigue mapeando al mismo valor real de
+// siempre; el 1 es la mitad (nueva opción fina) y el 3 es el doble (antes correspondía a "2×").
+const RADIOS_PUNTO    = { 1: 1,   2: 2,   3: 4 }
+const GROSORES_LINEA  = { 1: 0.75, 2: 1.5, 3: 3 }
+// Etiqueta visual mostrada en el selector de grosor, por índice interno.
+const GROSOR_LABELS   = { 1: '0.5×', 2: '1×', 3: '2×' }
 const COLOR_PUNTO    = '#ff3333'
 const COLOR_LINEA    = '#2563eb'
 const COLOR_ANGULO   = '#ffffff'
@@ -303,19 +309,53 @@ function trazoCercanoParaBorrar(x, y, trazos) {
   return -1
 }
 
-function dibujarEtiqueta(ctx, texto, x, y) {
+function dibujarEtiqueta(ctx, texto, x, y, opts) {
   // Pill oscura semi-opaca con borde fino blanco → cada etiqueta es legible aunque se superponga
   // con otra (cada una mantiene su propio fondo). Mejor que un simple outline que se mezcla al
   // solaparse.
+  //
+  // opts (opcional) evita que dos etiquetas queden encimadas (p.ej. dos ángulos medidos cerca):
+  //   ocupadas → rects de las etiquetas ya dibujadas en este frame (se agrega la nueva)
+  //   dir      → dirección preferida para alejarla si choca (unitaria; default hacia abajo)
+  //   ancla    → punto al que pertenece (vértice); si la etiqueta se desplaza, se une con una línea
   const fontSize = 12
   ctx.font = `bold ${fontSize}px Inter, sans-serif`
   const m = ctx.measureText(texto)
   const padX = 6, padY = 3
   const bw = m.width + padX * 2
   const bh = fontSize + padY * 2
-  const bx = x - padX
-  const by = y - fontSize - padY + 2
+  let bx = x - padX
+  let by = y - fontSize - padY + 2
   const r = 5
+
+  if (opts?.ocupadas) {
+    const { ocupadas, dir = { x: 0, y: 1 }, ancla } = opts
+    const choca = (cx, cy) => ocupadas.some(o =>
+      cx < o.x + o.w + 4 && cx + bw + 4 > o.x && cy < o.y + o.h + 4 && cy + bh + 4 > o.y)
+    // Candidatos ordenados por cercanía: alejándose en la dirección preferida y, en cada paso,
+    // también corrida hacia un costado (perpendicular) por si la dirección preferida está tapada.
+    const paso = bh + 4
+    const px = -dir.y, py = dir.x
+    let mejor = null
+    for (let k = 0; k <= 8 && !mejor; k++) {
+      for (const s of [0, 1, -1]) {
+        const cx = bx + dir.x * k * paso + px * s * (bw * 0.6 + 4)
+        const cy = by + dir.y * k * paso + py * s * paso
+        if (!choca(cx, cy)) { mejor = { cx, cy, movida: k > 0 || s !== 0 }; break }
+      }
+    }
+    if (mejor) {
+      if (mejor.movida && ancla) {
+        ctx.save()
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.setLineDash([3, 3])
+        ctx.beginPath(); ctx.moveTo(ancla.x, ancla.y); ctx.lineTo(mejor.cx + bw / 2, mejor.cy + bh / 2); ctx.stroke()
+        ctx.restore()
+      }
+      x += mejor.cx - bx; y += mejor.cy - by
+      bx = mejor.cx; by = mejor.cy
+    }
+    ocupadas.push({ x: bx, y: by, w: bw, h: bh })
+  }
   const hasRoundRect = typeof ctx.roundRect === 'function'
 
   ctx.fillStyle = 'rgba(0,0,0,0.78)'
@@ -5992,7 +6032,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
   const [lineaHover,    setLineaHover]    = useState(-1)
   const [borrarHover,   setBorrarHover]   = useState(-1)
   const [escala,        setEscala]        = useState(1)
-  const [grosor,        setGrosor]        = useState(1)
+  const [grosor,        setGrosor]        = useState(2) // índice 2 = "1×", el grosor normal
   const [color,         setColor]         = useState('#ff3333')
   const [calibrado,     setCalibrado]     = useState(false)
   const [mouse,         setMouse]         = useState(null)
@@ -6230,6 +6270,7 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
     const lw = (px) => px / z   // grosor de línea compensado
     const pr = (px) => px / z   // radio de punto/handle compensado
     let nLong = 0
+    const etiquetas = []   // rects de etiquetas ya dibujadas → las siguientes se corren si chocan
     for (const [i, t] of trazos.entries()) {
       if (t.tipo === 'punto') {
         ctx.fillStyle = t.color ?? COLOR_PUNTO; ctx.beginPath(); ctx.arc(t.x, t.y, pr(RADIOS_PUNTO[t.grosor ?? 1]), 0, Math.PI * 2); ctx.fill()
@@ -6251,7 +6292,8 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         ctx.beginPath(); ctx.moveTo(t.vx, t.vy); ctx.lineTo(t.ax2, t.ay2); ctx.stroke()
         ctx.beginPath(); ctx.arc(t.vx, t.vy, pr(4), 0, Math.PI * 2); ctx.fill()
         const { midA, r } = dibujarArco(ctx, t.vx, t.vy, t.ax1, t.ay1, t.ax2, t.ay2)
-        dibujarEtiqueta(ctx, `${t.grados.toFixed(1)}°`, t.vx + (r + 35) * Math.cos(midA) - 14, t.vy + (r + 35) * Math.sin(midA) + 5)
+        dibujarEtiqueta(ctx, `${t.grados.toFixed(1)}°`, t.vx + (r + 35) * Math.cos(midA) - 14, t.vy + (r + 35) * Math.sin(midA) + 5,
+          { ocupadas: etiquetas, dir: { x: Math.cos(midA), y: Math.sin(midA) }, ancla: { x: t.vx, y: t.vy } })
       } else if (t.tipo === 'angulo-lineas') {
         ctx.strokeStyle = COLOR_ANGULO; ctx.fillStyle = COLOR_ANGULO; ctx.lineWidth = lw(2)
         const fa1 = anguloHaciaLinea(t.ix, t.iy, t.a1, t.mid1x, t.mid1y)
@@ -6260,7 +6302,8 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         const arm2x = t.ix + 50 * Math.cos(fa2), arm2y = t.iy + 50 * Math.sin(fa2)
         ctx.beginPath(); ctx.arc(t.ix, t.iy, pr(4), 0, Math.PI * 2); ctx.fill()
         const { midA, r } = dibujarArco(ctx, t.ix, t.iy, arm1x, arm1y, arm2x, arm2y)
-        dibujarEtiqueta(ctx, `${t.grados.toFixed(1)}°`, t.ix + (r + 35) * Math.cos(midA) - 14, t.iy + (r + 35) * Math.sin(midA) + 5)
+        dibujarEtiqueta(ctx, `${t.grados.toFixed(1)}°`, t.ix + (r + 35) * Math.cos(midA) - 14, t.iy + (r + 35) * Math.sin(midA) + 5,
+          { ocupadas: etiquetas, dir: { x: Math.cos(midA), y: Math.sin(midA) }, ancla: { x: t.ix, y: t.iy } })
       } else if (t.tipo === 'longitud') {
         nLong++
         const dx = t.x2 - t.x1, dy = t.y2 - t.y1, len = Math.hypot(dx, dy)
@@ -6271,7 +6314,8 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
         drawTick(t.x1, t.y1); drawTick(t.x2, t.y2); ctx.lineWidth = lw(2)
         const label = `L${nLong}: ${t.mm.toFixed(1)} mm`
         const mx = (t.x1 + t.x2) / 2 + nx * 22, my = (t.y1 + t.y2) / 2 + ny * 22
-        dibujarEtiqueta(ctx, label, mx - label.length * 4, my + 5)
+        dibujarEtiqueta(ctx, label, mx - label.length * 4, my + 5,
+          { ocupadas: etiquetas, dir: { x: nx, y: ny }, ancla: { x: (t.x1 + t.x2) / 2, y: (t.y1 + t.y2) / 2 } })
       } else if (t.tipo === 'circulo') {
         ctx.strokeStyle = t.color ?? COLOR_LINEA; ctx.fillStyle = t.color ?? COLOR_LINEA; ctx.lineWidth = lw(GROSORES_LINEA[t.grosor ?? 1]); ctx.globalAlpha = 1
         ctx.beginPath(); ctx.arc(t.cx, t.cy, t.r, 0, Math.PI * 2); ctx.stroke()
@@ -6768,8 +6812,8 @@ function VistaEstudios({ apiFetch, pacienteIdInicial = null, estudioIdInicial = 
                 <div style={{ display: 'flex', gap: 4 }}>
                   {[1, 2, 3].map(g => (
                     <button key={g} onClick={() => setGrosor(g)}
-                      style={{ width: 28, height: 22, fontSize: 9, fontFamily: T.font, fontWeight: 600, border: `1px solid ${grosor === g ? T.black : T.gray2}`, background: grosor === g ? T.black : T.white, color: grosor === g ? T.white : T.gray4, cursor: 'pointer', borderRadius: 2 }}>
-                      {g}×
+                      style={{ width: 34, height: 22, fontSize: 9, fontFamily: T.font, fontWeight: 600, border: `1px solid ${grosor === g ? T.black : T.gray2}`, background: grosor === g ? T.black : T.white, color: grosor === g ? T.white : T.gray4, cursor: 'pointer', borderRadius: 2 }}>
+                      {GROSOR_LABELS[g]}
                     </button>
                   ))}
                 </div>
